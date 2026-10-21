@@ -69,6 +69,59 @@ pnpm db:generate        # generate a migration from schema changes
 The integration tests rebuild `bokpoints_test` from the real migration files on every
 run, so they always test the schema a deployment would have.
 
+## API
+
+Versioned under `/v1` and documented at `/v1/docs` (Swagger UI) and `/v1/openapi.json`.
+The OpenAPI document is generated from the same Zod schemas that validate the
+requests, so it cannot drift away from the code.
+
+| Method | Path | What it does | FRD |
+| --- | --- | --- | --- |
+| `POST` | `/v1/stores/{storeId}/identify` | Resolve a scanned credential to a customer, first name and balance at that store | FR-STO-9, FR-API-1 |
+| `POST` | `/v1/stores/{storeId}/awards` | Award points for a purchase | FR-PTS-4, FR-API-1 |
+| `GET` | `/v1/stores/{storeId}/customers/{customerId}/balance` | The balance at that store | FR-API-1, AC-3 |
+| `GET` | `/v1/health`, `/v1/ping` | Liveness | — |
+
+Every call is authenticated, scoped to one store and permission-checked on the
+server (FR-API-2). A caller who is not a member of the store in the URL gets
+`403 STORE_MISMATCH`, before any capability is considered.
+
+### Calling it
+
+```bash
+pnpm dev                                        # start the API
+curl http://127.0.0.1:3000/v1/health
+
+curl -X POST http://127.0.0.1:3000/v1/stores/$STORE/identify \
+  -H "authorization: Bearer $TOKEN" \
+  -H "content-type: application/json" \
+  -d '{"credentialIdentifier":"cred_demo_123"}'
+
+curl -X POST http://127.0.0.1:3000/v1/stores/$STORE/awards \
+  -H "authorization: Bearer $TOKEN" \
+  -H "idempotency-key: any-unique-string" \
+  -H "content-type: application/json" \
+  -d '{"customerId":"'$CUSTOMER'","amountCents":2380}'
+```
+
+`Idempotency-Key` is required. A retry with the same key returns the original
+award and never awards twice.
+
+### Authentication
+
+The token is verified by a `SessionResolver` (`apps/api/src/auth/session.ts`).
+The Supabase resolver is build step 3. Until then there is a development
+resolver where the bearer token is a staff member's **email address**:
+
+```bash
+ALLOW_DEV_AUTH=true pnpm dev
+```
+
+It is off by default and refuses to start in production. The token never
+carries a role: the role is always read from the staff member's store
+membership, so a caller cannot promote themselves by sending a different
+token.
+
 ## Layout
 
 ```

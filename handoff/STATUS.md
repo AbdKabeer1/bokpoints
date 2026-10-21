@@ -21,9 +21,12 @@
 - **Ledger write path** in `apps/api/src/db/ledger.ts`: award with idempotency, manual
   adjustment, admin fraud clawback, balance read. All in single transactions, with the
   balance update guarded in SQL so concurrency cannot drive a balance negative.
-- **API skeleton**: Fastify with `GET /v1/health` and `GET /v1/ping`.
+- **API**: Fastify, versioned under `/v1`, with the three operations the Cashier screen
+  needs (identify, award, balance), a pluggable session resolver, and an OpenAPI
+  document generated from the same Zod schemas that validate the requests.
+  Every call is authenticated, scoped to one store and permission-checked on the server.
 
-**Tests: 42 unit, 18 integration, all passing.**
+**Tests: 42 unit, 33 integration, all passing.**
 
 ## In progress
 
@@ -32,17 +35,22 @@ Nothing. The last task is finished.
 ## Blocked
 
 - **Providers are not chosen.** Supabase, Stripe, the email provider and the hosting
-  providers are all still open (`docs/DECISIONS.md` D-059). Auth, billing and the
+  providers are all still open (`docs/DECISIONS.md` D-059). The award endpoint
+  authenticates through the `SessionResolver` interface, but the resolver that
+  actually verifies a Supabase token is not written yet, so the API runs on the
+  development resolver (off by default, never in production). Billing and the
   customer app cannot be built end to end until at least Supabase and Stripe are picked.
 - **The offline QR design is not final.** D-022 is still `Proposed`. It is the highest
   technical risk in the MVP and needs an architecture decision before it is built.
 
 ## Next
 
-In the order of `AGENT.md` section 13, starting at step 3:
+In the order of `AGENT.md` section 13:
 
-1. **Auth and roles**, admin store onboarding, store setup and staff (build step 3).
-   Needs Supabase, so this waits on the provider decision.
+1. **The Supabase session resolver.** Implement `SessionResolver` in
+   `apps/api/src/auth/session.ts` and the award endpoint authenticates for real.
+   Staff and admin accounts also need MFA (FR-AUTH-2). Needs Supabase.
+2. **The points expiry job.** See below.
 2. **Cashier screen, online flow only**, with the confirm step (build step 4).
    `apps/web` is a stub today.
 3. **Customer app**: sign-up, QR, per-store balances and history, expiry notices
@@ -56,7 +64,7 @@ In the order of `AGENT.md` section 13, starting at step 3:
 
 ### The next concrete task
 
-The points engine is done, so the natural next task is **the points expiry job**, which
+The award endpoint is done, so the natural next task is **the points expiry job**, which
 is pure MVP scope and needs no provider:
 
 - A daily job that finds `earn` entries whose `expires_at` has passed and whose

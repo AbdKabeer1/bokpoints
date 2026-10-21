@@ -53,6 +53,8 @@ export interface RecordEarnResult {
   points: number;
   awarded: boolean;
   reason?: PointsRejectionReason | undefined;
+  /** True when this request had already been awarded and was replayed. */
+  replayed: boolean;
 }
 
 export interface RecordAdjustInput {
@@ -124,7 +126,7 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
 
       const found = existing[0];
       if (found) {
-        return { entryId: found.id, points: found.points, awarded: true };
+        return { entryId: found.id, points: found.points, awarded: true, replayed: true };
       }
 
       const calculation = calculatePoints(input.amountCents, input.rule);
@@ -133,7 +135,13 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
       // cashier why. A zero-value purchase is the same: nothing is written
       // to the ledger and no customer-store link is created.
       if (!calculation.awarded) {
-        return { entryId: null, points: 0, awarded: false, reason: calculation.reason };
+        return {
+          entryId: null,
+          points: 0,
+          awarded: false,
+          reason: calculation.reason,
+          replayed: false,
+        };
       }
 
       const scannedAt = input.scannedAt ?? new Date();
@@ -174,7 +182,12 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
         after: { points: calculation.points, amountCents: input.amountCents },
       });
 
-      return { entryId: inserted[0]?.id ?? null, points: calculation.points, awarded: true };
+      return {
+        entryId: inserted[0]?.id ?? null,
+        points: calculation.points,
+        awarded: true,
+        replayed: false,
+      };
     });
   } catch (error) {
     // Two requests with the same key can both pass the SELECT above. The
@@ -197,7 +210,7 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
 
     const found = winner[0];
     if (!found) throw error;
-    return { entryId: found.id, points: found.points, awarded: true };
+    return { entryId: found.id, points: found.points, awarded: true, replayed: true };
   }
 }
 

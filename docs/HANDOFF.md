@@ -35,8 +35,8 @@ is re-exported.
 | HANDOFF.md, DECISIONS.md | v0.2 (this file and its companion) |
 | Technology stack | Locked (see `AGENT.md`, section 3) |
 | Repository | Created at `~/bokpoints`, private GitHub remote `github.com/AbdKabeer1/bokpoints` |
-| Code | Monorepo skeleton, CI, points engine in `packages/shared`, ledger schema and migrations, transactional ledger write path, Fastify skeleton |
-| Tests | 39 unit (Vitest) and 13 integration (real local Postgres), all passing |
+| Code | Monorepo skeleton, CI, points engine in `packages/shared`, ledger schema and migrations, transactional ledger write path, Fastify API with the award endpoint and a pluggable session resolver |
+| Tests | 42 unit (Vitest) and 33 integration (real local Postgres), all passing |
 | Accounts (Stripe, Supabase, email provider, hosting, Apple and Google developer accounts) | None confirmed |
 | Pilot stores | None chosen |
 
@@ -48,22 +48,26 @@ Not in the MVP: rewards and redemption, products and discounts, campaigns and pu
 
 ## 5. Next steps (in order)
 
-1. **Points expiry job.** A daily job that finds `earn` entries whose expiry date has
+1. **The Supabase session resolver** (build step 3). The `SessionResolver`
+   interface in `apps/api/src/auth/session.ts` is the seam: implement it and the
+   award endpoint authenticates for real. Staff and admin accounts also need
+   MFA (FR-AUTH-2).
+2. **Points expiry job.** A daily job that finds `earn` entries whose expiry date has
    passed and writes an `expire` entry for each batch, using the FIFO rules already in
    `packages/shared`. It must be idempotent. This covers `AC-6` and needs no provider.
-2. **Auth and roles; admin store onboarding; store setup and staff** (build step 3).
+3. **Auth and roles; admin store onboarding; store setup and staff** (build step 3).
    Needs Supabase, so it waits on the provider decision.
-3. **Cashier screen, online flow only, with the confirm step** (build step 4).
+4. **Cashier screen, online flow only, with the confirm step** (build step 4).
    `apps/web` is a stub today.
-4. **Customer app: sign-up, QR, per-store balances and history, expiry notices**
+5. **Customer app: sign-up, QR, per-store balances and history, expiry notices**
    (build step 5). `apps/customer` is a stub today.
-5. **Pending customers (register by email); manual adjustments; fraud clawback; audit
+6. **Pending customers (register by email); manual adjustments; fraud clawback; audit
    log** (build step 6). The ledger side of adjustments and clawbacks already works.
-6. **Billing with Stripe and the failed-payment states** (build step 7).
-7. **Offline awarding: signed QR, device verification, encrypted queue, sync and
+7. **Billing with Stripe and the failed-payment states** (build step 7).
+8. **Offline awarding: signed QR, device verification, encrypted queue, sync and
    rejections** (build step 8). Prototype the QR and sync early, because it is the
    highest technical risk.
-8. **Reports, hardening, accessibility pass, store submissions** (build step 9).
+9. **Reports, hardening, accessibility pass, store submissions** (build step 9).
 
 Parallel, non-code tasks for A:
 
@@ -114,5 +118,6 @@ Newest first. One entry per session. Keep each entry to a few lines.
 
 | Session | What was done | State at the end | Next |
 | --- | --- | --- | --- |
+| Build 2 | Added the award endpoint with a pluggable session resolver, the identify and balance endpoints, server-side store scoping and permission checks, the OpenAPI document generated from the shared Zod schemas, and the Supabase seam | 42 unit and 33 integration tests pass. The award endpoint is live but authenticates through the development resolver until Supabase is chosen | The Supabase session resolver, then the points expiry job |
 | Build 1 | Created the repo and the monorepo skeleton with CI; exported the PRD and FRD into `docs/`; built the points engine (calculation, rounding, minimum and maximum rules, expiry, FIFO, balance rules) and the role and capability matrix with unit tests; defined the 13-table schema with migrations and append-only triggers; added the transactional ledger write path with integration tests; added the Fastify skeleton | Steps 1 and 2 of the build order are done. 39 unit and 13 integration tests pass. Private GitHub remote created | Points expiry job, then auth and roles once Supabase is chosen |
 | Planning 1 | Brainstormed the product; wrote PRD v0.2, FRD v0.2 and AGENT.md v0.1; answered the FRD decisions; locked the tech stack; created HANDOFF.md and DECISIONS.md | Planning complete; no repo, no code | Create the repo and skeleton; build the points engine |

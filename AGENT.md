@@ -100,6 +100,10 @@ Notes:
   directory matches no files.
 - `pnpm typecheck` builds `packages/shared` first, because `apps/api` type-checks
   against the built package.
+- The API has no authentication provider yet. `ALLOW_DEV_AUTH=true` turns on a
+  development resolver where the bearer token is a staff email address. It is off
+  by default and must never be enabled in production. The role always comes from
+  the database, never from the token.
 
 Never say a task is done unless typecheck, lint and the relevant tests pass, or you state clearly which checks you could not run and why.
 

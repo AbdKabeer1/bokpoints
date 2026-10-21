@@ -30,9 +30,14 @@ environment.
 ## Run
 
 ```bash
-pnpm dev        # API with hot reload on http://127.0.0.1:3000
-pnpm build      # build packages/shared and apps/api
+pnpm dev                      # API with hot reload on http://127.0.0.1:3000
+ALLOW_DEV_AUTH=true pnpm dev  # same, with the development session resolver
+pnpm build                    # build packages/shared and apps/api
 ```
+
+`ALLOW_DEV_AUTH` is off by default and the server refuses to start with it on in
+production. With it on, the bearer token is a staff member's email address. The
+role is always read from the database, never from the token.
 
 Health check:
 
@@ -40,6 +45,19 @@ Health check:
 curl http://127.0.0.1:3000/v1/health
 # {"status":"ok","version":"0.1.0"}
 ```
+
+## The API
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `POST` | `/v1/stores/{storeId}/identify` | Scanned credential to customer, first name and balance |
+| `POST` | `/v1/stores/{storeId}/awards` | Award points (requires an `Idempotency-Key` header) |
+| `GET` | `/v1/stores/{storeId}/customers/{customerId}/balance` | Balance at that store |
+| `GET` | `/v1/docs` | Swagger UI |
+| `GET` | `/v1/openapi.json` | The OpenAPI document |
+
+`201` means a new award was created. `200` means the request was a replay of an
+existing award, or awarded nothing (for example under the store minimum).
 
 ## Verify
 

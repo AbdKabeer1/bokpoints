@@ -50,6 +50,8 @@ export const staffUsers = pgTable(
     name: text('name').notNull(),
     // FR-AUTH-2: staff and admins need multi-factor authentication.
     mfaEnabled: boolean('mfa_enabled').notNull().default(false),
+    // FRD section 2: admin accounts are separate from store accounts.
+    isAdmin: boolean('is_admin').notNull().default(false),
     status: text('status').notNull().default('active'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },

@@ -96,7 +96,12 @@ Dates are given as the month of the decision (Oct 2026) for the planning session
 | D-077 | A concurrent award with the same key returns the original award instead of a database error | A double tap on the Cashier screen is normal. The unique index prevents a double award; the loser of the race must still get the original award back | Decided | FR-PTS-4 |
 | D-078 | `staff.manage` and `staff.manage_cashier` are separate capabilities | FRD section 2 says a manager may add and remove staff, cashiers only. One capability cannot express that, so a naive endpoint would over-grant | Decided | FRD 2, FR-AUTH-6 |
 | D-079 | Every award writes an audit log entry as well as a ledger entry | PRD 9.4 says every points change records who, when, which store and why. The audit log is what the admin panel reads. The cost is one audit row per award, which grows with till volume and is worth revisiting at pilot scale | Decided | PRD 9.4, FR-AUD-1 |
-
+| D-080 | The API authenticates through a `SessionResolver` interface; the development resolver is opt-in and refuses to run in production | The Supabase resolver is build step 3. Implementing one interface means the swap is a single adapter and the routes, the store scoping and the permission checks never move | Decided | FR-API-2 |
+| D-081 | The role is always read from the database, never asserted by the token | A token that carries a role lets a caller promote themselves. The dev resolver only proves who someone is; the membership row decides what they may do | Decided | FR-API-2, FR-AUTH-6 |
+| D-082 | The award endpoint requires an `Idempotency-Key` header, answers 201 for a new award and 200 for a replay or a no-award | The key is what makes a retry safe (FR-PTS-4). The status tells the Cashier screen whether anything new happened | Decided | FR-PTS-4, AC-2 |
+| D-083 | `staff_users` carries an `is_admin` flag | FRD section 2 says admin accounts are separate from store accounts. An admin is not a member of a store, so the authorization layer needs to know about them | Decided | FRD 2 |
+| D-084 | A store with no points rule answers 409 on award | A store cannot award points until it has a rule. Failing loudly beats awarding at a default rate that nobody chose | Decided | FR-STO-4 |
+| D-085 | The OpenAPI document is generated from the same Zod schemas that validate the requests | FR-API-3 says the API is documented from the start. Generating both from one source means the document cannot drift away from the code | Decided | FR-API-3, AGENT.md 10 |
 ## Process and documents
 
 | ID | Decision | Why | Status | Source |
