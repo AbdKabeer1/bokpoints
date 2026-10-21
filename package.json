@@ -15,7 +15,8 @@
     "test": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
     "db:generate": "pnpm --filter @bokpoints/api db:generate",
-    "db:migrate": "pnpm --filter @bokpoints/api db:migrate"
+    "db:migrate": "pnpm --filter @bokpoints/api db:migrate",
+    "demo": "pnpm --filter @bokpoints/api demo"
   },
   "devDependencies": {
     "@bokpoints/config": "workspace:*",

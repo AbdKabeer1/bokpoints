@@ -8,4 +8,6 @@ coverage/
 .DS_Store
 playwright-report/
 test-results/
+# Throwaway UI preview spike. Not part of the product.
+preview/
 .superpowers/

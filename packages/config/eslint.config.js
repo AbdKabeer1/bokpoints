@@ -8,6 +8,9 @@ export default tseslint.config(
       '**/coverage/**',
       '**/drizzle/meta/**',
       '**/.superpowers/**',
+      // Throwaway UI preview spike, and any build output.
+      'preview/**',
+      '**/bundle.js',
     ],
   },
   ...tseslint.configs.recommended,
@@ -17,6 +20,13 @@ export default tseslint.config(
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
       '@typescript-eslint/consistent-type-imports': ['error', { prefer: 'type-imports' }],
       'no-console': ['warn', { allow: ['warn', 'error'] }],
+    },
+  },
+  {
+    // A CLI script exists to print to the terminal.
+    files: ['apps/*/scripts/**/*.ts'],
+    rules: {
+      'no-console': 'off',
     },
   },
 );
