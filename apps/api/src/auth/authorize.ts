@@ -9,6 +9,7 @@ export type AuthErrorCode =
   | 'INVALID_TOKEN'
   | 'STORE_MISMATCH'
   | 'NOT_A_MEMBER'
+  | 'ACCOUNT_DEACTIVATED'
   | 'FORBIDDEN';
 
 export type AuthResult =
@@ -66,12 +67,22 @@ export async function authorizeStoreRequest(
   }
 
   const staff = await db
-    .select({ isAdmin: staffUsers.isAdmin })
+    .select({ isAdmin: staffUsers.isAdmin, status: staffUsers.status })
     .from(staffUsers)
     .where(eq(staffUsers.id, principal.staffUserId))
     .limit(1);
 
-  const isAdmin = staff[0]?.isAdmin ?? false;
+  const account = staff[0];
+  if (!account) {
+    return failure(401, 'INVALID_TOKEN', 'That access token is not valid');
+  }
+
+  // A deactivated staff account does not get in, even with a valid token.
+  if (account.status !== 'active') {
+    return failure(403, 'ACCOUNT_DEACTIVATED', 'This account has been deactivated');
+  }
+
+  const isAdmin = account.isAdmin;
 
   let role: Role | null;
 

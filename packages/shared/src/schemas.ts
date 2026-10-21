@@ -15,13 +15,27 @@ export const customerParamsSchema = z.object({
   customerId: z.string().uuid(),
 });
 
+/**
+ * The largest purchase the API accepts, in cents.
+ *
+ * Two reasons for a cap. With no reversals (D-013) a mistyped amount is
+ * permanent, so there is a sanity limit. And the points maths multiplies
+ * the amount by the earn rate, so a huge amount would leave the range where
+ * integers are exact.
+ */
+export const MAX_AMOUNT_CENTS = 100_000_000;
+
 export const awardRequestSchema = z.object({
   customerId: z.string().uuid(),
-  amountCents: z.number().int().min(0),
+  amountCents: z.number().int().min(0).max(MAX_AMOUNT_CENTS),
 });
+
+export const credentialTypeSchema = z.enum(['app_qr', 'nfc_card', 'wallet_pass']);
 
 export const identifyRequestSchema = z.object({
   credentialIdentifier: z.string().min(1).max(200),
+  // The identifier is only unique per type, so the type has to travel with it.
+  credentialType: credentialTypeSchema.default('app_qr'),
 });
 
 export const idempotencyKeyHeaderSchema = z.object({

@@ -14,6 +14,8 @@
   },
   "dependencies": {
     "@bokpoints/shared": "workspace:*",
+    "@fastify/helmet": "13.2.0",
+    "@fastify/rate-limit": "11.2.1",
     "@fastify/swagger": "9.9.2",
     "@fastify/swagger-ui": "6.1.2",
     "@fastify/type-provider-zod": "1.0.1",

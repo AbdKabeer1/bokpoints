@@ -52,7 +52,10 @@ async function main() {
     email: `demo-staff-${randomUUID().slice(0, 8)}@example.invalid`,
     name: 'Demo Owner',
   });
-  await raw.insert(schema.stores).values({ id: storeId, name: 'Kahvila Roastery' });
+  // An Active store: only an active or paused store can award points.
+  await raw
+    .insert(schema.stores)
+    .values({ id: storeId, name: 'Kahvila Roastery', status: 'active' });
   await raw.insert(schema.customers).values({ id: customerId, email, name: 'Test Customer' });
 
   const rule = { pointsPerEuroThousandths: 1000, minPurchaseCents: 500 };

@@ -1,55 +1,37 @@
 # BOKPOINTS handoff
 
-The canonical project documents are in `docs/`. This folder is the quick entry point.
+**`docs/HANDOFF.md` is the canonical state document.** This folder is a thin entry
+point, kept because the working-style contract asks for one. Where the two overlap,
+`docs/HANDOFF.md` wins — update it first, then adjust this folder.
 
 | File | What it is |
 | --- | --- |
+| [`docs/HANDOFF.md`](../docs/HANDOFF.md) | **Canonical.** Current state, next steps, blockers, session log |
+| [`docs/DECISIONS.md`](../docs/DECISIONS.md) | **Canonical.** One row per decision, with the reason |
 | [`docs/PRD.md`](../docs/PRD.md) | Why the product exists, for whom, scope by phase |
-| [`docs/FRD.md`](../docs/FRD.md) | What the system must do. Requirement IDs `FR-...`, acceptance criteria `AC-1` to `AC-11` |
+| [`docs/FRD.md`](../docs/FRD.md) | What the system must do. `FR-...` requirement IDs, `AC-1` to `AC-11` |
 | [`AGENT.md`](../AGENT.md) | How to work in the repo: locked stack, invariants, security rules, commands |
-| [`docs/HANDOFF.md`](../docs/HANDOFF.md) | Current state, next steps, blockers, session log |
-| [`docs/DECISIONS.md`](../docs/DECISIONS.md) | Why each decision was made, and which are still open |
+| [`STATUS.md`](./STATUS.md) | A short Done / Next / Blocked summary |
+| [`RUNBOOK.md`](./RUNBOOK.md) | Setup, run, test and deploy commands |
 
-## Goal
+## The one-line goal
 
-Ship the MVP of a B2B2C loyalty platform for small businesses in Finland / EU, built by
-one person. Stores pay a monthly subscription; customers use it free. A cashier scans a
-customer's QR code, enters the purchase amount, and the customer earns points at that
-store. Points are per store and expire 3 months after the day they were earned.
+Ship the MVP of a B2B2C loyalty platform for small businesses in Finland / EU, built
+by one person. Stores pay a monthly subscription; customers use it free. A cashier
+scans a customer's QR code, enters the purchase amount, and the customer earns points
+at that store. Points are per store and expire 3 months after the day they were
+earned.
 
-## Deliverables so far
+## Where the build is
 
-Build order steps 1 and 2 of `AGENT.md` section 13:
+Build-order steps 1 and 2 of `AGENT.md` section 13 are done: the repo and the points
+engine, the ledger schema, the transactional write path, and the award endpoint with
+a pluggable session resolver. Steps 3 to 9 are not started. The full breakdown, and
+which acceptance criteria are covered, is in `docs/HANDOFF.md`.
 
-1. The pnpm monorepo, CI, lint, typecheck and test scripts.
-2. The points engine in `packages/shared`: calculation, rounding, minimum and maximum
-   rules, expiry, FIFO and balance rules, plus the role and capability matrix.
-3. The Drizzle schema and migrations for the ledger, with the append-only triggers.
-4. The transactional ledger write path: award, adjust, fraud clawback and balance.
+## The invariants that must never break
 
-## Acceptance criteria
-
-The FRD acceptance criteria `AC-1` to `AC-11` are the definition of done for the MVP.
-The ones covered by the work so far, and where they are tested:
-
-| Criterion | Where it is tested |
-| --- | --- |
-| AC-1 Award points, 23 points for 23.80 euros | `packages/shared/src/points/calculate.test.ts`, `apps/api/test/integration/ledger.test.ts` |
-| AC-3 Store isolation | `apps/api/test/integration/ledger.test.ts` |
-| AC-11 No negative balance, fraud clawback allowed | `packages/shared/src/points/balance.test.ts`, `apps/api/test/integration/ledger.test.ts` |
-| AC-2 No double award, including a concurrent double tap | `apps/api/test/integration/ledger.test.ts` |
-
-AC-4, AC-5, AC-6, AC-7, AC-8, AC-9 and AC-10 are not covered yet. AC-6 (expiry) needs
-the daily expiry job; AC-9 and AC-10 need the offline queue.
-
-## Deadline
-
-None set. The MVP scope is frozen by `docs/DECISIONS.md` D-006 and by `AGENT.md`
-section 2: build the MVP, not v1.1 or v2.
-
-## Non-negotiable invariants
-
-From `AGENT.md` section 6. They hold in the code now, and every task must keep them:
+From `AGENT.md` section 6. They hold in the code now:
 
 1. Per-store points, never usable at another store.
 2. The ledger is append-only. The database refuses an UPDATE or DELETE.
@@ -57,7 +39,7 @@ From `AGENT.md` section 6. They hold in the code now, and every task must keep t
 4. No negative balances, except an admin-only `fraud_clawback`.
 5. Points expire 3 months after the day they were earned, oldest first.
 6. Money is whole cents, points are whole numbers, no floating point.
-7. Every award carries an idempotency key, scoped to the store.
-8. The ledger entry and the balance update happen in one transaction.
+7. Every award carries an idempotency key, scoped to the store and the customer.
+8. The ledger entry, the balance update and the batch update happen in one transaction.
 9. Store isolation is enforced on the server, in every query.
 10. Permissions are enforced on the server, never only in the UI.

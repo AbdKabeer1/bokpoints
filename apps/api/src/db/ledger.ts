@@ -7,24 +7,36 @@ import {
   type PointsRejectionReason,
   type PointsRule,
 } from '@bokpoints/shared';
+import { createBatch, drawDownBatches } from './batches.js';
 import type { Database } from './client.js';
 import {
   auditLogEntries,
   customerStoreLinks,
+  customers,
   pointsBalances,
   pointsLedgerEntries,
+  stores,
 } from './schema.js';
 
 export type LedgerErrorCode =
   | 'BELOW_MINIMUM'
   | 'BALANCE_WOULD_GO_NEGATIVE'
   | 'INVALID_AMOUNT'
-  | 'REASON_REQUIRED';
+  | 'REASON_REQUIRED'
+  | 'STORE_NOT_AWARDING'
+  | 'CUSTOMER_NOT_FOUND'
+  | 'IDEMPOTENCY_KEY_REUSED';
 
 /**
  * A typed failure for an expected error, so the API can map it to a clear
  * message in the UI (AGENT.md section 10).
  */
+/**
+ * The store states in which awarding is allowed. A paused store still
+ * awards (D-042); a suspended or offboarded store does not (FR-PTS-6).
+ */
+const AWARDING_STORE_STATUSES = new Set(['active', 'paused']);
+
 export class LedgerError extends Error {
   readonly code: LedgerErrorCode;
 
@@ -112,8 +124,37 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
 
   try {
     return await db.transaction(async (tx) => {
+      // FR-PTS-6: a suspended or offboarded store cannot award. A paused
+      // store still can, because awarding continues while a store is paused
+      // (D-042).
+      const store = await tx
+        .select({ status: stores.status })
+        .from(stores)
+        .where(eq(stores.id, input.storeId))
+        .limit(1);
+      const storeStatus = store[0]?.status;
+      if (!storeStatus || !AWARDING_STORE_STATUSES.has(storeStatus)) {
+        throw new LedgerError(
+          'STORE_NOT_AWARDING',
+          'This store cannot award points at the moment',
+        );
+      }
+
+      const customer = await tx
+        .select({ status: customers.status })
+        .from(customers)
+        .where(eq(customers.id, input.customerId))
+        .limit(1);
+      if (!customer[0] || customer[0].status === 'deleted') {
+        throw new LedgerError('CUSTOMER_NOT_FOUND', 'That customer does not exist');
+      }
+
       const existing = await tx
-        .select({ id: pointsLedgerEntries.id, points: pointsLedgerEntries.points })
+        .select({
+          id: pointsLedgerEntries.id,
+          points: pointsLedgerEntries.points,
+          amountCents: pointsLedgerEntries.amountCents,
+        })
         .from(pointsLedgerEntries)
         .where(
           and(
@@ -126,6 +167,14 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
 
       const found = existing[0];
       if (found) {
+        // The same key with a different amount is not a retry, it is a
+        // mistake, and it must not look like a successful award.
+        if (found.amountCents !== null && found.amountCents !== input.amountCents) {
+          throw new LedgerError(
+            'IDEMPOTENCY_KEY_REUSED',
+            'That idempotency key was already used for a different amount',
+          );
+        }
         return { entryId: found.id, points: found.points, awarded: true, replayed: true };
       }
 
@@ -155,7 +204,6 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
           type: 'earn',
           points: calculation.points,
           amountCents: input.amountCents,
-          remainingPoints: calculation.points,
           expiresAt,
           ruleVersion: input.ruleVersion,
           staffId: input.staffId,
@@ -164,6 +212,16 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
           idempotencyKey: input.idempotencyKey,
         })
         .returning({ id: pointsLedgerEntries.id });
+
+      // FR-PTS-10: the award creates a batch that records the expiry date and
+      // the remaining points.
+      await createBatch(tx, {
+        earnEntryId: inserted[0]?.id ?? '',
+        customerId: input.customerId,
+        storeId: input.storeId,
+        originalPoints: calculation.points,
+        expiresAt,
+      });
 
       await applyBalanceDelta(tx, input.customerId, input.storeId, calculation.points);
 
@@ -247,6 +305,12 @@ export async function recordAdjust(
       throw new LedgerError(result.error.code as LedgerErrorCode, result.error.message);
     }
 
+    // Removing points takes them off the customer's batches, so the expiry
+    // job does not expire them a second time.
+    if (input.points < 0) {
+      await drawDownBatches(tx, input.customerId, input.storeId, -input.points);
+    }
+
     const inserted = await tx
       .insert(pointsLedgerEntries)
       .values({
@@ -299,6 +363,12 @@ export async function recordFraudClawback(
 
     if (!result.ok) {
       throw new LedgerError(result.error.code as LedgerErrorCode, result.error.message);
+    }
+
+    // A clawback takes points off the batches too. It may go below zero, so
+    // it can take more than the batches hold.
+    if (input.points < 0) {
+      await drawDownBatches(tx, input.customerId, input.storeId, -input.points);
     }
 
     const inserted = await tx

@@ -95,7 +95,7 @@ curl http://127.0.0.1:3000/v1/health
 curl -X POST http://127.0.0.1:3000/v1/stores/$STORE/identify \
   -H "authorization: Bearer $TOKEN" \
   -H "content-type: application/json" \
-  -d '{"credentialIdentifier":"cred_demo_123"}'
+  -d '{"credentialIdentifier":"cred_demo_123","credentialType":"app_qr"}'
 
 curl -X POST http://127.0.0.1:3000/v1/stores/$STORE/awards \
   -H "authorization: Bearer $TOKEN" \
@@ -105,7 +105,13 @@ curl -X POST http://127.0.0.1:3000/v1/stores/$STORE/awards \
 ```
 
 `Idempotency-Key` is required. A retry with the same key returns the original
-award and never awards twice.
+award and never awards twice. The same key with a **different** amount is refused
+with `409`, because that is a mistake rather than a retry.
+
+The endpoint refuses what it should: a suspended or offboarded store (`403`), a
+deactivated staff account (`403`), a deleted customer (`404`), a lost or revoked
+credential (`404`), and an amount beyond €1,000,000 (`400`). A paused store still
+awards, because awarding continues while a store is paused.
 
 ### Authentication
 

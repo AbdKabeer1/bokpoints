@@ -36,7 +36,7 @@ is re-exported.
 | Technology stack | Locked (see `AGENT.md`, section 3) |
 | Repository | Created at `~/bokpoints`, private GitHub remote `github.com/AbdKabeer1/bokpoints` |
 | Code | Monorepo skeleton, CI, points engine in `packages/shared`, ledger schema and migrations, transactional ledger write path, Fastify API with the award endpoint and a pluggable session resolver |
-| Tests | 42 unit (Vitest) and 33 integration (real local Postgres), all passing |
+| Tests | 42 unit (Vitest) and 53 integration (real local Postgres), all passing |
 | Accounts (Stripe, Supabase, email provider, hosting, Apple and Google developer accounts) | None confirmed |
 | Pilot stores | None chosen |
 
@@ -118,6 +118,7 @@ Newest first. One entry per session. Keep each entry to a few lines.
 
 | Session | What was done | State at the end | Next |
 | --- | --- | --- | --- |
+| Build 3 | Fixed the review findings: point batches so an expiry cannot double-deduct, the rule that applies now ignores a rule scheduled for the future, store, staff and customer status checks on the write path, credential state checks on identify, a clean 404 for an unknown customer, a 409 when an idempotency key is reused with a different amount, a cap on the purchase amount, case-insensitive email uniqueness, rate limiting and security headers | 42 unit and 53 integration tests pass | The Supabase session resolver, then the points expiry job |
 | Build 2 | Added the award endpoint with a pluggable session resolver, the identify and balance endpoints, server-side store scoping and permission checks, the OpenAPI document generated from the shared Zod schemas, and the Supabase seam | 42 unit and 33 integration tests pass. The award endpoint is live but authenticates through the development resolver until Supabase is chosen | The Supabase session resolver, then the points expiry job |
 | Build 1 | Created the repo and the monorepo skeleton with CI; exported the PRD and FRD into `docs/`; built the points engine (calculation, rounding, minimum and maximum rules, expiry, FIFO, balance rules) and the role and capability matrix with unit tests; defined the 13-table schema with migrations and append-only triggers; added the transactional ledger write path with integration tests; added the Fastify skeleton | Steps 1 and 2 of the build order are done. 39 unit and 13 integration tests pass. Private GitHub remote created | Points expiry job, then auth and roles once Supabase is chosen |
 | Planning 1 | Brainstormed the product; wrote PRD v0.2, FRD v0.2 and AGENT.md v0.1; answered the FRD decisions; locked the tech stack; created HANDOFF.md and DECISIONS.md | Planning complete; no repo, no code | Create the repo and skeleton; build the points engine |

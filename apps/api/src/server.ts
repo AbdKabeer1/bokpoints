@@ -25,7 +25,14 @@ function resolveSessionResolver(): SessionResolver | undefined {
   return createDevSessionResolver(db);
 }
 
-const app = await buildApp({ db, sessionResolver: resolveSessionResolver(), logger: true });
+const app = await buildApp({
+  db,
+  sessionResolver: resolveSessionResolver(),
+  logger: true,
+  rateLimit: { max: env.RATE_LIMIT_MAX, timeWindow: '1 minute' },
+  // The interactive documentation is not served in production.
+  enableDocs: env.NODE_ENV !== 'production',
+});
 
 app.addHook('onClose', async () => {
   await pool.end();

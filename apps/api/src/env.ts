@@ -15,6 +15,12 @@ export const envSchema = z.object({
    * staff email address. It must never be on in production: the server
    * would accept anybody who knows a staff email.
    */
+  /**
+   * How many awards a single caller may make per minute. A busy till is
+   * far below this; it is there to stop a runaway client (AGENT.md
+   * section 8).
+   */
+  RATE_LIMIT_MAX: z.coerce.number().int().positive().default(120),
   ALLOW_DEV_AUTH: z
     .enum(['true', 'false'])
     .default('false')

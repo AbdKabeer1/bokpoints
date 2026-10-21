@@ -10,7 +10,7 @@ import {
   recordEarn,
   recordFraudClawback,
 } from '../../src/db/ledger.js';
-import { customerStoreLinks, pointsLedgerEntries } from '../../src/db/schema.js';
+import { customerStoreLinks, pointsBatches, pointsLedgerEntries } from '../../src/db/schema.js';
 import { applyMigrations, truncateAll } from './setup.js';
 
 const DATABASE_URL =
@@ -33,7 +33,7 @@ async function makeCustomer(email = `c-${randomUUID()}@t.dev`) {
 
 async function makeStore(name = `S-${randomUUID()}`) {
   const id = randomUUID();
-  await pool.query('INSERT INTO stores (id, name) VALUES ($1, $2)', [id, name]);
+  await pool.query("INSERT INTO stores (id, name, status) VALUES ($1, $2, 'active')", [id, name]);
   return id;
 }
 
@@ -509,6 +509,163 @@ describe('recordFraudClawback', () => {
         staffId: await makeStaff(),
       }),
     ).rejects.toThrow(LedgerError);
+  });
+});
+
+describe('point batches (FR-PTS-10)', () => {
+  it('creates a batch for every award', async () => {
+    const customerId = await makeCustomer();
+    const storeId = await makeStore();
+
+    await recordEarn(db, {
+      customerId,
+      storeId,
+      amountCents: 2380,
+      rule: onePointPerEuro,
+      ruleVersion: 1,
+      idempotencyKey: 'batch-1',
+    });
+
+    const batches = await db
+      .select()
+      .from(pointsBatches)
+      .where(eq(pointsBatches.customerId, customerId));
+    expect(batches).toHaveLength(1);
+    expect(batches[0]?.originalPoints).toBe(23);
+    expect(batches[0]?.remainingPoints).toBe(23);
+    expect(batches[0]?.expiresAt).toBeInstanceOf(Date);
+  });
+
+  it('draws the batch down when points are removed by an adjustment', async () => {
+    // Without this, the expiry job would expire the full batch later and
+    // double-deduct the five points that were already removed.
+    const customerId = await makeCustomer();
+    const storeId = await makeStore();
+
+    await recordEarn(db, {
+      customerId,
+      storeId,
+      amountCents: 2380,
+      rule: onePointPerEuro,
+      ruleVersion: 1,
+      idempotencyKey: 'batch-2',
+    });
+
+    await recordAdjust(db, {
+      customerId,
+      storeId,
+      points: -5,
+      reason: 'Cashier entered the wrong amount',
+      staffId: await makeStaff(),
+    });
+
+    const batches = await db
+      .select()
+      .from(pointsBatches)
+      .where(eq(pointsBatches.customerId, customerId));
+    expect(batches[0]?.remainingPoints).toBe(18);
+    expect(await getBalance(db, customerId, storeId)).toBe(18);
+  });
+
+  it('draws the batch down on a fraud clawback, even below zero', async () => {
+    const customerId = await makeCustomer();
+    const storeId = await makeStore();
+
+    await recordEarn(db, {
+      customerId,
+      storeId,
+      amountCents: 500,
+      rule: onePointPerEuro,
+      ruleVersion: 1,
+      idempotencyKey: 'batch-3',
+    });
+
+    const result = await recordFraudClawback(db, {
+      customerId,
+      storeId,
+      points: -8,
+      caseNote: 'Case 2026-11: points awarded without a purchase',
+      staffId: await makeStaff(),
+    });
+
+    expect(result.balance).toBe(-3);
+    const batches = await db
+      .select()
+      .from(pointsBatches)
+      .where(eq(pointsBatches.customerId, customerId));
+    expect(batches[0]?.remainingPoints).toBe(0);
+  });
+
+  it('takes the oldest batch first', async () => {
+    const customerId = await makeCustomer();
+    const storeId = await makeStore();
+
+    await recordEarn(db, {
+      customerId,
+      storeId,
+      amountCents: 1000,
+      rule: onePointPerEuro,
+      ruleVersion: 1,
+      idempotencyKey: 'fifo-old',
+      scannedAt: new Date('2026-01-01T10:00:00Z'),
+    });
+    await recordEarn(db, {
+      customerId,
+      storeId,
+      amountCents: 1000,
+      rule: onePointPerEuro,
+      ruleVersion: 1,
+      idempotencyKey: 'fifo-new',
+      scannedAt: new Date('2026-02-01T10:00:00Z'),
+    });
+
+    await recordAdjust(db, {
+      customerId,
+      storeId,
+      points: -15,
+      reason: 'correcting a mistake',
+      staffId: await makeStaff(),
+    });
+
+    const batches = await db
+      .select()
+      .from(pointsBatches)
+      .where(eq(pointsBatches.customerId, customerId))
+      .orderBy(pointsBatches.expiresAt);
+    expect(batches[0]?.remainingPoints).toBe(0);
+    expect(batches[1]?.remainingPoints).toBe(5);
+    expect(await getBalance(db, customerId, storeId)).toBe(5);
+  });
+
+  it('leaves no batch for points added by an adjustment', async () => {
+    // Points added by an adjustment were never earned, so they have no
+    // expiry date and never expire.
+    const customerId = await makeCustomer();
+    const storeId = await makeStore();
+
+    await recordEarn(db, {
+      customerId,
+      storeId,
+      amountCents: 1000,
+      rule: onePointPerEuro,
+      ruleVersion: 1,
+      idempotencyKey: 'batch-4',
+    });
+    await recordAdjust(db, {
+      customerId,
+      storeId,
+      points: 10,
+      reason: 'Goodwill for a delayed order',
+      staffId: await makeStaff(),
+    });
+
+    const batches = await db
+      .select()
+      .from(pointsBatches)
+      .where(eq(pointsBatches.customerId, customerId));
+    expect(batches).toHaveLength(1);
+    expect(batches[0]?.remainingPoints).toBe(10);
+    expect(await getBalance(db, customerId, storeId)).toBe(20);
   });
 });
 

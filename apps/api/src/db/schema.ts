@@ -36,8 +36,9 @@ export const customers = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    // FR-AUTH-3: email is unique per customer.
-    uniqueIndex('customers_email_unique').on(t.email),
+    // FR-AUTH-3: email is unique per customer. Compared case-insensitively,
+    // because A@shop.com and a@shop.com are the same person.
+    uniqueIndex('customers_email_unique').on(sql`lower(${t.email})`),
     check('customers_status_check', sql`${t.status} in ('active', 'deleted')`),
   ],
 );
@@ -56,7 +57,7 @@ export const staffUsers = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    uniqueIndex('staff_users_email_unique').on(t.email),
+    uniqueIndex('staff_users_email_unique').on(sql`lower(${t.email})`),
     check('staff_users_status_check', sql`${t.status} in ('active', 'deactivated')`),
   ],
 );
@@ -217,7 +218,6 @@ export const pointsLedgerEntries = pgTable(
     type: text('type').notNull(),
     points: integer('points').notNull(),
     amountCents: integer('amount_cents'),
-    remainingPoints: integer('remaining_points'),
     expiresAt: timestamp('expires_at', { withTimezone: true }),
     ruleVersion: integer('rule_version'),
     reason: text('reason'),
@@ -239,10 +239,6 @@ export const pointsLedgerEntries = pgTable(
       sql`(${t.type} = 'earn' and ${t.points} >= 0) or ${t.type} = 'adjust' or (${t.type} in ('redeem', 'expire', 'fraud_clawback') and ${t.points} <= 0)`,
     ),
     check(
-      'points_ledger_entries_remaining',
-      sql`${t.remainingPoints} is null or (${t.remainingPoints} >= 0 and ${t.remainingPoints} <= ${t.points})`,
-    ),
-    check(
       'points_ledger_entries_type_check',
       sql`${t.type} in ('earn', 'redeem', 'adjust', 'expire', 'fraud_clawback')`,
     ),
@@ -254,6 +250,48 @@ export const pointsLedgerEntries = pgTable(
       .where(sql`${t.idempotencyKey} is not null`),
     index('points_ledger_entries_customer_store_idx').on(t.customerId, t.storeId),
     index('points_ledger_entries_created_idx').on(t.createdAt),
+  ],
+);
+
+/**
+ * One batch of points, from one `earn` entry.
+ *
+ * The live counter lives here rather than on the ledger entry, because the
+ * ledger is append-only: an entry is never edited or deleted (FRD section 3).
+ * This table is the mutable part, the same kind of derived cache as
+ * `points_balances`, and it records the expiry date and the remaining points
+ * of a batch (FR-PTS-10).
+ *
+ * Points added by a manual adjustment have no batch, so they have no expiry
+ * date and never expire. Only points that were earned expire.
+ */
+export const pointsBatches = pgTable(
+  'points_batches',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    earnEntryId: uuid('earn_entry_id')
+      .notNull()
+      .unique()
+      .references(() => pointsLedgerEntries.id),
+    customerId: uuid('customer_id')
+      .notNull()
+      .references(() => customers.id),
+    storeId: uuid('store_id')
+      .notNull()
+      .references(() => stores.id),
+    originalPoints: integer('original_points').notNull(),
+    remainingPoints: integer('remaining_points').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check(
+      'points_batches_remaining_check',
+      sql`${t.remainingPoints} >= 0 and ${t.remainingPoints} <= ${t.originalPoints}`,
+    ),
+    // The expiry job walks batches in this order.
+    index('points_batches_expiry_idx').on(t.expiresAt),
+    index('points_batches_customer_store_idx').on(t.customerId, t.storeId),
   ],
 );
 

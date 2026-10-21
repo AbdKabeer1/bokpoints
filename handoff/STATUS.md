@@ -25,8 +25,15 @@
   needs (identify, award, balance), a pluggable session resolver, and an OpenAPI
   document generated from the same Zod schemas that validate the requests.
   Every call is authenticated, scoped to one store and permission-checked on the server.
+- **Guards on the write path**: a suspended or offboarded store cannot award, a
+  deactivated staff account cannot get in, a deleted customer cannot be awarded, a
+  lost or revoked credential does not resolve, a replay with a different amount is
+  refused, and the scanning and awarding endpoints are rate limited.
+- **Point batches**: every award creates a batch that records its expiry date and its
+  remaining points. Adjustments and clawbacks draw the batches down, so the expiry
+  job cannot take the same points twice.
 
-**Tests: 42 unit, 33 integration, all passing.**
+**Tests: 42 unit, 53 integration, all passing.**
 
 ## In progress
 
