@@ -79,6 +79,18 @@ Dates are given as the month of the decision (Oct 2026) for the planning session
 | D-057 | Billing with Stripe Billing and Stripe Tax | Monthly subscriptions and Finnish VAT invoices | Decided | AGENT.md 3 |
 | D-058 | Testing with Vitest and Playwright; Sentry for errors; GitHub Actions for CI | Standard for this stack | Decided | AGENT.md 3 |
 | D-059 | Hosting and email providers are not chosen yet | Decide before the first deployment | Open | AGENT.md 16 |
+| D-063 | TypeScript 6.0.3, not 7.0.2 | typescript-eslint 8.72.0 requires `typescript >=4.8.4 <6.1.0`, so TypeScript 7 is not yet supported by the linter | Decided | AGENT.md 3 |
+| D-064 | Vitest 4.1.12, not 5.x | Vitest 5 requires Node `^22.12 \|\| ^24 \|\| >=26` and excludes the installed Node 25; Vitest 4 accepts `>=24` | Decided | AGENT.md 3 |
+| D-065 | `pointsPerEuro` is stored in thousandths as an integer | Keeps every points calculation in integer maths, so the server and the offline till cannot disagree on a balance | Decided | FR-PTS-1 |
+| D-066 | Expiry clamps to the last day of a short target month | "3 months after the day they were earned" has no exact answer for 31 January; clamping to 30 April is the reading that never expires points early | Decided | FR-PTS-10, AC-6 |
+| D-067 | The ledger and the audit log are protected by database triggers, not only by application code | The append-only rule is a product invariant, so the database must refuse the write even if the application code is wrong | Decided | FR-AUD-2 |
+| D-068 | A non-negative balance is enforced by a direction CHECK on ledger entries plus a guarded balance update, not by a CHECK on the balance row | A fraud clawback is allowed to go below zero, which a `balance >= 0` constraint cannot express | Decided | FR-PTS-8, AC-11 |
+| D-069 | Local PostgreSQL 17 via Homebrew is the development and integration-test database | AGENT.md requires integration tests against a real Postgres; PGlite is not a real server | Decided | AGENT.md 5, 12 |
+| D-070 | The repository is private at github.com/AbdKabeer1/bokpoints | Unreleased product with unreviewed legal and privacy text | Decided | This session |
+| D-071 | Adjustments and fraud clawbacks take a signed delta, positive adds and negative removes | One sign convention across the module, matching the signed `points` column on a ledger entry, removes the usual source of sign bugs | Decided | FR-PTS-8, AC-11 |
+| D-072 | An award below the minimum purchase returns zero points with a reason, it is not an error | FR-PTS-2 says award zero points and tell the cashier why, so a minimum-purchase miss is a normal outcome | Decided | FR-PTS-2 |
+| D-073 | The idempotency key is unique per store, not globally | A global key would let a cashier at Store B have an award silently deduped against Store A's entry, which leaks across stores | Decided | FR-PTS-4 |
+| D-074 | Balance changes are a single guarded SQL statement | Reading the balance and writing an absolute value loses a delta when two cashiers adjust at the same instant; Postgres re-evaluates the guard after the row lock | Decided | FR-PTS-5, FR-PTS-8 |
 
 ## Process and documents
 
@@ -103,7 +115,6 @@ Move an item into a table above when it is decided.
 - Legal and tax review of terms and privacy policy.
 
 ## Template for a new decision
-
 ```
 | D-0XX | What was decided | Why | Decided / Decided, confirm / Proposed | Where it is described |
 ```

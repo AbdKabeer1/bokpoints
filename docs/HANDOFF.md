@@ -2,7 +2,8 @@
 
 Living document. Update it at the end of every working session (see `AGENT.md`, section 14). The newest information goes at the top of "Current state" and in the session log. Keep it short and accurate: someone with no memory of earlier sessions must be able to pick up from here.
 
-Last updated: Oct 2026, end of the planning session. Phase: **planning complete, build not started.**
+Last updated: 21 Oct 2026, end of the first build session. Phase: **build started.**
+Build order steps 1 and 2 of `AGENT.md` section 13 are done.
 
 ## 1. Read these first, in this order
 
@@ -11,7 +12,11 @@ Last updated: Oct 2026, end of the planning session. Phase: **planning complete,
 3. FRD v0.2: what the system does, requirement IDs (`FR-...`), edge cases, acceptance criteria (`AC-1` to `AC-11`).
 4. `docs/DECISIONS.md`: why each decision was made, and which ones are still open.
 
-The PRD and FRD currently live as Claude Docs. Export them to `docs/PRD.md` and `docs/FRD.md` when the repo exists, so the repo holds a copy. If the copies and the Claude Docs differ, the Claude Docs are newer until the export is done.
+The PRD and FRD are now exported into this repo as `docs/PRD.md` and `docs/FRD.md`, converted
+from the source PDFs in `docs/source/`. The export was checked against the PDFs: all 114
+`FR-` requirement IDs and `AC-1` to `AC-11` are present and unaltered. If a copy here and
+a later edit to the original Claude Doc disagree, the Claude Doc is newer until this repo
+is re-exported.
 
 ## 2. What BOKPOINTS is, in four lines
 
@@ -24,13 +29,14 @@ The PRD and FRD currently live as Claude Docs. Export them to `docs/PRD.md` and 
 
 | Item | State |
 | --- | --- |
-| PRD | v0.2 drafted, aligned with the FRD |
-| FRD | v0.2 drafted, open points listed in its section 11 |
-| AGENT.md | v0.1 drafted; commands and some providers are placeholders |
-| HANDOFF.md, DECISIONS.md | v0.1 (this file and its companion) |
+| PRD | v0.2, exported to `docs/PRD.md` |
+| FRD | v0.2, exported to `docs/FRD.md`; open points listed in its section 11 |
+| AGENT.md | v0.1; the commands in section 5 are now real, some providers are still placeholders |
+| HANDOFF.md, DECISIONS.md | v0.2 (this file and its companion) |
 | Technology stack | Locked (see `AGENT.md`, section 3) |
-| Repository | Not created |
-| Code | None |
+| Repository | Created at `~/bokpoints`, private GitHub remote `github.com/AbdKabeer1/bokpoints` |
+| Code | Monorepo skeleton, CI, points engine in `packages/shared`, ledger schema and migrations, transactional ledger write path, Fastify skeleton |
+| Tests | 39 unit (Vitest) and 13 integration (real local Postgres), all passing |
 | Accounts (Stripe, Supabase, email provider, hosting, Apple and Google developer accounts) | None confirmed |
 | Pilot stores | None chosen |
 
@@ -42,12 +48,22 @@ Not in the MVP: rewards and redemption, products and discounts, campaigns and pu
 
 ## 5. Next steps (in order)
 
-1. Create the repository and the monorepo skeleton from `AGENT.md`, section 4. Add CI, lint, typecheck and test scripts, and update the commands in `AGENT.md`, section 5.
-2. Export the PRD and FRD into `docs/`.
-3. Build the points engine in `packages/shared` with unit tests (calculation, rounding, minimum and maximum rules, expiry and FIFO, balance rules). Cover the FRD example: 1 point per euro and 23.80 euros gives 23 points.
-4. Define the database schema and migrations (ledger, credentials, stores, members, devices, links, audit log, rejected offline awards).
-5. Prototype the offline QR and sync flow early (see `AGENT.md`, section 7), because it is the highest technical risk. Record the final design in `docs/DECISIONS.md`.
-6. Continue with the build order in `AGENT.md`, section 13.
+1. **Points expiry job.** A daily job that finds `earn` entries whose expiry date has
+   passed and writes an `expire` entry for each batch, using the FIFO rules already in
+   `packages/shared`. It must be idempotent. This covers `AC-6` and needs no provider.
+2. **Auth and roles; admin store onboarding; store setup and staff** (build step 3).
+   Needs Supabase, so it waits on the provider decision.
+3. **Cashier screen, online flow only, with the confirm step** (build step 4).
+   `apps/web` is a stub today.
+4. **Customer app: sign-up, QR, per-store balances and history, expiry notices**
+   (build step 5). `apps/customer` is a stub today.
+5. **Pending customers (register by email); manual adjustments; fraud clawback; audit
+   log** (build step 6). The ledger side of adjustments and clawbacks already works.
+6. **Billing with Stripe and the failed-payment states** (build step 7).
+7. **Offline awarding: signed QR, device verification, encrypted queue, sync and
+   rejections** (build step 8). Prototype the QR and sync early, because it is the
+   highest technical risk.
+8. **Reports, hardening, accessibility pass, store submissions** (build step 9).
 
 Parallel, non-code tasks for A:
 
@@ -98,4 +114,5 @@ Newest first. One entry per session. Keep each entry to a few lines.
 
 | Session | What was done | State at the end | Next |
 | --- | --- | --- | --- |
+| Build 1 | Created the repo and the monorepo skeleton with CI; exported the PRD and FRD into `docs/`; built the points engine (calculation, rounding, minimum and maximum rules, expiry, FIFO, balance rules) and the role and capability matrix with unit tests; defined the 13-table schema with migrations and append-only triggers; added the transactional ledger write path with integration tests; added the Fastify skeleton | Steps 1 and 2 of the build order are done. 39 unit and 13 integration tests pass. Private GitHub remote created | Points expiry job, then auth and roles once Supabase is chosen |
 | Planning 1 | Brainstormed the product; wrote PRD v0.2, FRD v0.2 and AGENT.md v0.1; answered the FRD decisions; locked the tech stack; created HANDOFF.md and DECISIONS.md | Planning complete; no repo, no code | Create the repo and skeleton; build the points engine |

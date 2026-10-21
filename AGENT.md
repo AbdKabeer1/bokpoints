@@ -74,19 +74,32 @@ Key principle: **business logic lives in `packages/shared` as pure functions** (
 
 ## 5. Commands
 
-These are the intended commands. They do not exist until the first setup task creates them. When you add or change a script, update this section in the same change.
+These commands exist. When you add or change a script, update this section in the same change.
 
 ```
 pnpm install            install dependencies
-pnpm dev                run everything locally
+pnpm dev                run the API with hot reload
+pnpm build              build packages/shared and apps/api
 pnpm typecheck          TypeScript checks across the repo
 pnpm lint               lint
 pnpm test               unit tests (Vitest)
 pnpm test:integration   tests against a real local Postgres
-pnpm test:e2e           Playwright end-to-end tests
 pnpm db:migrate         apply database migrations
 pnpm db:generate        generate a migration from schema changes
 ```
+
+`pnpm test:e2e` (Playwright) does not exist yet. It comes with the first end-to-end flow.
+
+Notes:
+
+- The integration tests need PostgreSQL 17 running locally and a `bokpoints_test`
+  database. They rebuild it from the migration files on every run, so they always test
+  the schema a deployment would have. They never touch `bokpoints_dev`.
+- Run Vitest from the repository root (`pnpm exec vitest run --project unit <path>`).
+  The config's include patterns are root-relative, so running Vitest inside a package
+  directory matches no files.
+- `pnpm typecheck` builds `packages/shared` first, because `apps/api` type-checks
+  against the built package.
 
 Never say a task is done unless typecheck, lint and the relevant tests pass, or you state clearly which checks you could not run and why.
 

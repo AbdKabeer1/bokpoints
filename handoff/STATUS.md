@@ -1,31 +1,77 @@
 # STATUS
 
+**Project:** BOKPOINTS, a B2B2C loyalty platform for SMEs in Finland / EU.
+**Phase:** MVP, build order steps 1 and 2 of `AGENT.md` section 13 are done.
+**Last updated:** 21 Oct 2026.
+
 ## Done
 
-- Read `docs/source/PRD.extracted.txt` (333 lines) and `docs/source/FRD.extracted.txt` (799 lines).
-- Wrote `docs/PRD.md` — 16 numbered sections, 5 tables, section numbering identical to source.
-- Wrote `docs/FRD.md` — 13 numbered sections, 5 tables, section numbering identical to source.
-- Removed all `===== PAGE n =====` markers, the running header `BOKPOINTS: ... Document (PRD|FRD)` and all `Page n of m` footers.
-- Re-joined hard-wrapped paragraph text; fixed split list markers.
-- Reconstructed all 10 tables (PRD: roles, success metrics, scope/phases, key decisions, risks. FRD: roles/permissions, data model, edge cases, decisions, PRD traceability).
-- Verification: unique `FR-*` ID sets identical to source (114 unique / 117 occurrences, sorted occurrence lists `diff`-identical); `AC-1`–`AC-11` all present; no page/footer artifacts remain; both worked-example sentences present; table column counts verified programmatically (all consistent).
-- Word-level diff against the sources shows only expected deltas (duplicate page-break table headers collapsed, and `FR-PTS-3 .` → `FR-PTS-3.`).
+- **Repo and tooling.** pnpm monorepo at `~/bokpoints`, private GitHub remote. CI runs
+  typecheck, lint, unit tests and integration tests against a PostgreSQL 17 service.
+- **PRD and FRD exported.** `docs/PRD.md` and `docs/FRD.md`, converted from the source
+  PDFs. All 114 `FR-` requirement IDs and `AC-1` to `AC-11` verified against the source.
+- **Points engine** in `packages/shared`, pure functions, no I/O: calculation with
+  rounding, minimum purchase and per-transaction cap; expiry with the short-month clamp;
+  FIFO consumption; balance and adjustment rules.
+- **Role and capability matrix** in `packages/shared`, straight from the FRD section 2
+  table.
+- **Database schema.** 13 tables from the FRD section 3 data model, with Drizzle
+  migrations, a CHECK that keeps entry points pointing in the right direction, and
+  database triggers that make the ledger and the audit log append-only.
+- **Ledger write path** in `apps/api/src/db/ledger.ts`: award with idempotency, manual
+  adjustment, admin fraud clawback, balance read. All in single transactions, with the
+  balance update guarded in SQL so concurrency cannot drive a balance negative.
+- **API skeleton**: Fastify with `GET /v1/health` and `GET /v1/ping`.
+
+**Tests: 39 unit, 13 integration, all passing.**
 
 ## In progress
 
-- None.
+Nothing. The last task is finished.
 
 ## Blocked
 
-- None.
+- **Providers are not chosen.** Supabase, Stripe, the email provider and the hosting
+  providers are all still open (`docs/DECISIONS.md` D-059). Auth, billing and the
+  customer app cannot be built end to end until at least Supabase and Stripe are picked.
+- **The offline QR design is not final.** D-022 is still `Proposed`. It is the highest
+  technical risk in the MVP and needs an architecture decision before it is built.
 
 ## Next
 
-- Parent session to review `docs/PRD.md` and `docs/FRD.md`, then proceed to the open decisions in FRD section 11 / PRD section 15.
-- Note: the `D-001`…`D-062` IDs mentioned in the task brief do **not** exist in either source file — they are not part of these two documents (likely they live in `docs/DECISIONS.md`).
+In the order of `AGENT.md` section 13, starting at step 3:
 
-## Deviations from the source (intentional, artifact fixes only)
+1. **Auth and roles**, admin store onboarding, store setup and staff (build step 3).
+   Needs Supabase, so this waits on the provider decision.
+2. **Cashier screen, online flow only**, with the confirm step (build step 4).
+   `apps/web` is a stub today.
+3. **Customer app**: sign-up, QR, per-store balances and history, expiry notices
+   (build step 5). `apps/customer` is a stub today.
+4. **Pending customers, manual adjustments in the UI, fraud clawback, audit log**
+   (build step 6). The ledger side of adjustments and clawbacks already works.
+5. **Billing with Stripe** and the failed-payment states (build step 7).
+6. **Offline awarding**: signed QR, device verification, encrypted queue, sync and
+   rejections (build step 8). Highest risk, so prototype the QR and sync early.
+7. **Reports, hardening, accessibility pass, store submissions** (build step 9).
 
-1. PRD §3 "Business customer (pays) / End user (free)" has no recoverable table header in the source; rendered as a two-item bullet list instead of a malformed table.
-2. PRD §10 "Points expiry" cell reads "…after the day they **are** earned" in the PRD source (the FRD uses "were"). Kept as-is per document.
-3. Tables and lists split by page breaks were rejoined: PRD §13 risk table, PRD §8 phase table, FRD §2 permissions table, FRD §3 entity table, FRD §7 edge-case table, FRD §11 open-points list, FRD §12 traceability table.
+### The next concrete task
+
+The points engine is done, so the natural next task is **the points expiry job**, which
+is pure MVP scope and needs no provider:
+
+- A daily job that finds `earn` entries whose `expires_at` has passed and whose
+  `remaining_points` is still above zero, and writes an `expire` entry for each batch.
+- It reuses `expiryDateForEarn` and the FIFO rules already in `packages/shared`.
+- It must be idempotent: running it twice on the same day must not double-expire.
+- It needs an integration test that covers `AC-6`: points earned on 2 June are expired
+  by an entry of minus 23 when the date reaches 2 September.
+
+## Risks to watch
+
+- **Offline awarding** is the biggest piece and the biggest fraud surface. The server
+  re-validates everything at sync; never relax that because the client already checked.
+- **Solo workload** across product, design, build, test and support. Hold the MVP scope.
+- **Two app stores plus web** add release and review work. Plan accounts and review time
+  early.
+- **Cold start.** Customers see little value until several stores participate. Launch in
+  one tight local cluster.

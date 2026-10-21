@@ -1,49 +1,109 @@
 # RUNBOOK
 
-## What is in this repo
+Every command below is run from the repository root, `/Users/mrroddy/bokpoints`.
 
-- `AGENT.md` — the working contract for agents building BOKPOINTS.
-- `docs/source/*.extracted.txt` — raw pypdf text (source of truth for the two documents).
-- `docs/PRD.md`, `docs/FRD.md` — the clean Markdown versions (converted).
-- `docs/DECISIONS.md`, `docs/HANDOFF.md` — project decision log and handoff notes.
-
-## Convert / regenerate the Markdown
-
-No build tooling is required — the Markdown is maintained by hand.
+## Prerequisites
 
 ```bash
-cd /Users/mrroddy/bokpoints
-
-# strip PDF artifacts from a source file
-sed -E '/^===== PAGE [0-9]+ =====$/d; /^BOKPOINTS: (Product Requirements|Functional Requirements) Document \((PRD|FRD)\)$/d; /^Page [0-9]+ of [0-9]+$/d' \
-  docs/source/FRD.extracted.txt
+brew install postgresql@17     # once
+brew services start postgresql@17
+createdb bokpoints_dev
+createdb bokpoints_test
 ```
 
-## Verify the conversion
+Check Postgres is up:
 
 ```bash
-cd /Users/mrroddy/bokpoints/docs
-
-# 1. requirement-ID sets must match the sources exactly
-diff <(grep -ohE 'FR-[A-Z]+-[0-9]+' source/*.extracted.txt | sort) \
-     <(grep -ohE 'FR-[A-Z]+-[0-9]+' PRD.md FRD.md | sort) && echo "IDs OK"
-
-# 2. acceptance criteria AC-1..AC-11
-grep -oE 'AC-[0-9]+' FRD.md | sort -u
-
-# 3. no leftover PDF artifacts (expect no output)
-grep -nE '===== PAGE|Page [0-9]+ of' PRD.md FRD.md
-
-# 4. worked example must be verbatim
-grep -n 'the store rule is 1 point per euro, rounded down. The cashier enters 23.80 euros. The customer receives 23 points.' FRD.md
+pg_isready -h localhost -U postgres
 ```
 
-## Test
+## Setup
 
-No automated test suite exists yet for the docs. Use the verification commands above as the
-acceptance check before claiming the conversion is done.
+```bash
+pnpm install
+cp .env.example .env
+```
+
+`.env` is gitignored. Never commit real values; the API reads them from the process
+environment.
+
+## Run
+
+```bash
+pnpm dev        # API with hot reload on http://127.0.0.1:3000
+pnpm build      # build packages/shared and apps/api
+```
+
+Health check:
+
+```bash
+curl http://127.0.0.1:3000/v1/health
+# {"status":"ok","version":"0.1.0"}
+```
+
+## Verify
+
+```bash
+pnpm typecheck
+pnpm lint
+pnpm test                                # unit
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/bokpoints_test pnpm test:integration
+```
+
+The integration suite rebuilds `bokpoints_test` from the migration files on every run.
+It never touches `bokpoints_dev`.
+
+All four must pass before a change is done.
+
+## Database
+
+```bash
+pnpm db:migrate     # apply pending migrations
+pnpm db:generate    # generate a migration after changing apps/api/src/db/schema.ts
+```
+
+Rules:
+
+- Never edit a migration that has been applied. Change the schema and generate a new one.
+- Never run destructive operations on `points_ledger_entries` or `audit_log_entries`.
+  The database refuses it anyway: both tables are append-only by trigger.
+- `drizzle/meta/` is committed. Do not delete it, or the next `db:generate` will want
+  to recreate the schema from scratch.
+
+To reset the local development database:
+
+```bash
+psql "postgres://postgres:postgres@localhost:5432/bokpoints_dev" \
+  -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;'
+pnpm db:migrate
+```
 
 ## Deploy
 
-Not applicable — documentation only. Commit both files together with the source they were
-derived from.
+Not set up. The API needs an EU container host and the web app a static host, and
+neither provider has been chosen yet (`docs/DECISIONS.md` D-059). The API builds to
+`apps/api/dist` and starts with `node dist/server.js`, with `DATABASE_URL`, `PORT`,
+`HOST` and `LOG_LEVEL` supplied by the host's secret store.
+
+## CI
+
+`.github/workflows/ci.yml` runs on every push to `main` and every pull request:
+typecheck, lint, unit tests, then integration tests against a `postgres:17` service
+container.
+
+Check the run:
+
+```bash
+gh run list --limit 5
+gh run watch
+```
+
+## Common problems
+
+| Symptom | Cause and fix |
+| --- | --- |
+| `ERR_PNPM_IGNORED_BUILDS` | pnpm 12 blocks dependency build scripts. `allowBuilds` is set in `pnpm-workspace.yaml`; if a new dependency needs one, add it there. |
+| `No test files found` | The Vitest config's include patterns are root-relative. Run tests from the repo root: `pnpm exec vitest run --project unit <path>`. |
+| `Cannot find module '@bokpoints/shared'` | The shared package has not been built. Run `pnpm --filter @bokpoints/shared build`, or use `pnpm typecheck`, which builds it first. |
+| Integration tests fail to connect | Postgres is not running, or `DATABASE_URL` points at the wrong database. The tests expect `bokpoints_test`. |
+| `role "postgres" does not exist` | Homebrew's Postgres only creates the OS user. Create the role once: `psql -d postgres -c "CREATE ROLE postgres WITH SUPERUSER LOGIN PASSWORD 'postgres';"` |
