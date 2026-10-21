@@ -69,6 +69,12 @@ Rules:
   The database refuses it anyway: both tables are append-only by trigger.
 - `drizzle/meta/` is committed. Do not delete it, or the next `db:generate` will want
   to recreate the schema from scratch.
+- **Drizzle does not track triggers.** The append-only triggers on
+  `points_ledger_entries` and `audit_log_entries` live only in the SQL migration files,
+  never in `schema.ts`. After every `db:generate`, check the generated SQL and the
+  existing migration files to confirm the triggers are still there, and check
+  `drizzle/meta/` did not drop them. The same applies to the hand-written
+  `prevent_mutation()` function.
 
 To reset the local development database:
 

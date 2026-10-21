@@ -1,0 +1,2 @@
+DROP INDEX "points_ledger_entries_idempotency_unique";--> statement-breakpoint
+CREATE UNIQUE INDEX "points_ledger_entries_idempotency_unique" ON "points_ledger_entries" USING btree ("store_id","customer_id","idempotency_key") WHERE "points_ledger_entries"."idempotency_key" is not null;

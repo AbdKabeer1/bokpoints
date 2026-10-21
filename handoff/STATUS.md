@@ -23,7 +23,7 @@
   balance update guarded in SQL so concurrency cannot drive a balance negative.
 - **API skeleton**: Fastify with `GET /v1/health` and `GET /v1/ping`.
 
-**Tests: 39 unit, 13 integration, all passing.**
+**Tests: 42 unit, 18 integration, all passing.**
 
 ## In progress
 

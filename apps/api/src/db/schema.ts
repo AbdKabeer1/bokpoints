@@ -244,9 +244,11 @@ export const pointsLedgerEntries = pgTable(
       'points_ledger_entries_type_check',
       sql`${t.type} in ('earn', 'redeem', 'adjust', 'expire', 'fraud_clawback')`,
     ),
-    // Scoped per store: the same key at another store is a different award.
+    // Scoped per store and per customer: a key identifies one award request.
+    // A key reused for a different customer, or at a different store, is a
+    // different request and must not be deduped against the first.
     uniqueIndex('points_ledger_entries_idempotency_unique')
-      .on(t.storeId, t.idempotencyKey)
+      .on(t.storeId, t.customerId, t.idempotencyKey)
       .where(sql`${t.idempotencyKey} is not null`),
     index('points_ledger_entries_customer_store_idx').on(t.customerId, t.storeId),
     index('points_ledger_entries_created_idx').on(t.createdAt),

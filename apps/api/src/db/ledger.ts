@@ -52,7 +52,7 @@ export interface RecordEarnResult {
   entryId: string | null;
   points: number;
   awarded: boolean;
-  reason?: PointsRejectionReason;
+  reason?: PointsRejectionReason | undefined;
 }
 
 export interface RecordAdjustInput {
@@ -101,71 +101,117 @@ export async function getBalance(
  * never awards twice (FR-PTS-4, AC-2).
  */
 export async function recordEarn(db: Database, input: RecordEarnInput): Promise<RecordEarnResult> {
-  return db.transaction(async (tx) => {
-    const existing = await tx
+  if (!Number.isInteger(input.amountCents) || input.amountCents < 0) {
+    throw new LedgerError('INVALID_AMOUNT', 'The purchase amount must be a non-negative integer');
+  }
+  if (input.idempotencyKey.trim().length === 0) {
+    throw new LedgerError('INVALID_AMOUNT', 'An award requires an idempotency key');
+  }
+
+  try {
+    return await db.transaction(async (tx) => {
+      const existing = await tx
+        .select({ id: pointsLedgerEntries.id, points: pointsLedgerEntries.points })
+        .from(pointsLedgerEntries)
+        .where(
+          and(
+            eq(pointsLedgerEntries.storeId, input.storeId),
+            eq(pointsLedgerEntries.customerId, input.customerId),
+            eq(pointsLedgerEntries.idempotencyKey, input.idempotencyKey),
+          ),
+        )
+        .limit(1);
+
+      const found = existing[0];
+      if (found) {
+        return { entryId: found.id, points: found.points, awarded: true };
+      }
+
+      const calculation = calculatePoints(input.amountCents, input.rule);
+
+      // FR-PTS-2: below the minimum purchase, award zero points and tell the
+      // cashier why. A zero-value purchase is the same: nothing is written
+      // to the ledger and no customer-store link is created.
+      if (!calculation.awarded) {
+        return { entryId: null, points: 0, awarded: false, reason: calculation.reason };
+      }
+
+      const scannedAt = input.scannedAt ?? new Date();
+      const expiresAt = expiryDateForEarn(scannedAt);
+
+      const inserted = await tx
+        .insert(pointsLedgerEntries)
+        .values({
+          customerId: input.customerId,
+          storeId: input.storeId,
+          type: 'earn',
+          points: calculation.points,
+          amountCents: input.amountCents,
+          remainingPoints: calculation.points,
+          expiresAt,
+          ruleVersion: input.ruleVersion,
+          staffId: input.staffId,
+          deviceId: input.deviceId,
+          scannedAt,
+          idempotencyKey: input.idempotencyKey,
+        })
+        .returning({ id: pointsLedgerEntries.id });
+
+      await applyBalanceDelta(tx, input.customerId, input.storeId, calculation.points);
+
+      // FRD 4.3: the first purchase at a store creates the customer-store link.
+      await tx
+        .insert(customerStoreLinks)
+        .values({ customerId: input.customerId, storeId: input.storeId })
+        .onConflictDoNothing();
+
+      await tx.insert(auditLogEntries).values({
+        actorId: input.staffId,
+        action: 'points.award',
+        storeId: input.storeId,
+        targetType: 'customer',
+        targetId: input.customerId,
+        after: { points: calculation.points, amountCents: input.amountCents },
+      });
+
+      return { entryId: inserted[0]?.id ?? null, points: calculation.points, awarded: true };
+    });
+  } catch (error) {
+    // Two requests with the same key can both pass the SELECT above. The
+    // unique index stops the second one from awarding twice, but the loser
+    // must still get the original award back rather than a raw database
+    // error: a double tap on the Cashier screen is normal (FR-PTS-4).
+    if (!isUniqueViolation(error)) throw error;
+
+    const winner = await db
       .select({ id: pointsLedgerEntries.id, points: pointsLedgerEntries.points })
       .from(pointsLedgerEntries)
       .where(
         and(
           eq(pointsLedgerEntries.storeId, input.storeId),
+          eq(pointsLedgerEntries.customerId, input.customerId),
           eq(pointsLedgerEntries.idempotencyKey, input.idempotencyKey),
         ),
       )
       .limit(1);
 
-    const found = existing[0];
-    if (found) {
-      return { entryId: found.id, points: found.points, awarded: true };
-    }
+    const found = winner[0];
+    if (!found) throw error;
+    return { entryId: found.id, points: found.points, awarded: true };
+  }
+}
 
-    const calculation = calculatePoints(input.amountCents, input.rule);
-
-    // FR-PTS-2: below the minimum purchase, award zero points and tell the
-    // cashier why. Nothing is written to the ledger.
-    if (!calculation.awarded) {
-      return { entryId: null, points: 0, awarded: false, reason: calculation.reason };
-    }
-
-    const scannedAt = input.scannedAt ?? new Date();
-    const expiresAt = expiryDateForEarn(scannedAt);
-
-    const inserted = await tx
-      .insert(pointsLedgerEntries)
-      .values({
-        customerId: input.customerId,
-        storeId: input.storeId,
-        type: 'earn',
-        points: calculation.points,
-        amountCents: input.amountCents,
-        remainingPoints: calculation.points,
-        expiresAt,
-        ruleVersion: input.ruleVersion,
-        staffId: input.staffId,
-        deviceId: input.deviceId,
-        scannedAt,
-        idempotencyKey: input.idempotencyKey,
-      })
-      .returning({ id: pointsLedgerEntries.id });
-
-    await applyBalanceDelta(tx, input.customerId, input.storeId, calculation.points);
-
-    // FRD 4.3: the first purchase at a store creates the customer-store link.
-    await tx
-      .insert(customerStoreLinks)
-      .values({ customerId: input.customerId, storeId: input.storeId })
-      .onConflictDoNothing();
-
-    await tx.insert(auditLogEntries).values({
-      actorId: input.staffId,
-      action: 'points.award',
-      storeId: input.storeId,
-      targetType: 'customer',
-      targetId: input.customerId,
-      after: { points: calculation.points, amountCents: input.amountCents },
-    });
-
-    return { entryId: inserted[0]?.id ?? null, points: calculation.points, awarded: true };
-  });
+/**
+ * True when the error is a Postgres unique violation (23505). Drizzle wraps
+ * the driver error, so the cause chain is walked.
+ */
+function isUniqueViolation(error: unknown): boolean {
+  let cursor: unknown = error;
+  while (cursor instanceof Error) {
+    if ((cursor as { code?: unknown }).code === '23505') return true;
+    cursor = (cursor as { cause?: unknown }).cause;
+  }
+  return false;
 }
 /**
  * A manual adjustment by an owner or manager. It may never take the balance
@@ -175,7 +221,7 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
 export async function recordAdjust(
   db: Database,
   input: RecordAdjustInput,
-): Promise<{ entryId: string; balance: number }> {
+): Promise<{ entryId: string | null; balance: number }> {
   if (input.reason.trim().length === 0) {
     throw new LedgerError('REASON_REQUIRED', 'An adjustment requires a reason');
   }
@@ -218,7 +264,7 @@ export async function recordAdjust(
       reason: input.reason,
     });
 
-    return { entryId: inserted[0]?.id ?? '', balance: newBalance };
+    return { entryId: inserted[0]?.id ?? null, balance: newBalance };
   });
 }
 
@@ -229,7 +275,7 @@ export async function recordAdjust(
 export async function recordFraudClawback(
   db: Database,
   input: RecordFraudClawbackInput,
-): Promise<{ entryId: string; balance: number }> {
+): Promise<{ entryId: string | null; balance: number }> {
   if (input.caseNote.trim().length === 0) {
     throw new LedgerError('REASON_REQUIRED', 'A fraud clawback requires a case note');
   }
@@ -283,7 +329,7 @@ export async function recordFraudClawback(
       reason: input.caseNote,
     });
 
-    return { entryId: inserted[0]?.id ?? '', balance: newBalance };
+    return { entryId: inserted[0]?.id ?? null, balance: newBalance };
   });
 }
 

@@ -91,6 +91,11 @@ Dates are given as the month of the decision (Oct 2026) for the planning session
 | D-072 | An award below the minimum purchase returns zero points with a reason, it is not an error | FR-PTS-2 says award zero points and tell the cashier why, so a minimum-purchase miss is a normal outcome | Decided | FR-PTS-2 |
 | D-073 | The idempotency key is unique per store, not globally | A global key would let a cashier at Store B have an award silently deduped against Store A's entry, which leaks across stores | Decided | FR-PTS-4 |
 | D-074 | Balance changes are a single guarded SQL statement | Reading the balance and writing an absolute value loses a delta when two cashiers adjust at the same instant; Postgres re-evaluates the guard after the row lock | Decided | FR-PTS-5, FR-PTS-8 |
+| D-075 | An award that awards no points writes nothing: no ledger entry, no customer-store link, no audit row | A mis-tap on 0 or a purchase under the minimum would otherwise leave a permanent zero row in an append-only ledger and would link a customer to the store for a purchase that did not happen | Decided | FR-PTS-2 |
+| D-076 | The idempotency key is unique per store and per customer | A key identifies one award request. Scoping it to the store alone let a key reused for a different customer silently swallow that customer's award | Decided | FR-PTS-4 |
+| D-077 | A concurrent award with the same key returns the original award instead of a database error | A double tap on the Cashier screen is normal. The unique index prevents a double award; the loser of the race must still get the original award back | Decided | FR-PTS-4 |
+| D-078 | `staff.manage` and `staff.manage_cashier` are separate capabilities | FRD section 2 says a manager may add and remove staff, cashiers only. One capability cannot express that, so a naive endpoint would over-grant | Decided | FRD 2, FR-AUTH-6 |
+| D-079 | Every award writes an audit log entry as well as a ledger entry | PRD 9.4 says every points change records who, when, which store and why. The audit log is what the admin panel reads. The cost is one audit row per award, which grows with till volume and is worth revisiting at pilot scale | Decided | PRD 9.4, FR-AUD-1 |
 
 ## Process and documents
 

@@ -35,9 +35,9 @@ The ones covered by the work so far, and where they are tested:
 | Criterion | Where it is tested |
 | --- | --- |
 | AC-1 Award points, 23 points for 23.80 euros | `packages/shared/src/points/calculate.test.ts`, `apps/api/test/integration/ledger.test.ts` |
-| AC-2 No double award | `apps/api/test/integration/ledger.test.ts` |
 | AC-3 Store isolation | `apps/api/test/integration/ledger.test.ts` |
 | AC-11 No negative balance, fraud clawback allowed | `packages/shared/src/points/balance.test.ts`, `apps/api/test/integration/ledger.test.ts` |
+| AC-2 No double award, including a concurrent double tap | `apps/api/test/integration/ledger.test.ts` |
 
 AC-4, AC-5, AC-6, AC-7, AC-8, AC-9 and AC-10 are not covered yet. AC-6 (expiry) needs
 the daily expiry job; AC-9 and AC-10 need the offline queue.

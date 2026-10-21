@@ -13,6 +13,13 @@ export function calculatePoints(amountCents: number, rule: PointsRule): PointsCa
     throw new RangeError('amountCents must be a non-negative integer');
   }
 
+  // A zero-value purchase is not an award. Nothing is written to the ledger
+  // and no customer-store link is created, so a mis-tap on 0 leaves no
+  // permanent trace.
+  if (amountCents === 0) {
+    return { points: 0, uncappedPoints: 0, capped: false, awarded: false, reason: 'zero_amount' };
+  }
+
   // FR-PTS-2: below the minimum purchase, award zero and tell the cashier why.
   if (rule.minPurchaseCents !== undefined && amountCents < rule.minPurchaseCents) {
     return { points: 0, uncappedPoints: 0, capped: false, awarded: false, reason: 'below_minimum' };

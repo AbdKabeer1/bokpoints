@@ -13,8 +13,13 @@ describe('calculatePoints', () => {
     expect(calculatePoints(199, onePerEuro).points).toBe(1);
   });
 
-  it('awards zero for a zero amount', () => {
-    expect(calculatePoints(0, onePerEuro).points).toBe(0);
+  it('awards nothing for a zero amount', () => {
+    // A zero-value purchase is not an award, so nothing is written to the
+    // ledger and no customer-store link is created.
+    const r = calculatePoints(0, onePerEuro);
+    expect(r.awarded).toBe(false);
+    expect(r.points).toBe(0);
+    expect(r.reason).toBe('zero_amount');
   });
 
   it('refuses an amount below the minimum purchase', () => {

@@ -10,6 +10,7 @@ export type Capability =
   | 'store.status'
   | 'store.manage'
   | 'staff.manage'
+  | 'staff.manage_cashier'
   | 'points_rule.manage'
   | 'points.award'
   | 'points.adjust'
@@ -54,6 +55,7 @@ const MATRIX: Record<Role, Partial<Record<Capability, PermissionDecision>>> = {
     'store.status': grant('platform'),
     'store.manage': grant('platform'),
     'staff.manage': grant('platform'),
+    'staff.manage_cashier': grant('platform'),
     'points_rule.manage': grant('platform'),
     // FRD section 2: an admin does not award points.
     'points.adjust': grant('platform'),
@@ -67,6 +69,7 @@ const MATRIX: Record<Role, Partial<Record<Capability, PermissionDecision>>> = {
   store_owner: {
     'store.manage': grant('store'),
     'staff.manage': grant('store'),
+    'staff.manage_cashier': grant('store'),
     'points_rule.manage': grant('store'),
     'points.award': grant('store'),
     'points.adjust': grant('store'),
@@ -78,7 +81,8 @@ const MATRIX: Record<Role, Partial<Record<Capability, PermissionDecision>>> = {
     'audit.view': grant('store'),
   },
   store_manager: {
-    'staff.manage': grant('store'),
+    // FRD section 2: a manager may add and remove staff, "cashiers only".
+    'staff.manage_cashier': grant('store'),
     'points_rule.manage': grant('store'),
     'points.award': grant('store'),
     'points.adjust': grant('store'),

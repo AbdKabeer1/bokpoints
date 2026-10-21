@@ -7,8 +7,9 @@ export type RoundingMode = 'floor' | 'nearest';
 /**
  * Why an award was not made.
  * - `below_minimum`: the purchase was under the store's minimum purchase (FR-PTS-2).
+ * - `zero_amount`: the purchase was worth nothing, so there is nothing to award.
  */
-export type PointsRejectionReason = 'below_minimum';
+export type PointsRejectionReason = 'below_minimum' | 'zero_amount';
 
 /**
  * A store's earning rules.

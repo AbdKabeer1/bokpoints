@@ -51,4 +51,20 @@ describe('can', () => {
     expect(can('store_owner', 'audit.view').scope).toBe('store');
     expect(can('cashier', 'audit.view').allowed).toBe(false);
   });
+
+  it('lets a manager manage cashiers but not other staff (FRD section 2)', () => {
+    expect(can('store_manager', 'staff.manage_cashier').allowed).toBe(true);
+    expect(can('store_manager', 'staff.manage').allowed).toBe(false);
+  });
+
+  it('lets an owner and an admin manage any staff', () => {
+    expect(can('store_owner', 'staff.manage').allowed).toBe(true);
+    expect(can('admin', 'staff.manage').allowed).toBe(true);
+  });
+
+  it('gives an admin a support lookup but not the store customer list', () => {
+    expect(can('admin', 'customers.lookup').allowed).toBe(true);
+    expect(can('admin', 'customers.list').allowed).toBe(false);
+    expect(can('store_owner', 'customers.lookup').allowed).toBe(false);
+  });
 });

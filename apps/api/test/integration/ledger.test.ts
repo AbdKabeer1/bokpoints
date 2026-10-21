@@ -111,6 +111,126 @@ describe('recordEarn', () => {
     expect(rows.rows[0].count).toBe(1);
   });
 
+it('awards a different customer when the same key is reused at the same store', async () => {
+    const customerX = await makeCustomer();
+    const customerY = await makeCustomer();
+    const storeId = await makeStore();
+
+    await recordEarn(db, {
+      customerId: customerX,
+      storeId,
+      amountCents: 2380,
+      rule: onePointPerEuro,
+      ruleVersion: 1,
+      idempotencyKey: 'reused-key',
+    });
+    const forY = await recordEarn(db, {
+      customerId: customerY,
+      storeId,
+      amountCents: 2380,
+      rule: onePointPerEuro,
+      ruleVersion: 1,
+      idempotencyKey: 'reused-key',
+    });
+
+    expect(forY.awarded).toBe(true);
+    expect(await getBalance(db, customerX, storeId)).toBe(23);
+    expect(await getBalance(db, customerY, storeId)).toBe(23);
+  });
+
+  it('returns the original award when the same key arrives twice at once (FR-PTS-4)', async () => {
+    const customerId = await makeCustomer();
+    const storeId = await makeStore();
+
+    // Repeated, because the race only sometimes reaches the database
+    // unique index. Without a handler for the unique violation, one of
+    // these pairs surfaces the raw error instead of the original award.
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const input = {
+        customerId,
+        storeId,
+        amountCents: 2380,
+        rule: onePointPerEuro,
+        ruleVersion: 1,
+        idempotencyKey: `concurrent-key-${attempt}`,
+      };
+      const [first, second] = await Promise.all([recordEarn(db, input), recordEarn(db, input)]);
+
+      expect(first.entryId).toBe(second.entryId);
+      expect(await getBalance(db, customerId, storeId)).toBe(23 * (attempt + 1));
+    }
+
+    const rows = await pool.query(
+      "SELECT count(*)::int AS count FROM points_ledger_entries WHERE idempotency_key LIKE 'concurrent-key-%'",
+    );
+    expect(rows.rows[0].count).toBe(10);
+  });
+
+  it('awards nothing for a zero amount and writes nothing at all', async () => {
+    const customerId = await makeCustomer();
+    const storeId = await makeStore();
+
+    const result = await recordEarn(db, {
+      customerId,
+      storeId,
+      amountCents: 0,
+      rule: onePointPerEuro,
+      ruleVersion: 1,
+      idempotencyKey: 'zero-amount',
+    });
+
+    expect(result.awarded).toBe(false);
+    expect(result.points).toBe(0);
+    expect(result.reason).toBe('zero_amount');
+    expect(result.entryId).toBeNull();
+
+    const entries = await pool.query(
+      'SELECT count(*)::int AS count FROM points_ledger_entries WHERE idempotency_key = $1',
+      ['zero-amount'],
+    );
+    expect(entries.rows[0].count).toBe(0);
+
+    const links = await db
+      .select()
+      .from(customerStoreLinks)
+      .where(eq(customerStoreLinks.customerId, customerId));
+    expect(links).toHaveLength(0);
+  });
+
+  it('refuses a negative amount with a typed error', async () => {
+    const customerId = await makeCustomer();
+    const storeId = await makeStore();
+
+    const error = await recordEarn(db, {
+      customerId,
+      storeId,
+      amountCents: -100,
+      rule: onePointPerEuro,
+      ruleVersion: 1,
+      idempotencyKey: 'negative-amount',
+    }).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(LedgerError);
+    expect((error as LedgerError).code).toBe('INVALID_AMOUNT');
+  });
+
+  it('refuses an empty idempotency key with a typed error', async () => {
+    const customerId = await makeCustomer();
+    const storeId = await makeStore();
+
+    const error = await recordEarn(db, {
+      customerId,
+      storeId,
+      amountCents: 2380,
+      rule: onePointPerEuro,
+      ruleVersion: 1,
+      idempotencyKey: '',
+    }).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(LedgerError);
+    expect((error as LedgerError).code).toBe('INVALID_AMOUNT');
+  });
+
   it('scopes the idempotency key to the store, so another store is a separate award', async () => {
     const customerId = await makeCustomer();
     const storeA = await makeStore();
