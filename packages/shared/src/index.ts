@@ -3,3 +3,4 @@ export * from './points/calculate.js';
 export * from './points/expiry.js';
 export * from './points/fifo.js';
 export * from './points/balance.js';
+export * from './permissions.js';
