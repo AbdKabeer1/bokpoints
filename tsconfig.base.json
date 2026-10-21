@@ -1,0 +1,3 @@
+{
+  "extends": "@bokpoints/config/tsconfig.base.json"
+}
