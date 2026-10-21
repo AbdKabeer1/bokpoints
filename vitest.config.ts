@@ -1,6 +1,13 @@
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      // Tests run against the shared source, never a stale build.
+      '@bokpoints/shared': fileURLToPath(new URL('./packages/shared/src/index.ts', import.meta.url)),
+    },
+  },
   test: {
     // The projects start empty and fill up as the build lands.
     passWithNoTests: true,

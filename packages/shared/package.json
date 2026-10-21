@@ -12,8 +12,8 @@
     }
   },
   "scripts": {
-    "typecheck": "tsc --noEmit",
-    "build": "tsc -b"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
     "zod": "4.6.7"
