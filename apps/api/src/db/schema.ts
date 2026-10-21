@@ -227,10 +227,14 @@ export const pointsLedgerEntries = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    // FR-PTS-8: only an admin fraud clawback may take points away.
+    // Direction per entry type. An `earn` always adds points. `redeem`,
+    // `expire` and `fraud_clawback` only ever remove them. An `adjust` may
+    // do either, and is kept at or above zero by the write path, which
+    // refuses an adjustment that would take the balance below zero
+    // (FR-PTS-8, FRD 4.5).
     check(
       'points_ledger_entries_points_sign',
-      sql`${t.points} >= 0 or ${t.type} = 'fraud_clawback'`,
+      sql`(${t.type} = 'earn' and ${t.points} >= 0) or ${t.type} = 'adjust' or (${t.type} in ('redeem', 'expire', 'fraud_clawback') and ${t.points} <= 0)`,
     ),
     check(
       'points_ledger_entries_remaining',

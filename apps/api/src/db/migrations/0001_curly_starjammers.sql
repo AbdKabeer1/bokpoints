@@ -1,0 +1,2 @@
+ALTER TABLE "points_ledger_entries" DROP CONSTRAINT "points_ledger_entries_points_sign";--> statement-breakpoint
+ALTER TABLE "points_ledger_entries" ADD CONSTRAINT "points_ledger_entries_points_sign" CHECK (("points_ledger_entries"."type" = 'earn' and "points_ledger_entries"."points" >= 0) or "points_ledger_entries"."type" = 'adjust' or ("points_ledger_entries"."type" in ('redeem', 'expire', 'fraud_clawback') and "points_ledger_entries"."points" <= 0));
