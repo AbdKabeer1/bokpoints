@@ -20,6 +20,11 @@ export const envSchema = z.object({
    * tokens (D-100). It is required in production. The API only ever needs the
    * URL; the keys stay with the apps and the admin scripts.
    */
+  /**
+   * Browser origins allowed to call the API, comma-separated (D-112). Empty
+   * or absent means no cross-origin browser access.
+   */
+  CORS_ORIGINS: z.string().optional(),
   SUPABASE_URL: z.preprocess(
     (value) => (value === '' ? undefined : value),
     z.string().url().optional(),

@@ -58,6 +58,10 @@ const app = await buildApp({
   db,
   sessionResolver: resolveSessionResolver(),
   customerResolver: resolveCustomerResolver(),
+  corsOrigins: (env.CORS_ORIGINS ?? '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter((origin) => origin !== ''),
   logger: true,
   rateLimit: { max: env.RATE_LIMIT_MAX, timeWindow: '1 minute' },
   // The interactive documentation is not served in production.

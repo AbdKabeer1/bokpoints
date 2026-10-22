@@ -20,6 +20,37 @@ describe('buildApp', () => {
     await app.close();
   });
 
+
+  it('allows the configured web origins and no others', async () => {
+    const app = await buildApp({ corsOrigins: ['http://localhost:8081'] });
+    const allowed = await app.inject({
+      method: 'GET',
+      url: '/v1/health',
+      headers: { origin: 'http://localhost:8081' },
+    });
+    const other = await app.inject({
+      method: 'GET',
+      url: '/v1/health',
+      headers: { origin: 'http://evil.test' },
+    });
+
+    expect(allowed.headers['access-control-allow-origin']).toBe('http://localhost:8081');
+    expect(other.headers['access-control-allow-origin']).toBeUndefined();
+    await app.close();
+  });
+
+  it('sends no CORS headers when no origin is configured', async () => {
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/health',
+      headers: { origin: 'http://localhost:8081' },
+    });
+
+    expect(res.headers['access-control-allow-origin']).toBeUndefined();
+    await app.close();
+  });
+
   it('returns 404 for an unknown route', async () => {
     const app = await buildApp();
     const res = await app.inject({ method: 'GET', url: '/v1/nope' });

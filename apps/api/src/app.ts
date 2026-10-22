@@ -1,3 +1,4 @@
+import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import swagger from '@fastify/swagger';
@@ -27,6 +28,12 @@ export interface BuildAppOptions {
   sessionResolver?: SessionResolver | undefined;
   /** Verifies customer tokens (D-111); separate because customers need no MFA. */
   customerResolver?: CustomerSessionResolver | undefined;
+  /**
+   * Browser origins allowed to call the API (D-112). Empty means no CORS:
+   * browser clients then use a same-origin proxy, as the till's Vite dev
+   * server does. Native apps are unaffected either way.
+   */
+  corsOrigins?: string[] | undefined;
   logger?: boolean;
   /** Overrides the rate limits. Used by the tests to keep them small. */
   rateLimit?: RateLimitOptions | undefined;
@@ -67,6 +74,10 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   // interactive documentation is served, because that page needs inline
   // scripts.
   await app.register(helmet, enableDocs ? { contentSecurityPolicy: false } : {});
+
+  // Only the named origins get browser access. `false` disables CORS
+  // entirely, which is the safe default for a locally proxied app.
+  await app.register(cors, { origin: options.corsOrigins ?? false });
 
   // Rate limiting is applied per route, not globally: the scanning and
   // awarding endpoints need it, the health check does not (AGENT.md
