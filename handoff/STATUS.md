@@ -2,7 +2,7 @@
 
 **Project:** BOKPOINTS, a B2B2C loyalty platform for SMEs in Finland / EU.
 **Phase:** MVP, build order steps 1 and 2 of `AGENT.md` section 13 are done.
-**Last updated:** 22 Oct 2026, after applying the Supabase auth and store-branches patch onto a branch and migrating `0006` to the hosted Supabase database (45 unit, 111 integration tests green).
+**Last updated:** 22 Oct 2026, after Build 6: store setup endpoints and the points expiry job (45 unit, 131 integration tests green), on top of the merged Supabase auth round.
 
 ## Done
 
@@ -57,8 +57,18 @@
   project (`eu-north-1`) as well as locally. RLS is enabled on every table with no
   policies (D-102), verified server-side against the hosted database. The hosted
   connection lives in `apps/api/.env` as `SUPABASE_DB_URL`.
+- **Store setup endpoints** (D-107): `POST /v1/admin/stores` creates a whole store in
+  one call (active store, points rule version 1, optional branches, first owner with
+  their Supabase id), and `POST /v1/stores/:storeId/staff` lets an owner invite
+  managers and cashiers with an optional one-branch limit; a manager invites cashiers
+  only, and nothing hands out ownership. Everything is capability-checked, audited,
+  and the first award can now be created without touching the database.
+- **The points expiry job** (D-108): `pnpm expiry:run` expires every due batch once —
+  one `expire` ledger entry per batch, remaining points zeroed in the same
+  transaction, batches locked like adjustments, balance delta guarded. Two runs on
+  the same day, or two runs racing, each expire exactly once (tested).
 
-**Tests: 45 unit, 111 integration, all passing.**
+**Tests: 45 unit, 131 integration, all passing.**
 
 ## In progress
 
@@ -83,29 +93,29 @@ In the order of `AGENT.md` section 13:
    `SUPABASE_PUBLISHABLE_KEY` in `.env`, run `pnpm bootstrap:admin`, then
    `pnpm staff:login`, and call the API with the token. The JWKS address must return
    a key (asymmetric signing keys on).
-2. **The points expiry job.** See below.
-3. **Cashier screen, online flow only**, with the confirm step (build step 4).
+2. **Cashier screen, online flow only**, with the confirm step (build step 4).
    `apps/web` is a stub today.
-4. **Customer app**: sign-up, QR, per-store balances and history, expiry notices
+3. **Customer app**: sign-up, QR, per-store balances and history, expiry notices
    (build step 5). `apps/customer` is a stub today.
-5. **Pending customers, manual adjustments in the UI, fraud clawback, audit log**
+4. **Pending customers, manual adjustments in the UI, fraud clawback, audit log**
    (build step 6). The ledger side of adjustments and clawbacks already works.
-6. **Billing with Stripe** and the failed-payment states (build step 7).
-7. **Offline awarding**: signed QR, device verification, encrypted queue, sync and
+5. **Billing with Stripe** and the failed-payment states (build step 7).
+6. **Offline awarding**: signed QR, device verification, encrypted queue, sync and
    rejections (build step 8). Highest risk, so prototype the QR and sync early.
-8. **Reports, hardening, accessibility pass, store submissions** (build step 9).
+7. **Reports, hardening, accessibility pass, store submissions** (build step 9).
 
 ### The next concrete task
 
-The award endpoint is done, so the natural next task is **the points expiry job**, which
-is pure MVP scope and needs no provider:
+Store creation, invites and the expiry job all exist now, so the natural next task is
+**running the built auth against the live project and creating the first real
+store** (Next 1):
 
-- A daily job that finds `earn` entries whose `expires_at` has passed and whose
-  `remaining_points` is still above zero, and writes an `expire` entry for each batch.
-- It reuses `expiryDateForEarn` and the FIFO rules already in `packages/shared`.
-- It must be idempotent: running it twice on the same day must not double-expire.
-- It needs an integration test that covers `AC-6`: points earned on 2 June are expired
-  by an entry of minus 23 when the date reaches 2 September.
+- A staff user signs up in Supabase, `pnpm bootstrap:admin` links the account, and
+  `pnpm staff:login` prints a real second-factor token.
+- With that admin token, `POST /v1/admin/stores` creates a store with its rule,
+  branches and owner, and the owner invites a cashier.
+- A customer plus a credential plus the first real award completes the end-to-end
+  run; `pnpm expiry:run` shows the batches it produced.
 
 ## Risks to watch
 

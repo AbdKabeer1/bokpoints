@@ -84,6 +84,8 @@ curl http://127.0.0.1:3000/v1/health
 | `POST` | `/v1/stores/{storeId}/identify` | Scanned credential to customer, first name and balance |
 | `POST` | `/v1/stores/{storeId}/awards` | Award points (requires an `Idempotency-Key` header) |
 | `GET` | `/v1/stores/{storeId}/customers/{customerId}/balance` | Balance at that store |
+| `POST` | `/v1/admin/stores` | Admin: create the store with its points rule, branches and first owner |
+| `POST` | `/v1/stores/{storeId}/staff` | Owner/manager: invite staff, optionally limited to one branch |
 | `GET` | `/v1/docs` | Swagger UI |
 | `GET` | `/v1/openapi.json` | The OpenAPI document |
 
@@ -109,6 +111,7 @@ All four must pass before a change is done.
 ```bash
 pnpm db:migrate     # apply pending migrations
 pnpm db:generate    # generate a migration after changing apps/api/src/db/schema.ts
+pnpm expiry:run     # run the points expiry job once (safe any time, D-108)
 ```
 
 Rules:
