@@ -11,6 +11,7 @@ import {
 } from 'fastify-type-provider-zod';
 import type { SessionResolver } from './auth/session.js';
 import type { Database } from './db/client.js';
+import { adminRoutes } from './routes/admin.js';
 import { storeRoutes } from './routes/stores.js';
 
 export interface RateLimitOptions {
@@ -115,6 +116,11 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
 
   if (options.db) {
     await app.register(storeRoutes, {
+      db: options.db,
+      sessionResolver: options.sessionResolver,
+      rateLimit: options.rateLimit,
+    });
+    await app.register(adminRoutes, {
       db: options.db,
       sessionResolver: options.sessionResolver,
       rateLimit: options.rateLimit,

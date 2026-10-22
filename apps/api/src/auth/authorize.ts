@@ -23,11 +23,79 @@ export type AuthResult =
     }
   | { ok: false; status: 401 | 403; error: { code: AuthErrorCode; message: string } };
 
-export interface AuthorizeOptions {
+/**
+ * Authenticates the caller and checks a platform-wide capability.
+ *
+ * The admin's store-independent operations (creating a store, and later the
+ * audit view) live here. Exactly the same rules as the store-scoped variant:
+ * the token is verified, the role is read from the database, and a caller
+ * who is not an admin is refused before any capability is considered.
+ */
+export type AdminAuthResult =
+  | { ok: true; staffUserId: string; role: Role }
+  | { ok: false; status: 401 | 403; error: { code: AuthErrorCode; message: string } };
+
+export interface AuthorizeAdminOptions {
   token: string | undefined;
-  storeId: string;
   /** The capability that grants access. Any one of them is enough. */
   anyOf: Capability[];
+}
+
+export async function authorizeAdminRequest(
+  db: Database,
+  resolver: SessionResolver | undefined,
+  options: AuthorizeAdminOptions,
+): Promise<AdminAuthResult> {
+  if (!options.token) {
+    return failure(401, 'MISSING_TOKEN', 'This request needs an access token');
+  }
+
+  if (!resolver) {
+    return failure(401, 'INVALID_TOKEN', 'This request needs an access token');
+  }
+
+  let principal;
+  try {
+    principal = await resolver.resolve(options.token);
+  } catch (error) {
+    if (error instanceof MfaRequiredError) {
+      return failure(403, 'MFA_REQUIRED', 'Multi-factor authentication is required');
+    }
+    throw error;
+  }
+  if (!principal) {
+    return failure(401, 'INVALID_TOKEN', 'That access token is not valid');
+  }
+
+  const admin = await db
+    .select({ isAdmin: staffUsers.isAdmin, status: staffUsers.status })
+    .from(staffUsers)
+    .where(eq(staffUsers.id, principal.staffUserId))
+    .limit(1);
+
+  const account = admin[0];
+  if (!account) {
+    return failure(401, 'INVALID_TOKEN', 'That access token is not valid');
+  }
+
+  if (account.status !== 'active') {
+    return failure(403, 'ACCOUNT_DEACTIVATED', 'This account has been deactivated');
+  }
+
+  // FRD section 2: admin accounts are separate. Platform operations on a
+  // store-scoped token role would be a privilege escalation, so only a
+  // genuine admin row gets past this point.
+  if (!account.isAdmin) {
+    return failure(403, 'FORBIDDEN', 'This is an admin operation');
+  }
+
+  const role: Role = 'admin';
+  const permitted = options.anyOf.some((capability) => can(role, capability).allowed);
+  if (!permitted) {
+    return failure(403, 'FORBIDDEN', 'Your role does not allow this action');
+  }
+
+  return { ok: true, staffUserId: principal.staffUserId, role };
 }
 
 const failure = (

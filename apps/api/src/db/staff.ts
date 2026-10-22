@@ -1,6 +1,8 @@
 import { sql } from 'drizzle-orm';
 import type { Database } from './client.js';
 
+type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
+
 export interface StaffAccountInput {
   email: string;
   name: string;
@@ -14,10 +16,14 @@ export interface StaffAccountInput {
  * it to a Supabase user. Emails are compared case-insensitively (D-094).
  *
  * It is the one path for administrative account setup: the bootstrap script
- * uses it for the first admin, and the store-invite flow will use it later.
- * Running it twice with the same input changes nothing.
+ * uses it for the first admin, and the store-invite flow uses it later.
+ * Running it twice with the same input changes nothing. It accepts either
+ * the database or a transaction, so the caller keeps its atomicity.
  */
-export async function upsertStaffAccount(db: Database, input: StaffAccountInput): Promise<string> {
+export async function upsertStaffAccount(
+  db: Database | Tx,
+  input: StaffAccountInput,
+): Promise<string> {
   const result = await db.execute<{ id: string }>(sql`
     INSERT INTO staff_users (email, name, is_admin, auth_user_id)
     VALUES (${input.email}, ${input.name}, ${input.isAdmin}, ${input.authUserId})

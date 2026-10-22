@@ -71,6 +71,72 @@ export const apiErrorSchema = z.object({
   }),
 });
 
+/**
+ * The points rule an admin names when creating a store. The bounds mirror
+ * the database CHECKs (`points_rules_rate_check` keeps the earn rate between
+ * 0 exclusive and 1,000,000 inclusive, D-093).
+ */
+export const createStorePointsRuleSchema = z.object({
+  pointsPerEuroThousandths: z.number().int().min(1).max(1_000_000),
+  rounding: z.enum(['floor', 'nearest']).default('floor'),
+  minPurchaseCents: z.number().int().min(0).optional(),
+  maxPointsPerTransaction: z.number().int().min(0).optional(),
+});
+
+export const createStoreBranchSchema = z.object({
+  name: z.string().min(1).max(100),
+  address: z.string().min(1).max(400).optional(),
+});
+
+/**
+ * The store's first owner. An owner must already exist in the identity
+ * provider (D-099): creation links the account, it does not sign anybody up.
+ */
+export const createStoreOwnerSchema = z.object({
+  email: z.string().max(200),
+  name: z.string().min(1).max(200),
+  authUserId: z.string().uuid(),
+});
+
+export const createStoreRequestSchema = z.object({
+  name: z.string().min(1).max(200),
+  address: z.string().min(1).max(400).optional(),
+  contactName: z.string().min(1).max(200).optional(),
+  contactEmail: z.string().max(200).optional(),
+  pointsRule: createStorePointsRuleSchema,
+  // Most stores have no branches and send nothing here (D-103).
+  branches: z.array(createStoreBranchSchema).max(50).optional(),
+  owner: createStoreOwnerSchema,
+});
+
+export const createdStoreRuleSchema = z.object({
+  ruleVersion: z.number().int(),
+  pointsPerEuroThousandths: z.number().int(),
+  rounding: z.enum(['floor', 'nearest']),
+  minPurchaseCents: z.number().int().optional(),
+  maxPointsPerTransaction: z.number().int().optional(),
+});
+
+export const createdStoreBranchSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+});
+
+export const createdStoreOwnerSchema = z.object({
+  id: z.string().uuid(),
+  email: z.string(),
+  locationId: z.string().uuid().nullable(),
+});
+
+export const createdStoreResponseSchema = z.object({
+  storeId: z.string().uuid(),
+  name: z.string(),
+  status: z.string(),
+  rule: createdStoreRuleSchema,
+  branches: z.array(createdStoreBranchSchema),
+  owner: createdStoreOwnerSchema,
+});
+
 export const healthResponseSchema = z.object({
   status: z.string(),
   version: z.string(),
