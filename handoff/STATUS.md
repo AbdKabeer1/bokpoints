@@ -1,8 +1,8 @@
 # STATUS
 
 **Project:** BOKPOINTS, a B2B2C loyalty platform for SMEs in Finland / EU.
-**Phase:** MVP, build order steps 1 to 5 are done; step 5 has shipped its first slice (sign-in, onboarding, QR, balances, history, expiring notices).
-**Last updated:** 23 Oct 2026, after Build 8 (the customer app): `apps/customer` is an Expo app with a working web export; the API gained customer identity (`customers.auth_user_id`), provisioning with a `CUS-` QR credential, a separate `aal1` customer resolver, five customer-scoped endpoints and a CORS allow-list. 67 unit and 166 integration tests green; a real `aal1` token provisioned a customer and an award showed up in their stores and history.
+**Phase:** MVP, build order steps 1 to 5 are done, and step 6's API half (6A) is done; the store and admin screens (6B) are next.
+**Last updated:** 23 Oct 2026, after Build 9 (pending customers and oversight, 6A): a cashier can register a customer by email at the till and the points attach on first sign-in; owners and managers can adjust a balance; admins can claw back; both can read the audit log. The till gained the "customer without the app" form. 69 unit and 189 integration tests green; the whole flow was exercised live.
 
 ## Done
 
@@ -112,7 +112,16 @@
   which created customer + credential; a €12.50 award at Kahvila Bea then appeared
   as 12 points in the customer's store list and history, with `balanceAfter` 12.
 
-**Tests: 67 unit, 166 integration, all passing.**
+- **Pending customers and oversight (Build 9, 6A, D-113, D-114)**: `POST
+  /v1/stores/:storeId/customers` registers a customer by email (the pending row is
+  a `customers` row with no `auth_user_id`, claimed by the first sign-in with that
+  email); the till has a "customer without the app" form. Owners and managers adjust
+  points with a required reason (never below zero); admins claw back, which may go
+  negative and marks the store link under fraud review; owners, managers and admins
+  read the audit log. Live: register → award 25 → adjust +5 → list → audit line →
+  clawback 40 → −35.
+
+**Tests: 69 unit, 189 integration, all passing.**
 
 ## In progress
 

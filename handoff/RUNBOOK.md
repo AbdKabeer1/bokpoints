@@ -109,6 +109,11 @@ The scanner is a keyboard-wedge device: it types the code and presses Enter into
 the focused field. Without hardware, type `CUST-QR-0001` at Kahvila Bea and press
 Enter; the customer is Aino, with 15 points.
 
+Someone without the app: press **Customer without the app**, type their email (and a
+first name if they give one), and continue to the amount. Their points are held on
+that address; the first time they sign in to the customer app with the same email,
+the pending row and its points become theirs.
+
 `ALLOW_DEV_AUTH` is off by default and the server refuses to start with it on in
 production. With it on, the bearer token is a staff member's email address. The
 role is always read from the database, never from the token.
@@ -162,6 +167,12 @@ curl http://127.0.0.1:3000/v1/health
 | `POST` | `/v1/stores/{storeId}/identify` | Scanned credential to customer, first name and balance |
 | `POST` | `/v1/stores/{storeId}/awards/preview` | What a purchase would earn and when it expires; writes nothing |
 | `POST` | `/v1/stores/{storeId}/awards` | Award points (requires an `Idempotency-Key` header) |
+| `POST` | `/v1/stores/{storeId}/customers` | Register a customer by email (pending until they sign in) |
+| `GET` | `/v1/stores/{storeId}/customers` | Customer list with balances; `?query=` searches name or email |
+| `POST` | `/v1/stores/{storeId}/customers/{customerId}/adjustments` | Owner/manager: adjust points with a reason, never below zero |
+| `POST` | `/v1/admin/stores/{storeId}/customers/{customerId}/clawback` | Admin: remove points, may go below zero, marks fraud review |
+| `GET` | `/v1/stores/{storeId}/audit` | Owner/manager: store audit log, newest first |
+| `GET` | `/v1/admin/audit` | Admin: audit log across stores |
 | `GET` | `/v1/stores/{storeId}/customers/{customerId}/balance` | Balance at that store |
 | `POST` | `/v1/admin/stores` | Admin: create the store with its points rule, branches and first owner |
 | `POST` | `/v1/stores/{storeId}/staff` | Owner/manager: invite staff, optionally limited to one branch |
