@@ -87,6 +87,30 @@ const postAdminStores = async (token: string | null, payload: unknown) => {
   return res;
 };
 
+const postStaffInvite = async (
+  token: string,
+  storeId: string,
+  payload: Record<string, unknown>,
+) => {
+  const app = await buildApp({ db, sessionResolver: createDevSessionResolver(db) });
+  const res = await app.inject({
+    method: 'POST',
+    url: `/v1/stores/${storeId}/staff`,
+    headers: { authorization: `Bearer ${token}` },
+    payload,
+  });
+  await app.close();
+  return res;
+};
+
+const invitePayload = (role: string, extra: Record<string, unknown> = {}) => ({
+  email: `new.${role}@test.dev`,
+  name: `New ${role}`,
+  authUserId: randomUUID(),
+  role,
+  ...extra,
+});
+
 describe('an admin creating a store (POST /v1/admin/stores)', () => {
   it('creates the store with its rule, branches and first owner', async () => {
     const ownerAuthUserId = randomUUID();
@@ -194,5 +218,113 @@ describe('an admin creating a store (POST /v1/admin/stores)', () => {
     expect(res.json().rule).toMatchObject({ rounding: 'floor' });
     expect(res.json().rule).not.toHaveProperty('minPurchaseCents');
     expect(res.json().rule).not.toHaveProperty('maxPointsPerTransaction');
+  });
+});
+
+/** A store to invite people into, created the way Task 1's endpoint does it. */
+async function storeWithBranches(): Promise<{ storeId: string; kamppi: string; tooeloe: string }> {
+  const res = await postAdminStores('admin@test.dev', validStorePayload);
+  if (res.statusCode !== 201) throw new Error(`store creation failed: ${res.statusCode}`);
+  const body: { storeId: string; branches: { id: string; name: string }[] } = res.json();
+  const kamppi = body.branches.find((b) => b.name === 'Kamppi');
+  const tooeloe = body.branches.find((b) => b.name === 'Töölö');
+  if (!kamppi || !tooeloe) throw new Error('branches missing');
+  return { storeId: body.storeId, kamppi: kamppi.id, tooeloe: tooeloe.id };
+}
+
+describe('an owner inviting staff (POST /v1/stores/:storeId/staff)', () => {
+  it('invites a cashier limited to one branch (D-103)', async () => {
+    const { storeId, kamppi } = await storeWithBranches();
+    const res = await postStaffInvite(
+      'owner.aino@test.dev',
+      storeId,
+      invitePayload('cashier', { locationId: kamppi }),
+    );
+
+    expect(res.statusCode).toBe(201);
+    expect(res.json()).toMatchObject({ role: 'cashier', locationId: kamppi, status: 'active' });
+
+    const memberRow = await pool.query(
+      `SELECT sm.role, sm.status, sm.location_id
+       FROM store_members sm
+       JOIN staff_users su ON su.id = sm.user_id
+       WHERE sm.store_id = $1 AND su.email = $2`,
+      [storeId, 'new.cashier@test.dev'],
+    );
+    expect(memberRow.rows).toEqual([{ role: 'cashier', status: 'active', location_id: kamppi }]);
+  });
+
+  it('invites a manager for every branch', async () => {
+    const { storeId } = await storeWithBranches();
+    const res = await postStaffInvite('owner.aino@test.dev', storeId, invitePayload('manager'));
+    expect(res.statusCode).toBe(201);
+    expect(res.json()).toMatchObject({ role: 'manager', locationId: null });
+  });
+
+  it('refuses to hand out the owner role', async () => {
+    const { storeId } = await storeWithBranches();
+    const res = await postStaffInvite('owner.aino@test.dev', storeId, invitePayload('owner'));
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('refuses a closed or foreign branch (LOCATION_INVALID)', async () => {
+    const { storeId } = await storeWithBranches();
+    const closed = randomUUID();
+    await pool.query(
+      "INSERT INTO store_locations (id, store_id, name, status) VALUES ($1, $2, 'Closed', 'closed')",
+      [closed, storeId],
+    );
+    const res = await postStaffInvite(
+      'owner.aino@test.dev',
+      storeId,
+      invitePayload('cashier', { locationId: closed }),
+    );
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ error: { code: 'LOCATION_INVALID' } });
+  });
+
+  it('writes the audit trail entry with the inviter as actor', async () => {
+    const { storeId } = await storeWithBranches();
+    await postStaffInvite('owner.aino@test.dev', storeId, invitePayload('cashier'));
+    const rows = await pool.query(
+      'SELECT action, actor_role, store_id, target_type FROM audit_log_entries WHERE store_id = $1 AND action = $2',
+      [storeId, 'staff.invite'],
+    );
+    expect(rows.rows[0]).toMatchObject({
+      action: 'staff.invite',
+      actor_role: 'store_owner',
+      store_id: storeId,
+      target_type: 'staff',
+    });
+  });
+});
+
+describe('a manager inviting staff', () => {
+  it('may invite a cashier', async () => {
+    const { storeId } = await storeWithBranches();
+    await postStaffInvite('owner.aino@test.dev', storeId, invitePayload('manager'));
+    const res = await postStaffInvite('new.manager@test.dev', storeId, invitePayload('cashier'));
+    expect(res.statusCode).toBe(201);
+  });
+
+  it('may not invite a manager ("cashiers only", FRD section 2)', async () => {
+    const { storeId } = await storeWithBranches();
+    await postStaffInvite('owner.aino@test.dev', storeId, invitePayload('manager'));
+    const res = await postStaffInvite('new.manager@test.dev', storeId, invitePayload('manager'));
+    expect(res.statusCode).toBe(403);
+    expect(res.json()).toMatchObject({ error: { code: 'FORBIDDEN_ROLE' } });
+  });
+});
+
+describe('an outsider inviting staff', () => {
+  it('is checked against store membership before anything else (FR-PRV-4)', async () => {
+    const { storeId } = await storeWithBranches();
+    const res = await postStaffInvite(
+      'owner.elsewhere@test.dev',
+      storeId,
+      invitePayload('cashier'),
+    );
+    expect(res.statusCode).toBe(403);
+    expect(res.json()).toMatchObject({ error: { code: 'STORE_MISMATCH' } });
   });
 });

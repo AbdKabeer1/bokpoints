@@ -137,6 +137,28 @@ export const createdStoreResponseSchema = z.object({
   owner: createdStoreOwnerSchema,
 });
 
+/**
+ * An invitation by an owner (or the admin) or a cashier-only one by a
+ * manager (FRD section 2). Ownership is never handed out by an invite:
+ * changing who owns a store is a separate, reviewed action.
+ */
+export const inviteStaffRequestSchema = z.object({
+  email: z.string().max(200),
+  name: z.string().min(1).max(200),
+  authUserId: z.string().uuid(),
+  role: z.enum(['manager', 'cashier']),
+  // D-103: when named, the member is limited to that branch of this store.
+  locationId: z.string().uuid().optional(),
+});
+
+export const invitedStaffResponseSchema = z.object({
+  memberId: z.string().uuid(),
+  storeId: z.string().uuid(),
+  role: z.enum(['manager', 'cashier']),
+  locationId: z.string().uuid().nullable(),
+  status: z.string(),
+});
+
 export const healthResponseSchema = z.object({
   status: z.string(),
   version: z.string(),
