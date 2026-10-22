@@ -5,6 +5,7 @@ import {
   balanceResponseSchema,
   identifyResponseSchema,
   meResponseSchema,
+  registeredCustomerSchema,
 } from '@bokpoints/shared';
 
 export class ApiError extends Error {
@@ -113,6 +114,18 @@ export const award = (token: string, storeId: string, body: AwardBody) =>
     headers: { 'idempotency-key': crypto.randomUUID() },
   });
 
+export const registerCustomer = (
+  token: string,
+  storeId: string,
+  body: { email: string; name?: string },
+) =>
+  request(registeredCustomerSchema, {
+    method: 'POST',
+    path: `/v1/stores/${storeId}/customers`,
+    token,
+    body,
+  });
+
 export const getBalance = (token: string, storeId: string, customerId: string) =>
   request(balanceResponseSchema, {
     method: 'GET',
@@ -124,3 +137,4 @@ export type Me = Awaited<ReturnType<typeof getMe>>;
 export type Membership = Me['memberships'][number];
 export type Identified = Awaited<ReturnType<typeof identify>>;
 export type AwardPreview = Awaited<ReturnType<typeof previewAward>>;
+export type RegisteredCustomer = Awaited<ReturnType<typeof registerCustomer>>;

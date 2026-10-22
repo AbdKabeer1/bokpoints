@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDate, normalizeScan, parseAmountToCents } from '../../src/format';
+import { formatDate, isEmail, normalizeScan, parseAmountToCents } from '../../src/format';
 
 describe('parseAmountToCents', () => {
   it('reads both the decimal comma and the decimal dot', () => {
@@ -39,6 +39,15 @@ describe('normalizeScan', () => {
   it('leaves an empty scan empty', () => {
     expect(normalizeScan('')).toBe('');
     expect(normalizeScan(' \r\n\t ')).toBe('');
+  });
+});
+
+describe('isEmail', () => {
+  it('accepts a plausible address and rejects the rest', () => {
+    expect(isEmail(' aino@example.fi ')).toBe(true);
+    expect(isEmail('aino@example')).toBe(false);
+    expect(isEmail('not an email')).toBe(false);
+    expect(isEmail('')).toBe(false);
   });
 });
 

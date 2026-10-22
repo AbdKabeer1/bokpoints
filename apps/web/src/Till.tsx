@@ -5,13 +5,14 @@ import {
   getBalance,
   identify,
   previewAward,
+  registerCustomer,
   type AwardBody,
   type AwardPreview,
   type Identified,
   type Membership,
 } from './api';
 import { cashierMessage } from './errors';
-import { formatDate, normalizeScan, parseAmountToCents } from './format';
+import { formatDate, isEmail, normalizeScan, parseAmountToCents } from './format';
 
 interface TillProps {
   token: string;
@@ -46,9 +47,14 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [recorded, setRecorded] = useState<AwardRecorded | null>(null);
+  const [registerOpen, setRegisterOpen] = useState(false);
+  const [registerEmail, setRegisterEmail] = useState('');
+  const [registerName, setRegisterName] = useState('');
+  const [registerError, setRegisterError] = useState<string | null>(null);
 
   const scanRef = useRef<HTMLInputElement>(null);
   const amountRef = useRef<HTMLInputElement>(null);
+  const emailRef = useRef<HTMLInputElement>(null);
 
   /** The branch this award lands on: the member's own limit, else the picked one. */
   const effectiveLocationId = membership.locationId ?? branchId;
@@ -61,9 +67,10 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
 
   useEffect(() => {
     if (recorded !== null) return;
-    if (customer === null) scanRef.current?.focus();
-    else amountRef.current?.focus();
-  }, [customer, recorded]);
+    if (customer !== null) amountRef.current?.focus();
+    else if (registerOpen) emailRef.current?.focus();
+    else scanRef.current?.focus();
+  }, [customer, recorded, registerOpen]);
 
   // Live preview, debounced: the maths stays on the server, so typing never
   // drifts from what the award will actually do.
@@ -141,6 +148,38 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
     }
   };
 
+  const handleRegister = async (event: FormEvent) => {
+    event.preventDefault();
+    const email = registerEmail.trim().toLowerCase();
+    if (!isEmail(email)) {
+      setRegisterError('That does not look like an email address.');
+      return;
+    }
+
+    setBusy(true);
+    setRegisterError(null);
+    try {
+      const created = await registerCustomer(token, membership.storeId, {
+        email,
+        ...(registerName.trim() === '' ? {} : { name: registerName.trim() }),
+      });
+      setCustomer({
+        customerId: created.customerId,
+        firstName: created.firstName,
+        balance: created.balance,
+      });
+      setRegisterOpen(false);
+      setRegisterEmail('');
+      setRegisterName('');
+    } catch (caught) {
+      setRegisterError(
+        caught instanceof ApiError ? cashierMessage(caught.code) : 'Could not register them.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const reset = () => {
     setCustomer(null);
     setAmount('');
@@ -200,28 +239,90 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
             </button>
           </div>
         ) : customer === null ? (
-          <form className="scan" onSubmit={(event) => void handleScan(event)}>
-            <p className="eyebrow">Scan member code</p>
-            <input
-              ref={scanRef}
-              className="scaninput"
-              value={scanValue}
-              onChange={(event) => setScanValue(event.target.value)}
-              placeholder="Scan the card or type the code"
-              autoComplete="off"
-              autoFocus
-              disabled={busy}
-              aria-label="Member code"
-            />
-            <button className="primary" type="submit" disabled={busy || scanValue.trim() === ''}>
-              {busy ? 'Looking…' : 'Find customer'}
-            </button>
-            <p className="muted">A scanner types the code and presses Enter. Typing works too.</p>
-          </form>
+          registerOpen ? (
+            <form className="scan" onSubmit={(event) => void handleRegister(event)}>
+              <p className="eyebrow">Customer without the app</p>
+              <p className="muted">
+                Their points are held on this email and appear when they first sign in with it.
+              </p>
+              <label htmlFor="register-email">Email</label>
+              <input
+                id="register-email"
+                ref={emailRef}
+                value={registerEmail}
+                onChange={(event) => setRegisterEmail(event.target.value)}
+                placeholder="customer@example.com"
+                autoComplete="off"
+                autoFocus
+                disabled={busy}
+                aria-label="Customer email"
+              />
+              <label htmlFor="register-name">First name (optional)</label>
+              <input
+                id="register-name"
+                value={registerName}
+                onChange={(event) => setRegisterName(event.target.value)}
+                placeholder="Aino"
+                autoComplete="off"
+                disabled={busy}
+              />
+              {registerError !== null && <p className="error">{registerError}</p>}
+              <div className="actions">
+                <button
+                  className="primary"
+                  type="submit"
+                  disabled={busy || registerEmail.trim() === ''}
+                >
+                  {busy ? 'Registering…' : 'Register and continue'}
+                </button>
+                <button
+                  className="ghost"
+                  type="button"
+                  onClick={() => {
+                    setRegisterOpen(false);
+                    setRegisterError(null);
+                  }}
+                  disabled={busy}
+                >
+                  Back to scanning
+                </button>
+              </div>
+            </form>
+          ) : (
+            <form className="scan" onSubmit={(event) => void handleScan(event)}>
+              <p className="eyebrow">Scan member code</p>
+              <input
+                ref={scanRef}
+                className="scaninput"
+                value={scanValue}
+                onChange={(event) => setScanValue(event.target.value)}
+                placeholder="Scan the card or type the code"
+                autoComplete="off"
+                autoFocus
+                disabled={busy}
+                aria-label="Member code"
+              />
+              <button className="primary" type="submit" disabled={busy || scanValue.trim() === ''}>
+                {busy ? 'Looking…' : 'Find customer'}
+              </button>
+              <p className="muted">A scanner types the code and presses Enter. Typing works too.</p>
+              <button
+                className="ghost"
+                type="button"
+                onClick={() => {
+                  setError(null);
+                  setRegisterOpen(true);
+                }}
+                disabled={busy}
+              >
+                Customer without the app
+              </button>
+            </form>
+          )
         ) : (
           <div className="customer">
             <p className="eyebrow">Customer</p>
-            <p className="big">{customer.firstName}</p>
+            <p className="big">{customer.firstName || 'New customer'}</p>
             <p className="muted">{customer.balance} points at this store</p>
 
             {membership.locationId === null && membership.branches.length > 1 && (

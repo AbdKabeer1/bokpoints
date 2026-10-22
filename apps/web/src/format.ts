@@ -36,3 +36,8 @@ export function formatDate(iso: string): string {
     timeZone: 'UTC',
   });
 }
+
+/** A light client-side check; the server validates the address properly. */
+export function isEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
