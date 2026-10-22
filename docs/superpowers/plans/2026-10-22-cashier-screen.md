@@ -101,8 +101,8 @@ Verify: `pnpm typecheck`, `pnpm lint`, `pnpm --filter @bokpoints/web build`,
 
 ## Task 6 — live run + docs
 
-- Reset the demo cashier's MFA factor (Supabase admin API) so the first web
-  sign-in shows the set-up step; hand the user the `otpauth://` URI.
+- Hand the demo cashier the existing `otpauth://` URI for their authenticator (no
+  factor was changed); a brand-new account sees the set-up step naturally.
 - `pnpm dev` (API + web), sign in on `http://localhost:5173`, enrol, scan
   `CUST-QR-0001`, award on Kahvila Bea, show the new balance.
 - Docs: DECISIONS D-109 (me + preview, preview writes nothing), D-110 (screen:
