@@ -2,7 +2,7 @@
 
 **Project:** BOKPOINTS, a B2B2C loyalty platform for SMEs in Finland / EU.
 **Phase:** MVP, build order steps 1 and 2 of `AGENT.md` section 13 are done.
-**Last updated:** 22 Oct 2026, after Build 6: store setup endpoints and the points expiry job (45 unit, 131 integration tests green), on top of the merged Supabase auth round.
+**Last updated:** 22 Oct 2026, after Build 6 (store setup endpoints + points expiry job) and the first live run against the Supabase project: real tokens, the first store, a branch-limited cashier, a real award and an expiry pass (45 unit, 131 integration tests green; CI green on `main`).
 
 ## Done
 
@@ -67,6 +67,15 @@
   one `expire` ledger entry per batch, remaining points zeroed in the same
   transaction, batches locked like adjustments, balance delta guarded. Two runs on
   the same day, or two runs racing, each expire exactly once (tested).
+- **First live run against the Supabase project** (Next 1, done): an admin user made
+  in the live project, linked with `bootstrap:admin`, signed in with a real
+  second factor and got an ES256 token the resolver verified locally (D-098 to
+  D-100). With it: `POST /v1/admin/stores` created the live first store
+  ("Kahvila Bea") with a rule and two branches; the owner invited a cashier
+  limited to the Kamppi branch; a real award for 25 points was recorded at that
+  branch without naming it (D-104); `expiry:run` expired the batch once, then
+  nothing on a second run. `ALLOW_DEV_AUTH` is now off, so the dev resolver is
+  not in play; the two scripts read `apps/api/.env` directly.
 
 **Tests: 45 unit, 131 integration, all passing.**
 
@@ -89,10 +98,8 @@ Nothing. The last task is finished.
 
 In the order of `AGENT.md` section 13:
 
-1. **Run the Supabase resolver against the live project.** Set `SUPABASE_URL` and
-   `SUPABASE_PUBLISHABLE_KEY` in `.env`, run `pnpm bootstrap:admin`, then
-   `pnpm staff:login`, and call the API with the token. The JWKS address must return
-   a key (asymmetric signing keys on).
+1. ~~Run the Supabase resolver against the live project.~~ **Done** — see the live-run
+   entry under Done. `pnpm staff:login` stays the manual path for real sign-ins.
 2. **Cashier screen, online flow only**, with the confirm step (build step 4).
    `apps/web` is a stub today.
 3. **Customer app**: sign-up, QR, per-store balances and history, expiry notices
@@ -106,16 +113,14 @@ In the order of `AGENT.md` section 13:
 
 ### The next concrete task
 
-Store creation, invites and the expiry job all exist now, so the natural next task is
-**running the built auth against the live project and creating the first real
-store** (Next 1):
+Store creation, invites, the live auth and the expiry job all exist now, so the next
+task is **the Cashier screen, online flow only** (build step 4):
 
-- A staff user signs up in Supabase, `pnpm bootstrap:admin` links the account, and
-  `pnpm staff:login` prints a real second-factor token.
-- With that admin token, `POST /v1/admin/stores` creates a store with its rule,
-  branches and owner, and the owner invites a cashier.
-- A customer plus a credential plus the first real award completes the end-to-end
-  run; `pnpm expiry:run` shows the batches it produced.
+- Identify a scanned credential (first name and balance), award with a confirm
+  step, showing the awarded points.
+- It talks to the three operations already built and permission-checked on the
+  server; `apps/web` is a stub today.
+- Manual sign-in for hardware-less testing: `pnpm staff:login`.
 
 ## Risks to watch
 
