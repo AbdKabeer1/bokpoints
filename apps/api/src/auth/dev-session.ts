@@ -1,7 +1,13 @@
+import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import type { Database } from '../db/client.js';
 import { staffUsers } from '../db/schema.js';
-import type { AuthenticatedPrincipal, SessionResolver } from './session.js';
+import type {
+  AuthenticatedPrincipal,
+  CustomerPrincipal,
+  CustomerSessionResolver,
+  SessionResolver,
+} from './session.js';
 
 /**
  * A development-only resolver: the bearer token is the staff member's email
@@ -27,6 +33,42 @@ export function createDevSessionResolver(db: Database): SessionResolver {
       const found = rows[0];
       if (!found) return null;
       return { staffUserId: found.id, email: found.email };
+    },
+  };
+}
+
+/**
+ * A deterministic stand-in for the Supabase user id, used only by the
+ * development resolver: the same email always maps to the same UUID, so
+ * provisioning stays idempotent across calls in tests. It is a development
+ * convenience, never a security boundary.
+ */
+export function uuidFromEmail(email: string): string {
+  const hex = createHash('sha1').update(email.trim().toLowerCase()).digest('hex').split('');
+  hex[12] = '5';
+  const variant = ((Number.parseInt(hex[16] ?? '0', 16) & 0x3) | 0x8).toString(16);
+  hex[16] = variant;
+
+  const joined = hex.join('');
+  return [
+    joined.slice(0, 8),
+    joined.slice(8, 12),
+    joined.slice(12, 16),
+    joined.slice(16, 20),
+    joined.slice(20, 32),
+  ].join('-');
+}
+
+/**
+ * The customer-side development resolver: the bearer token is the customer's
+ * email address. Like the staff one, it must never be enabled in production.
+ */
+export function createDevCustomerResolver(): CustomerSessionResolver {
+  return {
+    async resolve(token: string): Promise<CustomerPrincipal | null> {
+      const email = token.trim().toLowerCase();
+      if (email === '') return null;
+      return { authUserId: uuidFromEmail(email), email };
     },
   };
 }

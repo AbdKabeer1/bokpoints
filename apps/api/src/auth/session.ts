@@ -34,3 +34,20 @@ export class MfaRequiredError extends Error {
     this.name = 'MfaRequiredError';
   }
 }
+
+/**
+ * The customer side of the same idea (D-111). Customers sign in with an email
+ * one-time code, so there is no second factor to demand; the token still only
+ * says who they are, never what they may read. Everything they can read is
+ * derived from this identity on the server.
+ */
+export interface CustomerPrincipal {
+  /** The Supabase user id (`sub` in the token). */
+  authUserId: string;
+  /** The address Supabase has verified for this token. */
+  email: string;
+}
+
+export interface CustomerSessionResolver {
+  resolve(token: string): Promise<CustomerPrincipal | null>;
+}

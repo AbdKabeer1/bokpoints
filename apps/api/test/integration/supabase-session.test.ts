@@ -10,7 +10,11 @@ import {
 } from 'jose';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../../src/app.js';
-import { createSupabaseSessionResolver } from '../../src/auth/supabase-session.js';
+import { createDevCustomerResolver, uuidFromEmail } from '../../src/auth/dev-session.js';
+import {
+  createSupabaseCustomerResolver,
+  createSupabaseSessionResolver,
+} from '../../src/auth/supabase-session.js';
 import { createDb, createPool, type Database } from '../../src/db/client.js';
 import { upsertStaffAccount } from '../../src/db/staff.js';
 import { applyMigrations, truncateAll } from './setup.js';
@@ -37,6 +41,7 @@ const deactivatedAuthId = randomUUID();
 interface TokenOptions {
   sub?: string | undefined;
   aal?: string | undefined;
+  email?: string | undefined;
   iss?: string;
   aud?: string;
   exp?: number | string;
@@ -46,7 +51,13 @@ interface TokenOptions {
 }
 
 async function makeToken(options: TokenOptions = {}): Promise<string> {
-  const jwt = new SignJWT({ aal: options.aal ?? 'aal2', role: 'authenticated' })
+  const payload: Record<string, unknown> = {
+    aal: options.aal ?? 'aal2',
+    role: 'authenticated',
+  };
+  if (options.email !== undefined) payload['email'] = options.email;
+
+  const jwt = new SignJWT(payload)
     .setProtectedHeader({ alg: options.alg ?? 'ES256', kid: options.kid ?? 'key-1' })
     .setIssuer(options.iss ?? ISSUER)
     .setAudience(options.aud ?? 'authenticated')
@@ -220,6 +231,75 @@ describe('Supabase session resolver (D-098 to D-101)', () => {
       throw new Error('network down');
     };
     await expect(makeResolver(broken).resolve(await makeToken())).rejects.toThrow('network down');
+  });
+});
+
+describe('Supabase customer resolver', () => {
+  const resolver = () =>
+    createSupabaseCustomerResolver({ db, supabaseUrl: SUPABASE_URL, keys });
+  const customerAuthId = randomUUID();
+
+  it('accepts an aal1 customer token and returns the verified email', async () => {
+    const principal = await resolver().resolve(
+      await makeToken({ sub: customerAuthId, aal: 'aal1', email: 'aino@test.dev' }),
+    );
+    expect(principal).toEqual({ authUserId: customerAuthId, email: 'aino@test.dev' });
+  });
+
+  it('accepts an aal2 token too: a staff member can also be a customer', async () => {
+    const principal = await resolver().resolve(
+      await makeToken({ sub: customerAuthId, aal: 'aal2', email: 'aino@test.dev' }),
+    );
+    expect(principal?.authUserId).toBe(customerAuthId);
+  });
+
+  it('refuses a token with no email claim', async () => {
+    expect(
+      await resolver().resolve(await makeToken({ sub: customerAuthId, aal: 'aal1' })),
+    ).toBeNull();
+  });
+
+  it('refuses an empty email claim', async () => {
+    expect(
+      await resolver().resolve(
+        await makeToken({ sub: customerAuthId, aal: 'aal1', email: '   ' }),
+      ),
+    ).toBeNull();
+  });
+
+  it('refuses a non-UUID subject and a wrong issuer', async () => {
+    expect(
+      await resolver().resolve(await makeToken({ sub: 'not-a-uuid', email: 'a@b.test' })),
+    ).toBeNull();
+    expect(
+      await resolver().resolve(
+        await makeToken({
+          email: 'a@b.test',
+          iss: 'https://other-project.supabase.co/auth/v1',
+        }),
+      ),
+    ).toBeNull();
+  });
+});
+
+describe('dev customer resolver', () => {
+  it('derives one stable UUID per email', () => {
+    expect(uuidFromEmail('A@B.test')).toBe(uuidFromEmail('a@b.test'));
+    expect(uuidFromEmail('a@b.test')).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+  });
+
+  it('resolves the token as both the email and the derived auth id', async () => {
+    const principal = await createDevCustomerResolver().resolve('Aino@Test.dev');
+    expect(principal).toEqual({
+      authUserId: uuidFromEmail('aino@test.dev'),
+      email: 'aino@test.dev',
+    });
+  });
+
+  it('refuses an empty token', async () => {
+    expect(await createDevCustomerResolver().resolve('   ')).toBeNull();
   });
 });
 
