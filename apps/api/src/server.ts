@@ -1,7 +1,10 @@
 import { buildApp } from './app.js';
-import { createDevSessionResolver } from './auth/dev-session.js';
-import type { SessionResolver } from './auth/session.js';
-import { createSupabaseSessionResolver } from './auth/supabase-session.js';
+import { createDevCustomerResolver, createDevSessionResolver } from './auth/dev-session.js';
+import type { CustomerSessionResolver, SessionResolver } from './auth/session.js';
+import {
+  createSupabaseCustomerResolver,
+  createSupabaseSessionResolver,
+} from './auth/supabase-session.js';
 import { createDb, createPool } from './db/client.js';
 import { loadEnv } from './env.js';
 
@@ -37,9 +40,24 @@ function resolveSessionResolver(): SessionResolver | undefined {
   return createDevSessionResolver(db);
 }
 
+/**
+ * The customer resolver mirrors the staff one: Supabase when configured, the
+ * opt-in development resolver otherwise. It is a separate resolver because
+ * customers sign in with an email one-time code and have no second factor.
+ */
+function resolveCustomerResolver(): CustomerSessionResolver | undefined {
+  if (env.SUPABASE_URL) {
+    return createSupabaseCustomerResolver({ db, supabaseUrl: env.SUPABASE_URL });
+  }
+  if (env.NODE_ENV === 'production') return undefined;
+  if (!env.ALLOW_DEV_AUTH) return undefined;
+  return createDevCustomerResolver();
+}
+
 const app = await buildApp({
   db,
   sessionResolver: resolveSessionResolver(),
+  customerResolver: resolveCustomerResolver(),
   logger: true,
   rateLimit: { max: env.RATE_LIMIT_MAX, timeWindow: '1 minute' },
   // The interactive documentation is not served in production.

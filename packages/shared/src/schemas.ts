@@ -213,3 +213,39 @@ export const healthResponseSchema = z.object({
   status: z.string(),
   version: z.string(),
 });
+
+/**
+ * The customer's own profile (D-111). `language` is stored now; the Finnish
+ * and English strings arrive with the design pass.
+ */
+export const customerProfileSchema = z.object({
+  id: z.string().uuid(),
+  email: z.string(),
+  name: z.string(),
+  language: z.string(),
+  createdAt: z.string(),
+});
+
+export const customerCredentialSchema = z.object({
+  type: z.literal('app_qr'),
+  identifier: z.string(),
+});
+
+export const customerMeResponseSchema = z.object({
+  customer: customerProfileSchema,
+  credential: customerCredentialSchema,
+  onboardingComplete: z.boolean(),
+});
+
+/**
+ * A partial profile update. Both fields are optional, but sending neither is
+ * a mistake rather than a no-op.
+ */
+export const updateCustomerRequestSchema = z
+  .object({
+    name: z.string().trim().min(1).max(100).optional(),
+    language: z.enum(['fi', 'en']).optional(),
+  })
+  .refine((value) => value.name !== undefined || value.language !== undefined, {
+    message: 'Send a name, a language, or both',
+  });

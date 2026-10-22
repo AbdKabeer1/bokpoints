@@ -9,9 +9,10 @@ import {
   validatorCompiler,
   type ZodTypeProvider,
 } from 'fastify-type-provider-zod';
-import type { SessionResolver } from './auth/session.js';
+import type { CustomerSessionResolver, SessionResolver } from './auth/session.js';
 import type { Database } from './db/client.js';
 import { adminRoutes } from './routes/admin.js';
+import { customerRoutes } from './routes/customer.js';
 import { meRoutes } from './routes/me.js';
 import { staffRoutes } from './routes/staff.js';
 import { storeRoutes } from './routes/stores.js';
@@ -24,6 +25,8 @@ export interface RateLimitOptions {
 export interface BuildAppOptions {
   db?: Database;
   sessionResolver?: SessionResolver | undefined;
+  /** Verifies customer tokens (D-111); separate because customers need no MFA. */
+  customerResolver?: CustomerSessionResolver | undefined;
   logger?: boolean;
   /** Overrides the rate limits. Used by the tests to keep them small. */
   rateLimit?: RateLimitOptions | undefined;
@@ -135,6 +138,11 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     await app.register(meRoutes, {
       db: options.db,
       sessionResolver: options.sessionResolver,
+      rateLimit: options.rateLimit,
+    });
+    await app.register(customerRoutes, {
+      db: options.db,
+      customerResolver: options.customerResolver,
       rateLimit: options.rateLimit,
     });
   }
