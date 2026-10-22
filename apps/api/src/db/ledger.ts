@@ -459,7 +459,7 @@ export async function recordFraudClawback(
  * Reads the balance inside the transaction that is about to change it, so
  * the check and the write see the same value.
  */
-async function readBalance(
+export async function readBalance(
   tx: Parameters<Parameters<Database['transaction']>[0]>[0],
   customerId: string,
   storeId: string,
@@ -506,7 +506,7 @@ async function applyBalanceDelta(
  * the same instant cannot both pass the check and drive the balance
  * negative: Postgres re-evaluates the guard after the row lock is taken.
  */
-async function applyGuardedBalanceDelta(
+export async function applyGuardedBalanceDelta(
   tx: Parameters<Parameters<Database['transaction']>[0]>[0],
   customerId: string,
   storeId: string,
