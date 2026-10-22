@@ -98,6 +98,63 @@ export async function authorizeAdminRequest(
   return { ok: true, staffUserId: principal.staffUserId, role };
 }
 
+/**
+ * Authenticates any active staff member, with no store and no capability
+ * check: it answers "who am I" (`GET /v1/me`), which the Cashier screen
+ * needs before it knows a store. Token verification and the deactivation
+ * rule are the same as everywhere else.
+ */
+export type StaffAuthResult =
+  | { ok: true; staffUserId: string }
+  | { ok: false; status: 401 | 403; error: { code: AuthErrorCode; message: string } };
+
+export interface AuthorizeStaffOptions {
+  token: string | undefined;
+}
+
+export async function authorizeStaffRequest(
+  db: Database,
+  resolver: SessionResolver | undefined,
+  options: AuthorizeStaffOptions,
+): Promise<StaffAuthResult> {
+  if (!options.token) {
+    return failure(401, 'MISSING_TOKEN', 'This request needs an access token');
+  }
+
+  if (!resolver) {
+    return failure(401, 'INVALID_TOKEN', 'This request needs an access token');
+  }
+
+  let principal;
+  try {
+    principal = await resolver.resolve(options.token);
+  } catch (error) {
+    if (error instanceof MfaRequiredError) {
+      return failure(403, 'MFA_REQUIRED', 'Multi-factor authentication is required');
+    }
+    throw error;
+  }
+  if (!principal) {
+    return failure(401, 'INVALID_TOKEN', 'That access token is not valid');
+  }
+
+  const staff = await db
+    .select({ status: staffUsers.status })
+    .from(staffUsers)
+    .where(eq(staffUsers.id, principal.staffUserId))
+    .limit(1);
+  const account = staff[0];
+  if (!account) {
+    return failure(401, 'INVALID_TOKEN', 'That access token is not valid');
+  }
+
+  if (account.status !== 'active') {
+    return failure(403, 'ACCOUNT_DEACTIVATED', 'This account has been deactivated');
+  }
+
+  return { ok: true, staffUserId: principal.staffUserId };
+}
+
 const failure = (
   status: 401 | 403,
   code: AuthErrorCode,

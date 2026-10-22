@@ -159,6 +159,48 @@ export const invitedStaffResponseSchema = z.object({
   status: z.string(),
 });
 
+/**
+ * Who the caller is, and the stores they work at. The Cashier screen calls
+ * this before it knows which store it is selling for; a POS integration can
+ * discover the same thing.
+ */
+export const meStaffSchema = z.object({
+  id: z.string().uuid(),
+  email: z.string(),
+  name: z.string(),
+  isAdmin: z.boolean(),
+});
+
+export const meMembershipSchema = z.object({
+  storeId: z.string().uuid(),
+  storeName: z.string(),
+  role: z.enum(['owner', 'manager', 'cashier']),
+  locationId: z.string().uuid().nullable(),
+  locationName: z.string().nullable(),
+  status: z.string(),
+});
+
+export const meResponseSchema = z.object({
+  staff: meStaffSchema,
+  memberships: z.array(meMembershipSchema),
+});
+
+/**
+ * What an award would do, without doing it (the Cashier screen's confirm
+ * step). A below-minimum purchase is a 200 with `awarded: false` and a
+ * `reason`: it is a normal till moment, not a failure (FR-PTS-2).
+ */
+export const awardPreviewResponseSchema = z.object({
+  customerId: z.string().uuid(),
+  points: z.number().int(),
+  awarded: z.boolean(),
+  reason: z.string().optional(),
+  /** UTC date, for example 2027-01-22, or null when nothing will be awarded. */
+  expiresAt: z.string().nullable(),
+  locationId: z.string().uuid().nullable(),
+  locationName: z.string().nullable(),
+});
+
 export const healthResponseSchema = z.object({
   status: z.string(),
   version: z.string(),

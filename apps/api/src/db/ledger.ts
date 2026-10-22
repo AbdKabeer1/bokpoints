@@ -328,6 +328,105 @@ function isUniqueViolation(error: unknown): boolean {
   }
   return false;
 }
+
+export interface PreviewEarnInput {
+  customerId: string;
+  storeId: string;
+  amountCents: number;
+  rule: PointsRule;
+  locationId: string | null;
+}
+
+export interface PreviewEarnResult {
+  points: number;
+  awarded: boolean;
+  reason?: PointsRejectionReason | undefined;
+  /** UTC midnight of the expiry day, or null when nothing will be awarded. */
+  expiresAt: Date | null;
+  locationId: string | null;
+  locationName: string | null;
+}
+
+/**
+ * What awarding this purchase would do, without doing it — the Cashier
+ * screen's confirm step (FR-STO-9).
+ *
+ * The same checks as `recordEarn`, in the same order, all reads. A preview
+ * can never write a ledger entry or change a balance, so it is safe to call
+ * on every keystroke of the amount field. A below-minimum purchase is a
+ * normal answer (`awarded: false` plus the reason), not an error (FR-PTS-2).
+ */
+export async function previewEarn(
+  db: Database,
+  input: PreviewEarnInput,
+): Promise<PreviewEarnResult> {
+  if (!Number.isInteger(input.amountCents) || input.amountCents < 0) {
+    throw new LedgerError('INVALID_AMOUNT', 'The purchase amount must be a non-negative integer');
+  }
+
+  const store = await db
+    .select({ status: stores.status })
+    .from(stores)
+    .where(eq(stores.id, input.storeId))
+    .limit(1);
+  const storeStatus = store[0]?.status;
+  if (!storeStatus || !AWARDING_STORE_STATUSES.has(storeStatus)) {
+    throw new LedgerError('STORE_NOT_AWARDING', 'This store cannot award points at the moment');
+  }
+
+  const customer = await db
+    .select({ status: customers.status })
+    .from(customers)
+    .where(eq(customers.id, input.customerId))
+    .limit(1);
+  if (!customer[0] || customer[0].status === 'deleted') {
+    throw new LedgerError('CUSTOMER_NOT_FOUND', 'That customer does not exist');
+  }
+
+  const activeLocations = await db
+    .select({ id: storeLocations.id, name: storeLocations.name })
+    .from(storeLocations)
+    .where(and(eq(storeLocations.storeId, input.storeId), eq(storeLocations.status, 'active')));
+
+  const locationId = input.locationId ?? null;
+  let locationName: string | null = null;
+  if (locationId !== null) {
+    const match = activeLocations.find((location) => location.id === locationId);
+    if (!match) {
+      throw new LedgerError(
+        'LOCATION_INVALID',
+        'That branch does not exist or is not open at this store',
+      );
+    }
+    locationName = match.name;
+  } else if (activeLocations.length > 0) {
+    throw new LedgerError(
+      'LOCATION_REQUIRED',
+      'This store has branches, so the award needs to say which one',
+    );
+  }
+
+  const calculation = calculatePoints(input.amountCents, input.rule);
+  if (!calculation.awarded) {
+    return {
+      points: 0,
+      awarded: false,
+      reason: calculation.reason,
+      expiresAt: null,
+      locationId,
+      locationName,
+    };
+  }
+
+  return {
+    points: calculation.points,
+    awarded: true,
+    expiresAt: expiryDateForEarn(new Date()),
+    locationId,
+    locationName,
+  };
+}
+
 /**
  * A manual adjustment by an owner or manager. It may never take the balance
  * below zero (FR-PTS-8, AC-11). There is no reversal: the adjustment is the

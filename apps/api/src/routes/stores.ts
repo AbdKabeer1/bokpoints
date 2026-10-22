@@ -1,6 +1,7 @@
 import { and, desc, eq, lte } from 'drizzle-orm';
 import {
   apiErrorSchema,
+  awardPreviewResponseSchema,
   awardRequestSchema,
   awardResponseSchema,
   balanceResponseSchema,
@@ -16,7 +17,7 @@ import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { authorizeStoreRequest } from '../auth/authorize.js';
 import type { SessionResolver } from '../auth/session.js';
 import type { Database } from '../db/client.js';
-import { getBalance, LedgerError, recordEarn } from '../db/ledger.js';
+import { getBalance, LedgerError, previewEarn, recordEarn } from '../db/ledger.js';
 import { credentials, customers, pointsRules } from '../db/schema.js';
 
 export interface RouteOptions {
@@ -232,6 +233,94 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
         awarded: result.awarded,
         ...(result.reason === undefined ? {} : { reason: result.reason }),
       });
+    },
+  );
+
+  /**
+   * What this purchase will earn, before the cashier commits (FR-STO-9).
+   *
+   * Same body, same capability and same branch rules as the award, and it
+   * writes nothing: the points maths stays here, where the rule version is
+   * authoritative, instead of being copied into the browser.
+   */
+  app.post(
+    '/v1/stores/:storeId/awards/preview',
+    {
+      config: {
+        rateLimit: rateLimit ?? { max: 120, timeWindow: '1 minute' },
+      },
+      schema: {
+        params: storeIdParamsSchema,
+        body: awardRequestSchema,
+        response: {
+          200: awardPreviewResponseSchema,
+          400: apiErrorSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+          404: apiErrorSchema,
+          409: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { storeId } = request.params;
+      const auth = await authorizeStoreRequest(db, sessionResolver, {
+        token: bearer(request.headers.authorization),
+        storeId,
+        anyOf: ['points.award'],
+      });
+      if (!auth.ok) {
+        return reply.code(auth.status).send({ error: auth.error });
+      }
+
+      const rule = await currentRuleFor(db, storeId);
+      if (!rule) {
+        return reply.code(409).send({
+          error: { code: 'NO_ACTIVE_RULE', message: 'This store has no points rule yet' },
+        });
+      }
+
+      // The same branch rule as the award itself (D-103, D-104).
+      if (
+        auth.locationId !== null &&
+        request.body.locationId !== undefined &&
+        request.body.locationId !== auth.locationId
+      ) {
+        return reply.code(403).send({
+          error: {
+            code: 'LOCATION_MISMATCH',
+            message: 'You are limited to a different branch of this store',
+          },
+        });
+      }
+      const locationId = auth.locationId ?? request.body.locationId ?? null;
+
+      try {
+        const result = await previewEarn(db, {
+          customerId: request.body.customerId,
+          storeId,
+          amountCents: request.body.amountCents,
+          rule: rule.rule,
+          locationId,
+        });
+
+        return reply.send({
+          customerId: request.body.customerId,
+          points: result.points,
+          awarded: result.awarded,
+          ...(result.reason === undefined ? {} : { reason: result.reason }),
+          expiresAt: result.expiresAt === null ? null : result.expiresAt.toISOString().slice(0, 10),
+          locationId: result.locationId,
+          locationName: result.locationName,
+        });
+      } catch (error) {
+        if (error instanceof LedgerError) {
+          return reply
+            .code(LEDGER_ERROR_STATUS[error.code] ?? 400)
+            .send({ error: { code: error.code, message: error.message } });
+        }
+        throw error;
+      }
     },
   );
 
