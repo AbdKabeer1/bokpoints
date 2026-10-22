@@ -1,8 +1,11 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import {
+  adjustmentResponseSchema,
   apiErrorSchema,
+  clawbackRequestSchema,
   createdStoreResponseSchema,
   createStoreRequestSchema,
+  customerParamsSchema,
 } from '@bokpoints/shared';
 import { authorizeAdminRequest } from '../auth/authorize.js';
 import {
@@ -12,7 +15,9 @@ import {
   storeMembers,
   stores,
 } from '../db/schema.js';
+import { LedgerError, recordFraudClawback, type LedgerErrorCode } from '../db/ledger.js';
 import { upsertStaffAccount } from '../db/staff.js';
+import { LEDGER_ERROR_STATUS } from './stores.js';
 import type { RouteOptions } from './stores.js';
 
 const bearer = (header: string | undefined): string | undefined =>
@@ -145,6 +150,57 @@ export const adminRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
         branches: created.branches.map((branch) => ({ id: branch.id, name: branch.name })),
         owner: { id: created.memberId, email: body.owner.email, locationId: null },
       });
+    },
+  );
+
+  /**
+   * The only action that may take a balance below zero (FRD 4.6, AC-11).
+   * Admin only; the case note is required and lands in the audit log.
+   */
+  app.post(
+    '/v1/admin/stores/:storeId/customers/:customerId/clawback',
+    {
+      config: { rateLimit: rateLimit ?? { max: 30, timeWindow: '1 minute' } },
+      schema: {
+        params: customerParamsSchema,
+        body: clawbackRequestSchema,
+        response: {
+          200: adjustmentResponseSchema,
+          400: apiErrorSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+          404: apiErrorSchema,
+          409: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { storeId, customerId } = request.params;
+      const auth = await authorizeAdminRequest(db, sessionResolver, {
+        token: bearer(request.headers.authorization),
+        anyOf: ['points.fraud_clawback'],
+      });
+      if (!auth.ok) {
+        return reply.code(auth.status).send({ error: auth.error });
+      }
+
+      try {
+        const result = await recordFraudClawback(db, {
+          customerId,
+          storeId,
+          points: -request.body.points,
+          caseNote: request.body.caseNote,
+          staffId: auth.staffUserId,
+        });
+        return reply.send(result);
+      } catch (error) {
+        if (error instanceof LedgerError) {
+          return reply
+            .code(LEDGER_ERROR_STATUS[error.code as LedgerErrorCode] ?? 400)
+            .send({ error: { code: error.code, message: error.message } });
+        }
+        throw error;
+      }
     },
   );
 };

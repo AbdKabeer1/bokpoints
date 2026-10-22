@@ -346,3 +346,9 @@ export const adjustmentResponseSchema = z.object({
   entryId: z.string().uuid().nullable(),
   balance: z.number().int(),
 });
+
+/** An admin fraud clawback (FRD 4.6): points to remove and the case note. */
+export const clawbackRequestSchema = z.object({
+  points: z.number().int().min(1).max(1_000_000),
+  caseNote: z.string().trim().min(3).max(1000),
+});

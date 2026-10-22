@@ -288,3 +288,55 @@ describe('POST /v1/stores/:storeId/customers/:customerId/adjustments', () => {
     });
   });
 });
+
+const clawback = (customerId: string, token: string, body: Record<string, unknown>) =>
+  post(`/v1/admin/stores/${storeId}/customers/${customerId}/clawback`, token, body);
+
+describe('POST /v1/admin/stores/:storeId/customers/:customerId/clawback', () => {
+  it('removes points, may go below zero, and marks the link under fraud review', async () => {
+    const customerId = await customerWithBalance(3);
+    await pool.query(
+      'INSERT INTO customer_store_links (customer_id, store_id) VALUES ($1, $2)',
+      [customerId, storeId],
+    );
+
+    const res = await clawback(customerId, 'admin@test.dev', {
+      points: 8,
+      caseNote: 'Confirmed case 44: points bought with a stolen card',
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ balance: -5 });
+
+    const link = await pool.query(
+      'SELECT status FROM customer_store_links WHERE customer_id = $1 AND store_id = $2',
+      [customerId, storeId],
+    );
+    expect(link.rows[0].status).toBe('under_fraud_review');
+
+    const audit = await pool.query(
+      "SELECT action, reason FROM audit_log_entries WHERE action = 'points.fraud_clawback'",
+    );
+    expect(audit.rows).toHaveLength(1);
+    expect(audit.rows[0].reason).toContain('Confirmed case 44');
+  });
+
+  it('is admin only', async () => {
+    const customerId = await customerWithBalance(3);
+    const res = await clawback(customerId, 'owner@test.dev', {
+      points: 1,
+      caseNote: 'Not my decision to make',
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('requires a case note and a positive number of points', async () => {
+    const customerId = await customerWithBalance(3);
+
+    expect((await clawback(customerId, 'admin@test.dev', { points: 1 })).statusCode).toBe(400);
+    expect(
+      (await clawback(customerId, 'admin@test.dev', { points: -3, caseNote: 'Negative points' }))
+        .statusCode,
+    ).toBe(400);
+  });
+});
