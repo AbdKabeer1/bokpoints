@@ -1,11 +1,35 @@
 # STATUS
 
 **Project:** BOKPOINTS, a B2B2C loyalty platform for SMEs in Finland / EU.
-**Phase:** MVP, build order steps 1 to 5 are done, and step 6's API half (6A) is done; the store and admin screens (6B) are next.
-**Last updated:** 23 Oct 2026, after Build 9 (pending customers and oversight, 6A): a cashier can register a customer by email at the till and the points attach on first sign-in; owners and managers can adjust a balance; admins can claw back; both can read the audit log. The till gained the "customer without the app" form. 69 unit and 189 integration tests green; the whole flow was exercised live.
+**Phase:** MVP, worked through `BOKPOINTS The Way Forward.md` one work package at a time. WP0 (security) and WP1 (documents) are done; **WP2 — store-owned earning rules — is next**.
+**Last updated:** 23 Oct 2026, after WP0 and WP1 of the Way Forward. WP0 closed both security bugs: an invitation can no longer alter an existing staff account (create only for new emails, membership otherwise, refuse a Supabase id that already belongs to someone else), and provisioning requires a verified email before it creates or claims a customer row (server-side Auth Admin check, failing closed). WP1 applied the plan to the PRD, the FRD (new families FR-RUL, FR-CHK, FR-SAL and AC-12 to AC-18) and DECISIONS (D-115 to D-128). 75 unit and 195 integration tests green; the live staff data was checked and is clean.
 
 ## Done
 
+- **WP0 — security fixes (Way Forward section 4).** (1) *Invite takeover, high:* the
+  invite route used the upsert helper written for the bootstrap script, which overwrites
+  name, admin flag and Supabase link — an owner could invite another store's owner or a
+  platform admin with an id they control and have the account relinked. The invite path
+  now creates an account only when the email is new, otherwise it only adds the store
+  membership (409 `ALREADY_MEMBER` if already a member), never touching the existing
+  account; a Supabase id linked to another account is refused (409
+  `AUTH_USER_ALREADY_LINKED`); admin store creation uses the same path; the overwriting
+  helper stays for `bootstrap:admin` only (D-119, AC-14). (2) *Unverified email, medium:*
+  a real Supabase access token has **no** confirmation claim (verified by decoding one), so
+  provisioning now asks the Auth Admin API for `email_confirmed_at` at the only moment it
+  matters — before it would create or claim a row — and fails closed, answering 403
+  `EMAIL_NOT_VERIFIED` (D-120, D-127, AC-17). Live check: the hosted database has no staff
+  rows; the app database's five staff rows are correct (one admin, links present, no
+  duplicates).
+- **WP1 — decisions and documents.** PRD: store-owned rules and the one basket discount
+  in MVP scope, the checkout moment, the owner persona, pilot measures and pricing as
+  hypotheses, new risks and open questions. FRD: section 2 gains the earning-rules
+  capability and till registration, section 3 gains the earning-rule, discount-rule and
+  sale tables, FR-PTS-1/3 read as a rule set with ceilings, FR-STO-2/4/5 and FR-AUTH-1
+  changed, flows 4.1 and 4.3 rewritten as quote-then-confirm, new families FR-RUL, FR-CHK
+  and FR-SAL, `AC-12` to `AC-18`, and the parked families documented. DECISIONS:
+  `D-115` to `D-128` (the Way Forward's proposed D-113–D-124 renumbered past Build 9's
+  D-113/D-114). `docs/HANDOFF.md` now names the Way Forward as the plan of record.
 - **Repo and tooling.** pnpm monorepo at `~/bokpoints`, private GitHub remote. CI runs
   typecheck, lint, unit tests and integration tests against a PostgreSQL 17 service.
 - **PRD and FRD exported.** `docs/PRD.md` and `docs/FRD.md`, converted from the source
@@ -121,7 +145,7 @@
   read the audit log. Live: register → award 25 → adjust +5 → list → audit line →
   clawback 40 → −35.
 
-**Tests: 69 unit, 189 integration, all passing.**
+**Tests: 75 unit, 195 integration, all passing.**
 
 ## In progress
 
@@ -131,44 +155,65 @@ Nothing. The last task is finished.
 
 - **Supabase is chosen in practice.** A dev project exists (`eu-north-1`, Free plan) and
   its URL, publishable and secret keys live in `apps/api/.env` (git-ignored). The hosted
-  Postgres is migrated. What is still missing: running the built resolver against the
-  live project (Next 1). Stripe, the email provider and the hosting providers are still
-  open (`docs/DECISIONS.md` D-059); billing and the customer app cannot be built end to
-  end until at least Stripe is picked.
+  Postgres is migrated, and the built resolver has been run against the live project
+  (admin with second factor, store creation, a real award, the expiry job, and an `aal1`
+  customer sign-in). The app itself writes to the local `DATABASE_URL`; the hosted
+  Postgres holds no data yet. Stripe, the email provider and the hosting providers are
+  still open (`docs/DECISIONS.md` D-059); billing cannot be built end to end until at
+  least Stripe is picked.
 - **The offline QR design is not final.** D-022 is still `Proposed`. It is the highest
   technical risk in the MVP and needs an architecture decision before it is built.
 
 ## Next
 
-In the order of `AGENT.md` section 13:
+The order is the Way Forward's work packages (D-128). Finish and record one before
+starting the next.
 
-1. **Pending customers, manual adjustments in the UI, fraud clawback, audit log**
-   (build step 6). The ledger side of adjustments and clawbacks already works.
-2. **Billing with Stripe** and the failed-payment states (build step 7).
-3. **Offline awarding**: signed QR, device verification, encrypted queue, sync and
-   rejections (build step 8). Highest risk, so prototype the QR and sync early.
-4. **Reports, hardening, accessibility pass, store submissions** (build step 9).
-5. **Discount/campaign engine** — deferred by A until its own design round; the
-   activation rule (one per customer / repeatable / owner-set window) is still open.
-6. **The rest of FR-CUS**: per-store consents (FR-CUS-5), data export and account
-   deletion (FR-CUS-6), the lost-card / new-QR flow (FR-CUS-7), and push (v1.1).
+1. **WP2 — store-owned earning rules (backend).** Engine: evaluate a purchase against a
+   store's set of rules, item-line basket in, per-euro as one rule type
+   (`packages/shared/src/points/`). Data: an earning-rules table (store, type, parameters,
+   conditions, effective date, status, version), converting today's `points_rules` rows
+   into per-euro rules in the same generated migration. Owner endpoints: list, create,
+   edit, pause, simulate, with audit entries; a capability for managing rules (admin gets
+   none); points from matching rules add up under a per-sale ceiling; admin store creation
+   makes the first rule an optional template.
+2. **WP3 — sale record and quote-then-confirm**, with the one basket threshold discount.
+3. **WP4 — cashier screen:** quote, payment taken, confirm with the amount actually paid,
+   sound and visual on a successful read.
+4. **WP5 — owner screen:** rules with the simulator, plus adjustments and the store audit
+   log — this is where Build 6B (the store and admin panels) lands (D-128).
+5. **WP6 — customer app:** each store's rules in plain language, and the session moved to
+   secure storage.
+6. **WP7 — pilot readiness:** domain and email sender, email invitations (retiring the
+   Supabase-id field), subscription billing and the pricing meter, terms and privacy,
+   signage and a scanner list. **WP8 — the pilot:** two or three stores, about four weeks.
 
-### The next concrete task
+Not scheduled by the plan of record but still MVP — raise with A before it slips:
 
-The customer app's first slice works. The next build step is **step 6**: register a
-customer at the till by email (the pending-customer flow), manual adjustments in
-the store UI, fraud clawback, and the audit log. The API's adjustment and clawback
-paths already exist; the work is the store-facing screens and the pending-customer
-rules.
+- **Offline awarding** (build step 8): signed QR, device verification, encrypted queue,
+  sync and rejections. Highest technical risk; prototype early.
+- **The rest of FR-CUS:** per-store consents (FR-CUS-5), data export and account
+  deletion (FR-CUS-6), the lost-card / new-QR flow (FR-CUS-7), push (v1.1).
+
+Small Way Forward 4.4 items recorded here so they are not lost:
+
+- **Customer app session storage:** move from plain AsyncStorage to secure storage before
+  any store release. Blocked on a design choice: `expo-secure-store` has no web build and
+  the customer app currently ships web, so it needs a platform-specific storage layer —
+  part of WP6.
+- **Till idle sign-out:** an idle cashier session should sign out (`apps/web/src/auth.ts`).
+  Small; fold into WP4 when the till is rewritten for quote-then-confirm.
+- **Prettier (or equivalent) on changed files:** CI does not enforce formatting.
+- Confirm the latest GitHub Actions run is green.
 
 Still open, deliberately:
 
 - Physical cards: the customer app shows the same opaque identifier the till
   already scans. Whether barcoded cards deserve their own credential type is a
   v1.1 schema question (the FR-CRD-5 round).
-- Finnish UI strings, idle auto sign-out and receipt printing — later design work.
+- Finnish UI strings and receipt printing — later design work.
 - Code sign-in needs `{{ .Token }}` in the Supabase Magic Link template (one-time
-  dashboard edit, in the runbook).
+  dashboard edit by A), and "Confirm email" must stay on — WP0's check depends on it.
 
 ## Risks to watch
 

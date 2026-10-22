@@ -29,12 +29,13 @@ A person can hold different roles in different stores. Admin accounts are separa
 | Create, suspend and offboard stores | Yes | No | No | No | No |
 | Manage store profile and billing | Yes (support) | Yes | No | No | No |
 | Add and remove staff | Yes (support) | Yes | Yes (cashiers only) | No | No |
-| Set points rules | Yes (support) | Yes | Yes | No | No |
+| Manage earning rules and the basket threshold discount | No (technical limits only) | Yes | Yes | No | No |
 | Scan customer and award points | No | Yes | Yes | Yes | No |
 | Manual point adjustment (never below zero) | Yes (support) | Yes | Yes | No | No |
 | Fraud clawback (may go below zero) | Yes | No | No | No | No |
 | Manage cashier devices | Yes (support) | Yes | Yes | No | No |
 | View store customer list | No (support lookup only) | Yes | Yes | Limited (name and balance at scan) | No |
+| Register a customer at the till by email | No (support lookup only) | Yes | Yes | Yes | No |
 | Manage products and discounts | No | Yes | Yes | No | No |
 | Send alerts and campaigns [v1.1] | No | Yes | Yes | No | No |
 | View own points and history | No | No | No | No | Yes |
@@ -51,8 +52,11 @@ A person can hold different roles in different stores. Admin accounts are separa
 | Store member | A staff account at a store | user id, store id, role (owner, manager, cashier), status |
 | Cashier device | A till device registered to a store | id, store id, name, status (active, revoked), last sync, registered by |
 | Customer-store link | Connects a customer to a store | customer id, store id, joined date, marketing consent for this store, status (active, under fraud review) |
-| Points rule | The store's earning rules | store id, rule version, points per euro, minimum purchase, maximum points per transaction, rounding, active from date |
-| Points ledger entry | One change to a balance (append-only) | id, customer id, store id, type (earn, redeem, adjust, expire, fraud clawback), points (positive or negative), remaining points and expiry date (earn entries), amount in cents, rule version, reason, staff id, device id, scan time, idempotency key, created date |
+| Earning rule | The store's own rules for earning points | store id, rule type (points per euro, fixed points per purchase, threshold bonus, every-Nth-visit bonus), parameters, conditions (minimum spend, active dates, branch), effective date, status (active, paused), version |
+| Discount rule (MVP: basket threshold) | The store's own discount, applied at the till | store id, threshold amount, value (fixed amount or percent), conditions, effective date, status, version |
+| Sale | One purchase that points came from | id, store id, branch, customer id, staff or device, amount before discount, amount paid after discount, rules applied with their versions, discount applied, optional POS reference, status |
+| Sale item line [unused in the MVP] | Optional item detail of a sale | sale id, product id or description, quantity, unit price, line total |
+| Points ledger entry | One change to a balance (append-only) | id, customer id, store id, type (earn, redeem, adjust, expire, fraud clawback), points (positive or negative), remaining points and expiry date (earn entries), sale id, amount in cents, rule versions, reason, staff id, device id, scan time, idempotency key, created date |
 | Points balance | Current total per customer and store | derived from the ledger; cached for speed |
 | Rejected offline award | An offline award the server did not accept at sync | id, store id, device id, customer id, amount, scan time, reason, reviewed by |
 | Product [v1.1] | Item in the store shop | id, store id, name, description, price, image, stock note, active |
@@ -70,6 +74,7 @@ Rules that hold across the model:
 - Points belong to the store that issued them and cannot be used elsewhere.
 - Points expire 3 months after the day they were earned. The oldest points are used first.
 - A balance never goes below zero, except through an admin fraud clawback.
+- Points from all matching earning rules add up, capped by the store's per-sale ceiling and the platform's technical ceiling (FR-RUL-5). A rule change takes effect from its chosen date and never alters points already earned (FR-RUL-4).
 
 ## 4. Key flows (MVP)
 
@@ -78,7 +83,7 @@ Rules that hold across the model:
 1. Admin creates the store record: name, business ID, address, contact person, email, VAT details, plan.
 2. System sends an invitation email to the owner with a secure link.
 3. Owner accepts, sets up sign-in, and lands in the store dashboard in setup mode.
-4. Owner completes the store profile, sets the points rule, and adds staff.
+4. Owner completes the store profile, reviews and edits the starting points rule the system created (a template, not a final word), and adds staff.
 5. Subscription starts according to the plan (trial or immediate billing).
 6. Store status becomes Active once setup and billing are complete.
 
@@ -97,9 +102,10 @@ Store status lifecycle: Invited, Setup, Active, Paused (from day 14 of a failed 
 2. Customer shows the QR code in the app (later: taps an NFC card). The QR code works with or without a connection.
 3. Cashier scans it with the device camera.
 4. The device checks the code. Online, the system resolves the credential to the customer and shows the first name and the current balance at this store. Offline, the device verifies the code on its own and shows the first name only; no balance is shown.
-5. Cashier enters the purchase amount in euros.
-6. The screen shows the amount and the points it will award, and the cashier confirms. There is no undo after this step.
-7. Online: the system writes a ledger entry and updates the balance, and both screens show the confirmation. Offline: the device saves the award in a local queue, shows "Saved offline", and sends it when the connection returns; the customer's balance updates after that sync.
+5. Cashier enters the purchase amount. The screen returns a quote with no side effects: the points to earn, which rules produced them, and any basket threshold discount to apply (FR-CHK-2).
+6. The customer pays.
+7. The cashier confirms that payment was taken and enters the amount actually paid. The points are awarded on that confirm, and the call is idempotent, so sending it twice never awards twice (FR-CHK-3). There is no undo after this step.
+8. Online: the system writes the sale, the ledger entry and the balance in one step, and both screens show the confirmation with its breakdown. Offline: the device saves the award in a local queue, shows "Saved offline", and sends it when the connection returns; the customer's balance updates after that sync.
 
 If this is the customer's first purchase at this store, the system also creates the customer-store link when the award is recorded. The customer sees a first-time notice the next time they open the app, with the store's marketing consent shown as off until the customer opts in.
 
@@ -141,13 +147,13 @@ If this is the customer's first purchase at this store, the system also creates 
 
 ### 5.1 AUTH: accounts and sign-in
 
-**FR-AUTH-1** (MUST): Customers sign up and sign in with an email address verified by a one-time code or link. A phone number is optional and is not used for verification in the MVP.
+**FR-AUTH-1** (MUST): Customers sign up and sign in with an email address verified by a one-time code or link. Creating or claiming a customer account requires that the email is confirmed: an unconfirmed address is refused and neither creates nor claims anything (AC-17). A phone number is optional and is not used for verification in the MVP.
 
 **FR-AUTH-2** (MUST): Store staff and admins sign in with email and a secure credential. Multi-factor authentication is required for admin and store owner accounts.
 
 **FR-AUTH-3** (MUST): Email is unique per customer. A duplicate sign-up is blocked, or merged only after verification.
 
-**FR-AUTH-4** (MUST): Sessions expire after a configurable idle time. Cashier devices keep a longer session so they can work offline, and the owner can revoke any device; a revoked device stops working at its next sync.
+**FR-AUTH-4** (MUST): Sessions expire after a configurable idle time (the cashier screen signs out after an idle shift). Cashier devices keep a longer session so they can work offline, and the owner can revoke any device; a revoked device stops working at its next sync.
 
 **FR-AUTH-5** (MUST): Users can sign out everywhere and reset access securely.
 
@@ -185,15 +191,15 @@ If this is the customer's first purchase at this store, the system also creates 
 
 **FR-STO-1** (MUST): Owner edits store name, address, contact details, opening info, and logo.
 
-**FR-STO-2** (MUST): Owner and manager invite staff by email, assign a role, and deactivate staff. Deactivation takes effect immediately, including on active sessions.
+**FR-STO-2** (MUST): Owner and manager invite staff by email, assign a role, and deactivate staff. Deactivation takes effect immediately, including on active sessions. An invitation never modifies an existing account: for an email that already exists, only the store membership is added, and the account's name, admin flag and sign-in link are never changed (AC-14).
 
 **FR-STO-3** (MUST): Every staff action that changes points is attributed to a staff member.
 
 #### Points rules
 
-**FR-STO-4** (MUST): Owner or manager sets points per euro, an optional minimum purchase, an optional maximum points per transaction, and the rounding rule (default: round down).
+**FR-STO-4** (MUST): Owner or manager creates, edits, pauses and deletes the store's own earning rules and the basket threshold discount, within the platform's technical limits. The platform administrator cannot edit them (FR-RUL-1, AC-13).
 
-**FR-STO-5** (MUST): A change to the rule applies to future purchases only and records the date it took effect.
+**FR-STO-5** (MUST): A change to a rule applies to future purchases only and records the date it took effect; every sale records the rule versions it used (FR-RUL-4).
 
 **FR-STO-6** (SHOULD): A points-rule preview lets the owner enter a sample amount and see the points result.
 
@@ -273,11 +279,11 @@ If this is the customer's first purchase at this store, the system also creates 
 
 ### 5.5 PTS: points engine
 
-**FR-PTS-1** (MUST): Points = purchase amount in euros times the store's points-per-euro rate, rounded using the store's rounding rule (default: round down to a whole number).
+**FR-PTS-1** (MUST): Points are calculated by evaluating the purchase against the store's set of earning rules; the points from every matching rule add up (FR-RUL-5). The points-per-euro rule — one type among them — is: points = purchase amount in euros times that rule's rate, rounded using the rule's rounding rule (default: round down to a whole number).
 
 **FR-PTS-2** (MUST): If the amount is below the store's minimum purchase, award zero points and tell the cashier why.
 
-**FR-PTS-3** (MUST): If the result exceeds the store's maximum per transaction, award the maximum and show that it was capped.
+**FR-PTS-3** (MUST): If the result exceeds a rule's or the store's per-sale ceiling, award up to the ceiling and show that it was capped (FR-RUL-5, FR-RUL-7).
 
 **FR-PTS-4** (MUST): Each award request carries an idempotency key, so a retry, a double tap, or a resend after an offline period never awards twice.
 
@@ -389,6 +395,50 @@ Worked example: the store rule is 1 point per euro, rounded down. The cashier en
 
 **FR-LOC-3** (SHOULD): Text is stored in translation files so more languages can be added later without code changes.
 
+### 5.13 RUL: earning rules
+
+**FR-RUL-1** (MUST): A store owner can create, edit, pause and delete the store's own earning rules. The platform administrator cannot; they set only technical limits, suspend a store, or switch off a campaign in a fraud case.
+
+**FR-RUL-2** (MUST): MVP rule types: points per euro, a fixed number of points per purchase, a threshold bonus (spend at least X in one purchase, earn Y bonus points), and optionally a bonus for every Nth visit.
+
+**FR-RUL-3** (MUST): A rule may carry conditions: minimum spend, active dates, and branch.
+
+**FR-RUL-4** (MUST): Rules are versioned and take effect from a chosen date. A change never alters points already earned, and every sale records the rule versions used.
+
+**FR-RUL-5** (MUST): Points from all matching rules add up, capped by the store's per-sale ceiling and the platform's technical ceiling.
+
+**FR-RUL-6** (MUST): A simulator shows the points for a sample purchase before a rule is activated.
+
+**FR-RUL-7** (MUST): Platform technical limits protect against typos (rate bounds, a per-sale ceiling) and are not business limits.
+
+**FR-RUL-8** (MUST): Rule changes are locked while a store is Paused for non-payment, and every change is audited.
+
+**FR-RUL-9** (MUST): Customers can see, in the app, how they earn at each store, in plain language.
+
+### 5.14 CHK: checkout flow
+
+**FR-CHK-1** (MUST): Customers are identified at the cashier screen by QR code or NFC card ID, including by a keyboard-style countertop scanner that types the code and presses Enter.
+
+**FR-CHK-2** (MUST): The quote step returns the points to be earned and any discount to apply, with no side effects.
+
+**FR-CHK-3** (MUST): Points are awarded when the cashier confirms payment and enters the amount paid. The call is idempotent.
+
+**FR-CHK-4** (SHOULD): Whether a discounted amount earns points is a per-rule store setting (default: points on the amount paid, to confirm with pilot stores).
+
+**FR-CHK-5** (MUST): Every award shows and stores a breakdown of the rules that produced it.
+
+**FR-CHK-6** (MUST): The cashier screen gives a short sound and visual confirmation on a successful read.
+
+**FR-CHK-7** (MUST): Discount (MVP-lite): one basket threshold type, automatic, shown in the quote and applied by the cashier in the store's own till.
+
+### 5.15 SAL: sales
+
+**FR-SAL-1** (MUST): Every award belongs to a sale record: store, branch, customer, staff or device, amounts before and after discount, the rules applied with their versions, an optional POS reference, and a status.
+
+**FR-SAL-2** (MAY): A sale may carry optional item lines. They are unused in the MVP, and a store without item data sends one line carrying the purchase total.
+
+**FR-SAL-3** (MUST): Corrections remain manual adjustments (see 4.5) until POS integration brings refunds and voids.
+
 ## 6. Screen inventory (MVP)
 
 Customer app
@@ -403,9 +453,10 @@ Customer app
 Store dashboard (web)
 
 - Sign in and setup wizard
-- Cashier screen (scan, amount, confirm, result, offline and sync status)
+- Cashier screen (identify, quote, take payment, confirm, result, offline and sync status)
 - Customer list and customer detail
-- Points rules
+- Earning rules and the discount (list, create, edit, pause, with a simulator)
+- Store audit log
 - Staff, cashier devices and rejected offline awards
 - Store profile
 - Basic reports
@@ -534,6 +585,48 @@ Given a customer has 5 points at a store,
 when a manager tries to remove 8 points,  
 then the removal is refused; and when an admin applies a fraud clawback of 8 points with a case note, the balance becomes minus 3 and the link is marked under fraud review.
 
+### AC-12 Owner creates a rule
+
+Given an owner creates a rule and checks it in the simulator,  
+when they activate it,  
+then the next award follows it.
+
+### AC-13 Admin cannot edit rules
+
+Given a store with earning rules,  
+when the platform admin tries to edit them,  
+then the API answers 403 and nothing changes.
+
+### AC-14 Invitations never alter an account
+
+Given an account exists with an email,  
+when an owner at another store invites that email with a different Supabase user id,  
+then the account's name, admin flag and sign-in link are unchanged, and only a store membership is added.
+
+### AC-15 A rule change is not retroactive
+
+Given points already earned under a rule,  
+when the owner changes that rule,  
+then the earned points and their expiry stay exactly as they were.
+
+### AC-16 Quote, pay, confirm awards once
+
+Given a quote with no side effects,  
+when the cashier confirms payment and the confirm is sent twice,  
+then the customer is awarded once, and the sale carries the rules that produced it.
+
+### AC-17 Claiming needs a verified email
+
+Given a sign-in whose email Supabase has not confirmed,  
+when provisioning runs,  
+then it is refused with 403 and no customer row is created or claimed.
+
+### AC-18 Discounted amounts and points
+
+Given a purchase that crosses the store's basket threshold,  
+when the quote is shown,  
+then the discount to apply is stated, and the points follow the store's per-rule setting for discounted amounts (FR-CHK-4).
+
 ## 10. Later phases (outline)
 
 ### v1.1
@@ -543,6 +636,15 @@ then the removal is refused; and when an admin applies a fraud clawback of 8 poi
 - Store alerts and campaigns with consent, limits and results.
 - Push notifications for opted-in customers.
 - Physical NFC loyalty card and its activation flow, including offline checking of cards.
+
+### Parked until its trigger is met (documented, not scheduled)
+
+- **FR-CMP** campaigns with opt-in and per-product scope — builds when several stores want them.
+- **FR-POS** quote-and-commit for terminals, with device credentials and refunds and voids — builds when a pilot store names its POS.
+- Signed, short-lived rotating QR codes — before any automatic discount, or sooner if QR sharing is seen.
+- NFC card reading and wallet passes — when pilot stores ask for tap-to-identify.
+- Spend accumulated over time (a monthly total, for example) — when a store asks and the single-purchase version is not enough.
+- Card-linked payments — much later: it needs a payment partner and heavy compliance work.
 
 ### v2
 
@@ -579,6 +681,15 @@ Open points
 | Offline awarding | Required in the MVP: QR checked on the device, awards queued and synced later |
 | Messages and cost | Email verification and in-app notices in the MVP; SMS later |
 | Pilot stores' needs | Scope frozen; pilot requests go to a backlog reviewed after the pilot |
+| Earning rules | Belong to each store; the platform sets only technical limits and cannot edit them (D-115) |
+| MVP rule set | Purchase-based rules plus one basket threshold discount applied by the cashier (D-116) |
+| Engine input | A basket of item lines; one line carries the total when a store has no item data (D-117) |
+| Sale record | Every award belongs to a sale record (D-118) |
+| Checkout | Quote first, confirm after payment, with the amount actually paid (D-123) |
+| Corrections | Manual adjustments stay; sale-based refunds wait for POS integration (D-124) |
+| Staff invitations | Never modify an existing account (D-119) |
+| Customer sign-in | Requires a verified email before create or claim (D-120) |
+| Pilot | Two or three stores, about four weeks, before any parked item builds (D-125) |
 
 ## 12. Traceability to the PRD
 
@@ -586,14 +697,13 @@ Open points
 | --- | --- |
 | Fast points at the till | STO (Cashier screen), PTS, CRD, API |
 | One view of points across stores | CUS |
-| Tools for stores | STO, PTS, NTF (v1.1) |
+| Tools for stores | STO, PTS, RUL, NTF (v1.1) |
+| Store-owned rules and discounts | RUL, STO |
+| Quote, pay, confirm | CHK, SAL, STO |
 | Full admin control | ADM, AUD, BIL |
 | Extendable to NFC, wallets and POS | CRD, API |
 | Finland and EU readiness | PRV, LOC, BIL |
 
 ## 13. Next steps
 
-1. Review these changes and confirm the open points in section 11.
-2. Align the PRD with these decisions.
-3. Decide the technology stack (cross-platform apps and an offline-capable web app), then write AGENT.md.
-4. Start the handoff document and the decision log.
+Work follows "BOKPOINTS The Way Forward.md" (section 5), one work package at a time: WP0 security (done), WP1 documents (this change), WP2 earning rules, WP3 sale record and quote-then-confirm, WP4 cashier screen, WP5 owner screen, WP6 customer app rules view, WP7 pilot readiness, WP8 pilot. Progress lives in `docs/HANDOFF.md` and `handoff/STATUS.md`; every decision goes in `docs/DECISIONS.md`.

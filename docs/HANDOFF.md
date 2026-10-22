@@ -2,21 +2,21 @@
 
 Living document. Update it at the end of every working session (see `AGENT.md`, section 14). The newest information goes at the top of "Current state" and in the session log. Keep it short and accurate: someone with no memory of earlier sessions must be able to pick up from here.
 
-Last updated: 21 Oct 2026, end of the first build session. Phase: **build started.**
-Build order steps 1 and 2 of `AGENT.md` section 13 are done.
+Last updated: 23 Oct 2026, after WP0 and WP1 of `BOKPOINTS The Way Forward.md`. Phase: **build, WP2 next.**
+The Way Forward is the plan of record (D-128): WP0 security and WP1 documents are done; WP2 (store-owned earning rules) starts next.
 
 ## 1. Read these first, in this order
 
-1. `AGENT.md`: how to work in the repo, the locked stack, and the rules that must never be broken.
-2. PRD v0.2: why, for whom, scope by phase.
-3. FRD v0.2: what the system does, requirement IDs (`FR-...`), edge cases, acceptance criteria (`AC-1` to `AC-11`).
-4. `docs/DECISIONS.md`: why each decision was made, and which ones are still open.
+1. `BOKPOINTS The Way Forward.md`: the plan of record — MVP boundary, parking lot, and the work packages WP0 to WP8.
+2. `AGENT.md`: how to work in the repo, the locked stack, and the rules that must never be broken.
+3. PRD: why, for whom, scope by phase.
+4. FRD: what the system does, requirement IDs (`FR-...`), edge cases, acceptance criteria (`AC-1` to `AC-18`).
+5. `docs/DECISIONS.md`: why each decision was made, and which ones are still open.
 
-The PRD and FRD are now exported into this repo as `docs/PRD.md` and `docs/FRD.md`, converted
-from the source PDFs in `docs/source/`. The export was checked against the PDFs: all 114
-`FR-` requirement IDs and `AC-1` to `AC-11` are present and unaltered. If a copy here and
-a later edit to the original Claude Doc disagree, the Claude Doc is newer until this repo
-is re-exported.
+The PRD and FRD were exported from the source PDFs in `docs/source/` and checked
+(`AC-1` to `AC-11` present and unaltered). Both have since been edited in this repo to
+apply the Way Forward (store-owned rules, quote-then-confirm, the sale record, FR-RUL,
+FR-CHK, FR-SAL, `AC-12` to `AC-18`), so the repo copy is now the newer one.
 
 ## 2. What BOKPOINTS is, in four lines
 
@@ -29,54 +29,66 @@ is re-exported.
 
 | Item                     | State                                                                                                                                                                                          |
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| PRD                      | v0.2, exported to `docs/PRD.md`                                                                                                                                                                |
-| FRD                      | v0.2, exported to `docs/FRD.md`; open points listed in its section 11                                                                                                                          |
+| PRD                      | v0.2 + Way Forward (section 6) in `docs/PRD.md`: store-owned rules and one basket discount in the MVP, checkout described as quote-then-confirm, pilot measures, pricing tiers as hypotheses     |
+| FRD                      | v0.2 + Way Forward (section 7) in `docs/FRD.md`: new families FR-RUL, FR-CHK, FR-SAL; changed requirements in PTS, STO, AUTH; `AC-12` to `AC-18`; parked families documented, not scheduled     |
 | AGENT.md                 | v0.1; the commands in section 5 are now real, some providers are still placeholders                                                                                                            |
 | HANDOFF.md, DECISIONS.md | v0.2 (this file and its companion)                                                                                                                                                             |
 | Technology stack         | Locked (see `AGENT.md`, section 3)                                                                                                                                                             |
 | Repository               | Created at `~/bokpoints`, private GitHub remote `github.com/AbdKabeer1/bokpoints`                                                                                                              |
-| Code                      | Monorepo skeleton, CI, points engine in `packages/shared`, ledger schema and migrations, transactional ledger write path, Fastify API (identify, award, balance, store setup, invites, expiry, `/v1/me`, side-effect-free award preview), the Supabase session resolver (second factor enforced), optional store branches, row-level security on every table, the Cashier screen in `apps/web` (React + Vite PWA), the customer API plus the Expo customer app in `apps/customer` (QR, per-store balances, history, expiring notices), and the store actions — register a customer by email, adjust a balance, admin clawback, read the audit log |
-| Tests                     | 69 unit (Vitest) and 189 integration (real local Postgres), all passing                                                                                                                        |
+| Code                      | Monorepo skeleton, CI, points engine in `packages/shared`, ledger schema and migrations, transactional ledger write path, Fastify API (identify, award, balance, store setup, invites, expiry, `/v1/me`, side-effect-free award preview), the Supabase session resolver (second factor enforced), optional store branches, row-level security on every table, the Cashier screen in `apps/web` (React + Vite PWA), the customer API plus the Expo customer app in `apps/customer` (QR, per-store balances, history, expiring notices), the store actions — register a customer by email, adjust a balance, admin clawback, read the audit log — and WP0: invites that never alter an existing account (D-119) and a verified email required before a customer account is created or claimed (D-120, D-127) |
+| Tests                     | 75 unit (Vitest) and 195 integration (real local Postgres), all passing                                                                                                                        |
 | Accounts (Stripe, Supabase, email provider, hosting, Apple and Google developer accounts) | Supabase: a dev project exists in Stockholm (`eu-north-1`), Free plan. Stripe, the email provider, hosting, a domain, Apple and Google: none confirmed |
+| Plan of record            | `BOKPOINTS The Way Forward.md` (D-128): MVP boundary, parking lot, WP0–WP8. Its proposed D-113–D-124 are recorded here as D-115–D-126                                                                  |
 | Pilot stores             | None chosen                                                                                                                                                                                    |
 
 ## 4. Scope of the MVP (summary)
 
-Admin onboards stores. Stores add staff and set points rules. Cashier scans the customer's QR code and enters the amount, online or offline, with offline awards synced later. Points are per store and expire after 3 months. Customer apps show per-store balances and history. Cashiers can register customers by email. Manual adjustments (never below zero), admin fraud clawback, audit log. Monthly subscription billing with the failed-payment schedule. Email verification and in-app notices.
+Admin onboards stores. Stores add staff and **create their own earning rules** (points per euro, fixed points per purchase, threshold bonus, optionally every-Nth-visit) with a simulator before activation, plus **one basket threshold discount** applied at the till (D-115, D-116). Checkout is **quote then confirm after payment**: the quote shows the points and any discount, and points are awarded when the cashier confirms payment and enters the amount paid (D-123); every award belongs to a sale record (D-118). Cashier scans the customer's QR code (camera or a countertop scanner that types like a keyboard), online or offline, with offline awards synced later. Points are per store and expire after 3 months. Customer apps show per-store balances and history. Cashiers can register customers by email. Manual adjustments (never below zero), admin fraud clawback, audit log. Monthly subscription billing with the failed-payment schedule. Email verification and in-app notices.
 
-Not in the MVP: rewards and redemption, products and discounts, campaigns and push, NFC card, wallet passes, POS integrations, gifting, gift cards, SMS, store-level expiry settings, universal points.
+**Parked until its trigger is met** (Way Forward, section 3): POS integration and terminal APIs, product catalog and product-level rules and discounts, automatic terminal discounts, opt-in campaigns, signed rotating QR codes, device credentials for terminals, refunds and voids, NFC card reading and wallet passes, accumulated spend thresholds, and card-linked payments. Outside the parking lot but still MVP and not yet scheduled by the WP list: offline awarding, and the rest of FR-CUS (consents, export and deletion, lost card / new QR).
 
 ## 5. Next steps (in order)
 
-1. **Pending customers (register by email); manual adjustments in the UI; fraud
-   clawback; audit log** (build step 6). The ledger side of adjustments and clawbacks
-   already works.
-2. **Billing with Stripe and the failed-payment states** (build step 7).
-3. **Offline awarding: signed QR, device verification, encrypted queue, sync and
-   rejections** (build step 8). Prototype the QR and sync early, because it is the
-   highest technical risk.
-4. **Reports, hardening, accessibility pass, store submissions** (build step 9).
+The order is the Way Forward's work packages (D-128). One package is finished and
+recorded before the next starts.
 
-Build step 5 shipped its first slice: sign-in, onboarding, QR, balances, history and
-expiring notices. What remains of FR-CUS is a smaller round of its own: per-store
-consents (FR-CUS-5), data export and deletion (FR-CUS-6), the lost-card / new-QR flow
-(FR-CUS-7), and push (FR-CUS-11, v1.1).
+1. **WP0 — security fixes.** Done (this session): invites never alter an existing
+   account (D-119); a verified email before a customer account is created or claimed
+   (D-120, D-127). Live data checked.
+2. **WP1 — decisions and documents.** Done (this session): PRD, FRD, DECISIONS
+   (D-115 to D-128), this file and `handoff/STATUS.md`.
+3. **WP2 — store-owned earning rules (backend).** Engine evaluates a set of rules over
+   an item-line basket; earning-rules table (converting today's `points_rules` rows to
+   per-euro rules); owner endpoints with audit; a capability for managing rules;
+   per-sale ceiling; admin creation makes the first rule an optional template.
+4. **WP3 — sale record and quote-then-confirm**, with the single basket threshold
+   discount. 5. **WP4 — cashier screen** (quote, payment, confirm, sound and visual on
+   read). 6. **WP5 — owner screen** (rules with simulator, plus adjustments and the
+   store audit log: Build 6B lands here, D-128). 7. **WP6 — customer app** shows each
+   store's rules in plain language.
+8. **WP7 — pilot readiness:** domain and email sender, email invitations (retires the
+   Supabase-id field), subscription billing and the pricing meter, terms and privacy,
+   signage and a scanner list. 9. **WP8 — pilot:** two or three stores, about four
+   weeks, recording what they ask for.
 
-Build steps 1–4 are done: schema, points engine, ledger, API, live Supabase auth, store
-setup with invites, the expiry job, and now the Cashier screen. The session log below and
-`handoff/STATUS.md` hold the detail.
+Not scheduled by the plan of record, still MVP — raise with A before it slips:
+**offline awarding** (build step 8, highest technical risk) and the **rest of FR-CUS**
+(consents, data export and deletion, lost card / new QR).
 
 Deferred by A, wanting its own design round later: the **discount/campaign engine**
 (customer activates an offer, the cashier applies it, the price drops and points are
 earned on the reduced price). Its open question — one activation per customer, or
-repeatable, or a validity window the owner sets — is parked for that round.
+repeatable, or a validity window the owner sets — is parked for that round. The Way
+Forward's parking lot now governs it too: campaigns build when several stores ask.
 
 Parallel, non-code tasks for A:
 
-- Choose a pilot area and approach 3 to 5 stores.
-- Decide subscription pricing (tiers, trial, setup fee).
+- Choose the pilot area and approach two or three stores.
+- Decide the pricing tiers (D-126 proposes 19/39/69 EUR by active customers), the
+  domain name and who owns the email sender account.
 - Open the accounts needed (see the table above) and plan app store review time.
-- Arrange a legal and privacy review (terms, privacy notice, marketing consent, keeping pending-customer emails for 1 year, points terms).
+- Arrange a legal and privacy review (terms, privacy notice, marketing consent, keeping
+  pending-customer emails for 1 year, points terms).
 
 ## 6. Open questions
 
@@ -120,6 +132,7 @@ Newest first. One entry per session. Keep each entry to a few lines.
 
 | Session    | What was done                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | State at the end                                                                                                                              | Next                                                           |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Build 10   | WP0 and WP1 of `BOKPOINTS The Way Forward.md`. **WP0:** invites can no longer alter an existing staff account — the invite path creates an account only for a new email, otherwise adds the store membership (409 `ALREADY_MEMBER` if already a member) and never touches name, admin flag or Supabase link; a Supabase id linked elsewhere is refused (409), store creation uses the same path, and the overwriting helper is reserved for the bootstrap script (D-119). Customer provisioning now requires a verified email: the token carries no confirmation claim (verified against a real token), so provisioning asks the Auth Admin API for `email_confirmed_at` only at create or claim time and fails closed (D-120, D-127), refusing with 403 `EMAIL_NOT_VERIFIED`. Also fixed the unindented transaction block in `customers.ts` (4.4). **WP1:** PRD, FRD (FR-RUL, FR-CHK, FR-SAL, `AC-12`–`AC-18`, parking lot), DECISIONS `D-115`–`D-128`, this file and `handoff/STATUS.md`. Plan: `docs/superpowers/plans/2026-10-23-way-forward-wp0-wp1.md` | 75 unit and 195 integration tests pass; live check: the hosted database has no staff rows, the app database's 5 staff rows are correct (one admin, correct links, no duplicates) | **WP2: store-owned earning rules (backend)** |
 | Build 5    | Supabase auth: the session resolver verifies tokens against the project's public keys and requires a second factor (D-098 to D-101); `auth_user_id` links staff to Supabase users; optional store branches with a database-enforced store match (D-103, D-104); row-level security on every table (D-102); `bootstrap:admin` and `staff:login` scripts (D-105); `dev` reads `.env`. Found and fixed a migration (`0005`) that was missing from the Drizzle journal and added a test for it (D-106). | 45 unit and 111 integration tests pass | Run the resolver against the live Supabase project, then the points expiry job |
 | Build 6    | Store setup and the points expiry job: an admin creates the whole store in one call (active store, points rule version 1, optional branches, first owner), owners and managers invite staff with an optional one-branch limit (D-107); `pnpm expiry:run` expires each due batch once, safe the same day and under parallel runs (D-108). Plan: `docs/superpowers/plans/2026-10-22-store-setup-and-expiry.md` | 45 unit and 131 integration tests pass | Run the resolver against the live Supabase project — store creation now makes the first real award testable end to end |
 | Build 7    | The Cashier screen, online only: `GET /v1/me` (identity, memberships, the store's branches) and `POST /v1/stores/:storeId/awards/preview`, which returns the points and expiry without writing anything (D-109); `apps/web` is a React + Vite PWA with a keyboard-wedge scan field (no camera), sign-in with a second factor including first-time authenticator enrolment, the store/branch the caller works at, a debounced preview, a confirm step with a fresh idempotency key, and a recorded result with the new balance (D-110). Spec: `docs/superpowers/specs/2026-10-22-cashier-screen.md` | 56 unit and 142 integration tests pass; the whole flow was run live against Supabase (identify `CUST-QR-0001` → Aino, 15 points; preview of €12.50 → 12 points, expiring 22 Jan 2027, balance unchanged) | The customer app (build step 5), or the discount/campaign design round A deferred |
