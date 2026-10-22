@@ -21,10 +21,10 @@ pg_isready -h localhost -U postgres
 
 ```bash
 pnpm install
-cp .env.example .env
+cp .env.example apps/api/.env
 ```
 
-`.env` is gitignored. Never commit real values; the API reads them from the process
+`apps/api/.env` is gitignored. Never commit real values; the API reads them from the process
 environment.
 
 ## Run
@@ -35,9 +35,30 @@ ALLOW_DEV_AUTH=true pnpm dev  # same, with the development session resolver
 pnpm build                    # build packages/shared and apps/api
 ```
 
+`pnpm dev` reads `apps/api/.env` if there is one.
+
 `ALLOW_DEV_AUTH` is off by default and the server refuses to start with it on in
 production. With it on, the bearer token is a staff member's email address. The
 role is always read from the database, never from the token.
+
+### Real sign-in with Supabase
+
+```bash
+# apps/api/.env needs DATABASE_URL, SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY.
+# 1. In the Supabase dashboard, Authentication > Users, create a user
+#    (email and password, confirmed) and copy their User UID.
+pnpm bootstrap:admin --email you@example.com --name "Your Name" --auth-user-id <User UID>
+
+# 2. Sign in with the password and an authenticator-app code. The first time it
+#    enrols the authenticator and prints the secret. It prints a short-lived token.
+pnpm staff:login --email you@example.com
+
+# 3. Use the token.
+curl -H "Authorization: Bearer <token>" http://127.0.0.1:3000/v1/...
+```
+
+Do not set `ALLOW_DEV_AUTH` together with `SUPABASE_URL`: the server refuses to start.
+The secret key and the database password stay in `apps/api/.env` only.
 
 Health check:
 

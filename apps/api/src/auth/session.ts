@@ -5,8 +5,8 @@
  * A resolver turns a bearer token into a principal, and the role is always
  * read from the database afterwards (see `authorize.ts`).
  *
- * The Supabase resolver is not written yet: it is build step 3. Swapping it
- * in means implementing this one interface, and nothing else changes.
+ * `supabase-session.ts` is the production resolver. The development resolver
+ * in `dev-session.ts` is opt-in and refuses to run in production.
  */
 
 export interface AuthenticatedPrincipal {
@@ -20,4 +20,17 @@ export interface SessionResolver {
    * not valid.
    */
   resolve(token: string): Promise<AuthenticatedPrincipal | null>;
+}
+
+/**
+ * Thrown by a resolver when the token is genuine but the person has not
+ * passed multi-factor authentication (FR-AUTH-2). It is a different answer
+ * from an invalid token: the app sends the person to enrol or to enter their
+ * code, instead of treating them as signed out.
+ */
+export class MfaRequiredError extends Error {
+  constructor() {
+    super('Multi-factor authentication is required');
+    this.name = 'MfaRequiredError';
+  }
 }

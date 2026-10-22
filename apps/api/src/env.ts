@@ -15,6 +15,15 @@ export const envSchema = z.object({
    * far below this; it is there to stop a runaway client (AGENT.md
    * section 8).
    */
+  /**
+   * The Supabase project URL. When it is set the API verifies Supabase access
+   * tokens (D-100). It is required in production. The API only ever needs the
+   * URL; the keys stay with the apps and the admin scripts.
+   */
+  SUPABASE_URL: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.string().url().optional(),
+  ),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(120),
   /**
    * On when the API runs behind a load balancer or reverse proxy (D-095),

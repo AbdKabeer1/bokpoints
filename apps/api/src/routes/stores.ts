@@ -39,6 +39,8 @@ const LEDGER_ERROR_STATUS = {
   STORE_NOT_AWARDING: 403,
   CUSTOMER_NOT_FOUND: 404,
   IDEMPOTENCY_KEY_REUSED: 409,
+  LOCATION_REQUIRED: 400,
+  LOCATION_INVALID: 400,
 } as const satisfies Record<LedgerErrorCode, number>;
 
 /**
@@ -183,6 +185,22 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
           });
       }
 
+      // D-103: a member limited to one branch awards at that branch. Naming
+      // a different one is refused, not quietly overridden.
+      if (
+        auth.locationId !== null &&
+        request.body.locationId !== undefined &&
+        request.body.locationId !== auth.locationId
+      ) {
+        return reply.code(403).send({
+          error: {
+            code: 'LOCATION_MISMATCH',
+            message: 'You are limited to a different branch of this store',
+          },
+        });
+      }
+      const locationId = auth.locationId ?? request.body.locationId ?? null;
+
       let result;
       try {
         result = await recordEarn(db, {
@@ -193,6 +211,7 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
           ruleVersion: rule.ruleVersion,
           idempotencyKey,
           staffId: auth.staffUserId,
+          locationId,
         });
       } catch (error) {
         if (error instanceof LedgerError) {

@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import {
   boolean,
   check,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -9,6 +10,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
@@ -41,7 +43,7 @@ export const customers = pgTable(
     uniqueIndex('customers_email_unique').on(sql`lower(${t.email})`),
     check('customers_status_check', sql`${t.status} in ('active', 'deleted')`),
   ],
-);
+).enableRLS();
 
 export const staffUsers = pgTable(
   'staff_users',
@@ -54,13 +56,18 @@ export const staffUsers = pgTable(
     // FRD section 2: admin accounts are separate from store accounts.
     isAdmin: boolean('is_admin').notNull().default(false),
     status: text('status').notNull().default('active'),
+    // The member's id in Supabase Auth (D-099). Our own id stays separate, so
+    // the auth provider can change without touching every foreign key. Null
+    // until the account is linked; one Supabase user is one staff user.
+    authUserId: uuid('auth_user_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     uniqueIndex('staff_users_email_unique').on(sql`lower(${t.email})`),
+    uniqueIndex('staff_users_auth_user_unique').on(t.authUserId),
     check('staff_users_status_check', sql`${t.status} in ('active', 'deactivated')`),
   ],
-);
+).enableRLS();
 
 export const stores = pgTable(
   'stores',
@@ -84,7 +91,37 @@ export const stores = pgTable(
       sql`${t.status} in ('invited', 'setup', 'active', 'paused', 'suspended', 'offboarded')`,
     ),
   ],
-);
+).enableRLS();
+
+/**
+ * A branch of a store (D-103).
+ *
+ * A store is the business: points, the points rule and the subscription all
+ * belong to it. A branch is one of its places. Plenty of stores have only one
+ * place and no rows here at all. Where branches exist, an award records
+ * which one it happened at, and a staff member can be limited to one.
+ */
+export const storeLocations = pgTable(
+  'store_locations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    storeId: uuid('store_id')
+      .notNull()
+      .references(() => stores.id),
+    name: text('name').notNull(),
+    address: text('address'),
+    status: text('status').notNull().default('active'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('store_locations_store_name_unique').on(t.storeId, t.name),
+    // Lets other tables point at (branch, store) together, so the database
+    // itself refuses a branch that belongs to a different store.
+    unique('store_locations_id_store_unique').on(t.id, t.storeId),
+    check('store_locations_status_check', sql`${t.status} in ('active', 'closed')`),
+    index('store_locations_store_idx').on(t.storeId),
+  ],
+).enableRLS();
 
 export const storeMembers = pgTable(
   'store_members',
@@ -97,16 +134,24 @@ export const storeMembers = pgTable(
       .notNull()
       .references(() => staffUsers.id),
     role: text('role').notNull(),
+    // Null means the member works across every branch (D-103). A value
+    // limits them to that one branch.
+    locationId: uuid('location_id'),
     status: text('status').notNull().default('active'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     uniqueIndex('store_members_store_user_unique').on(t.storeId, t.userId),
+    foreignKey({
+      columns: [t.locationId, t.storeId],
+      foreignColumns: [storeLocations.id, storeLocations.storeId],
+      name: 'store_members_location_store_fk',
+    }),
     check('store_members_role_check', sql`${t.role} in ('owner', 'manager', 'cashier')`),
     check('store_members_status_check', sql`${t.status} in ('active', 'deactivated')`),
     index('store_members_store_idx').on(t.storeId),
   ],
-);
+).enableRLS();
 
 export const cashierDevices = pgTable(
   'cashier_devices',
@@ -125,7 +170,7 @@ export const cashierDevices = pgTable(
     check('cashier_devices_status_check', sql`${t.status} in ('active', 'revoked')`),
     index('cashier_devices_store_idx').on(t.storeId),
   ],
-);
+).enableRLS();
 
 export const credentials = pgTable(
   'credentials',
@@ -148,7 +193,7 @@ export const credentials = pgTable(
     check('credentials_status_check', sql`${t.status} in ('active', 'lost', 'revoked')`),
     index('credentials_customer_idx').on(t.customerId),
   ],
-);
+).enableRLS();
 
 export const customerStoreLinks = pgTable(
   'customer_store_links',
@@ -173,7 +218,7 @@ export const customerStoreLinks = pgTable(
     ),
     index('customer_store_links_store_idx').on(t.storeId),
   ],
-);
+).enableRLS();
 
 export const pointsRules = pgTable(
   'points_rules',
@@ -213,7 +258,7 @@ export const pointsRules = pgTable(
     check('points_rules_rounding_check', sql`${t.rounding} in ('floor', 'nearest')`),
     index('points_rules_store_idx').on(t.storeId),
   ],
-);
+).enableRLS();
 
 export const pointsLedgerEntries = pgTable(
   'points_ledger_entries',
@@ -235,6 +280,9 @@ export const pointsLedgerEntries = pgTable(
     staffId: uuid('staff_id').references(() => staffUsers.id),
     deviceId: uuid('device_id').references(() => cashierDevices.id),
     scannedAt: timestamp('scanned_at', { withTimezone: true }),
+    // Which branch an award happened at (D-103). Null for a store with no
+    // branches, and for entries that are not tied to a place.
+    locationId: uuid('location_id'),
     // FR-PTS-4: every award request carries an idempotency key.
     idempotencyKey: text('idempotency_key'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -249,6 +297,11 @@ export const pointsLedgerEntries = pgTable(
       'points_ledger_entries_points_sign',
       sql`(${t.type} = 'earn' and ${t.points} >= 0) or ${t.type} = 'adjust' or (${t.type} in ('redeem', 'expire', 'fraud_clawback') and ${t.points} <= 0)`,
     ),
+    foreignKey({
+      columns: [t.locationId, t.storeId],
+      foreignColumns: [storeLocations.id, storeLocations.storeId],
+      name: 'points_ledger_entries_location_store_fk',
+    }),
     check(
       'points_ledger_entries_type_check',
       sql`${t.type} in ('earn', 'redeem', 'adjust', 'expire', 'fraud_clawback')`,
@@ -262,7 +315,7 @@ export const pointsLedgerEntries = pgTable(
     index('points_ledger_entries_customer_store_idx').on(t.customerId, t.storeId),
     index('points_ledger_entries_created_idx').on(t.createdAt),
   ],
-);
+).enableRLS();
 
 /**
  * One batch of points, from one `earn` entry.
@@ -304,7 +357,7 @@ export const pointsBatches = pgTable(
     index('points_batches_expiry_idx').on(t.expiresAt),
     index('points_batches_customer_store_idx').on(t.customerId, t.storeId),
   ],
-);
+).enableRLS();
 
 export const pointsBalances = pgTable(
   'points_balances',
@@ -321,7 +374,7 @@ export const pointsBalances = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.customerId, t.storeId] })],
-);
+).enableRLS();
 
 export const rejectedOfflineAwards = pgTable(
   'rejected_offline_awards',
@@ -340,7 +393,7 @@ export const rejectedOfflineAwards = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('rejected_offline_awards_store_idx').on(t.storeId)],
-);
+).enableRLS();
 
 export const subscriptions = pgTable(
   'subscriptions',
@@ -367,7 +420,7 @@ export const subscriptions = pgTable(
       sql`${t.status} in ('trialing', 'active', 'past_due', 'paused', 'suspended', 'canceled')`,
     ),
   ],
-);
+).enableRLS();
 
 export const auditLogEntries = pgTable(
   'audit_log_entries',
@@ -388,4 +441,4 @@ export const auditLogEntries = pgTable(
     index('audit_log_entries_store_idx').on(t.storeId),
     index('audit_log_entries_created_idx').on(t.createdAt),
   ],
-);
+).enableRLS();

@@ -28,6 +28,9 @@ export const MAX_AMOUNT_CENTS = 100_000_000;
 export const awardRequestSchema = z.object({
   customerId: z.string().uuid(),
   amountCents: z.number().int().min(0).max(MAX_AMOUNT_CENTS),
+  // D-103: which branch the purchase was at. Optional, because many stores
+  // have none, and a member limited to one branch does not need to send it.
+  locationId: z.string().uuid().optional(),
 });
 
 export const credentialTypeSchema = z.enum(['app_qr', 'nfc_card', 'wallet_pass']);

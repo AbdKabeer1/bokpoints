@@ -50,7 +50,7 @@ createdb bokpoints_test
 
 ```bash
 pnpm install
-cp .env.example .env      # then put your real DATABASE_URL in it
+cp .env.example apps/api/.env   # then put your real values in it
 ```
 
 ## Commands
@@ -116,8 +116,12 @@ awards, because awarding continues while a store is paused.
 ### Authentication
 
 The token is verified by a `SessionResolver` (`apps/api/src/auth/session.ts`).
-The Supabase resolver is build step 3. Until then there is a development
-resolver where the bearer token is a staff member's **email address**:
+With `SUPABASE_URL` set, the API verifies Supabase access tokens against the
+project's public keys, and staff and admin tokens must have passed a second
+factor (`403 MFA_REQUIRED` otherwise). Production refuses to start without it.
+`pnpm bootstrap:admin` creates the first admin and `pnpm staff:login` gets a real
+token. Without Supabase there is a development resolver where the bearer token
+is a staff member's **email address**:
 
 ```bash
 ALLOW_DEV_AUTH=true pnpm dev

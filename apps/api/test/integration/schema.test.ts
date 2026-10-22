@@ -45,3 +45,25 @@ describe('points rule rate bound (D-093)', () => {
     await expect(insertRuleWithRate(2_000_000)).rejects.toThrow(/rate_check/);
   });
 });
+
+describe('row-level security (D-102)', () => {
+  it('is switched on for every table in the public schema', async () => {
+    // Supabase exposes tables in the public schema through its own data API.
+    // With security on and no policies, that API can read nothing. Our API
+    // connects as the table owner and is unaffected. A new table that forgets
+    // this fails here.
+    const rows = await pool.query(
+      `SELECT c.relname
+         FROM pg_class c
+         JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND NOT c.relrowsecurity
+        ORDER BY c.relname`,
+    );
+    expect(rows.rows).toEqual([]);
+  });
+
+  it('has no policies, so nothing is readable through the data API', async () => {
+    const rows = await pool.query("SELECT tablename FROM pg_policies WHERE schemaname = 'public'");
+    expect(rows.rows).toEqual([]);
+  });
+});

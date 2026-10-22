@@ -15,6 +15,7 @@ import {
   customers,
   pointsBalances,
   pointsLedgerEntries,
+  storeLocations,
   stores,
 } from './schema.js';
 
@@ -25,7 +26,9 @@ export type LedgerErrorCode =
   | 'REASON_REQUIRED'
   | 'STORE_NOT_AWARDING'
   | 'CUSTOMER_NOT_FOUND'
-  | 'IDEMPOTENCY_KEY_REUSED';
+  | 'IDEMPOTENCY_KEY_REUSED'
+  | 'LOCATION_REQUIRED'
+  | 'LOCATION_INVALID';
 
 /**
  * The store states in which awarding is allowed. A paused store still
@@ -57,6 +60,12 @@ export interface RecordEarnInput {
   scannedAt?: Date;
   staffId?: string;
   deviceId?: string;
+  /**
+   * The branch the purchase happened at (D-103). Required when the store has
+   * branches, and refused when the store has none or the branch is not an
+   * active one of this store.
+   */
+  locationId?: string | null;
 }
 
 export interface RecordEarnResult {
@@ -175,6 +184,28 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
         return { entryId: found.id, points: found.points, awarded: true, replayed: true };
       }
 
+      // D-103, D-104: a store with branches must say which one the award is
+      // at; a store without them never has one. Checked after the replay
+      // branch so a retry is answered whatever has changed since.
+      const activeLocations = await tx
+        .select({ id: storeLocations.id })
+        .from(storeLocations)
+        .where(and(eq(storeLocations.storeId, input.storeId), eq(storeLocations.status, 'active')));
+      const locationId = input.locationId ?? null;
+      if (locationId !== null) {
+        if (!activeLocations.some((location) => location.id === locationId)) {
+          throw new LedgerError(
+            'LOCATION_INVALID',
+            'That branch does not exist or is not open at this store',
+          );
+        }
+      } else if (activeLocations.length > 0) {
+        throw new LedgerError(
+          'LOCATION_REQUIRED',
+          'This store has branches, so the award needs to say which one',
+        );
+      }
+
       const calculation = calculatePoints(input.amountCents, input.rule);
 
       // FR-PTS-2: below the minimum purchase, award zero points and tell the
@@ -206,6 +237,7 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
           staffId: input.staffId,
           deviceId: input.deviceId,
           scannedAt,
+          locationId,
           idempotencyKey: input.idempotencyKey,
         })
         .returning({ id: pointsLedgerEntries.id });

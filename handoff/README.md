@@ -26,7 +26,7 @@ earned.
 
 Build-order steps 1 and 2 of `AGENT.md` section 13 are done: the repo and the points
 engine, the ledger schema, the transactional write path, and the award endpoint with
-a pluggable session resolver. Steps 3 to 9 are not started. The full breakdown, and
+the Supabase session resolver. Step 3 (auth, roles, branches) is built but not yet run against the live Supabase project; the store and staff setup endpoints are not started. Steps 4 to 9 are not started. The full breakdown, and
 which acceptance criteria are covered, is in `docs/HANDOFF.md`.
 
 ## The invariants that must never break

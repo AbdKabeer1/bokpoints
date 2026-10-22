@@ -38,6 +38,6 @@ export async function applyMigrations(pool: Pool): Promise<void> {
  */
 export async function truncateAll(pool: Pool): Promise<void> {
   await pool.query(
-    'TRUNCATE points_ledger_entries, audit_log_entries, points_balances, customer_store_links, points_rules, credentials, cashier_devices, store_members, subscriptions, customers, stores, staff_users, rejected_offline_awards CASCADE',
+    'TRUNCATE points_ledger_entries, audit_log_entries, points_balances, customer_store_links, points_rules, credentials, cashier_devices, store_members, store_locations, subscriptions, customers, stores, staff_users, rejected_offline_awards CASCADE',
   );
 }

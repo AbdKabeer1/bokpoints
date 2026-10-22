@@ -2,7 +2,7 @@ import { and, eq } from 'drizzle-orm';
 import { can, type Capability, type Role } from '@bokpoints/shared';
 import type { Database } from '../db/client.js';
 import { staffUsers, storeMembers } from '../db/schema.js';
-import type { SessionResolver } from './session.js';
+import { MfaRequiredError, type SessionResolver } from './session.js';
 
 export type AuthErrorCode =
   | 'MISSING_TOKEN'
@@ -10,10 +10,17 @@ export type AuthErrorCode =
   | 'STORE_MISMATCH'
   | 'NOT_A_MEMBER'
   | 'ACCOUNT_DEACTIVATED'
+  | 'MFA_REQUIRED'
   | 'FORBIDDEN';
 
 export type AuthResult =
-  | { ok: true; staffUserId: string; role: Role }
+  | {
+      ok: true;
+      staffUserId: string;
+      role: Role;
+      /** The one branch this member is limited to, or null for every branch (D-103). */
+      locationId: string | null;
+    }
   | { ok: false; status: 401 | 403; error: { code: AuthErrorCode; message: string } };
 
 export interface AuthorizeOptions {
@@ -61,7 +68,17 @@ export async function authorizeStoreRequest(
     return failure(401, 'INVALID_TOKEN', 'This request needs an access token');
   }
 
-  const principal = await resolver.resolve(options.token);
+  let principal;
+  try {
+    principal = await resolver.resolve(options.token);
+  } catch (error) {
+    // FR-AUTH-2: a valid token without a second factor is not an invalid
+    // token. The app needs to tell the two apart.
+    if (error instanceof MfaRequiredError) {
+      return failure(403, 'MFA_REQUIRED', 'Multi-factor authentication is required');
+    }
+    throw error;
+  }
   if (!principal) {
     return failure(401, 'INVALID_TOKEN', 'That access token is not valid');
   }
@@ -85,6 +102,7 @@ export async function authorizeStoreRequest(
   const isAdmin = account.isAdmin;
 
   let role: Role | null;
+  let locationId: string | null = null;
 
   if (isAdmin) {
     // Admins are not members of a store. Their access is checked against the
@@ -93,7 +111,11 @@ export async function authorizeStoreRequest(
     role = 'admin';
   } else {
     const membership = await db
-      .select({ role: storeMembers.role, status: storeMembers.status })
+      .select({
+        role: storeMembers.role,
+        status: storeMembers.status,
+        locationId: storeMembers.locationId,
+      })
       .from(storeMembers)
       .where(and(eq(storeMembers.storeId, options.storeId), eq(storeMembers.userId, principal.staffUserId)))
       .limit(1);
@@ -112,6 +134,7 @@ export async function authorizeStoreRequest(
       return failure(403, 'NOT_A_MEMBER', 'Your access to this store has been deactivated');
     }
     role = memberRole;
+    locationId = member.locationId;
   }
 
   const permitted = options.anyOf.some((capability) => can(role, capability).allowed);
@@ -119,5 +142,5 @@ export async function authorizeStoreRequest(
     return failure(403, 'FORBIDDEN', 'Your role does not allow this action');
   }
 
-  return { ok: true, staffUserId: principal.staffUserId, role };
+  return { ok: true, staffUserId: principal.staffUserId, role, locationId };
 }
