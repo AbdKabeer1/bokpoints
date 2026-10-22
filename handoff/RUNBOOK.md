@@ -32,11 +32,13 @@ environment.
 ```bash
 pnpm dev                      # API on http://127.0.0.1:3000 and the Cashier screen on http://localhost:5173
 ALLOW_DEV_AUTH=true pnpm dev  # with the development session resolver (local API testing)
-pnpm build                    # build packages/shared, apps/api and apps/web
+pnpm build                    # build packages/shared, apps/api, apps/web and apps/customer
+pnpm --filter @bokpoints/customer dev:web   # customer app on http://localhost:8081 (separate terminal)
 ```
 
 `pnpm dev` runs every workspace's dev script in parallel: the API (hot reload)
-and Vite. The screen calls the API through Vite's `/v1` proxy, so the browser sees
+and Vite. The customer app is excluded because Expo's dev server is interactive;
+start it with the command above. The screen calls the API through Vite's `/v1` proxy, so the browser sees
 one origin and no CORS setup is needed. `apps/api/.env` supplies the API's
 settings; `apps/web/.env` supplies the Supabase URL and publishable key (copy
 `apps/web/.env.example` and fill it in, or the screen cannot sign in).
@@ -63,6 +65,40 @@ delete that account's factor in the Supabase dashboard (Authentication > Users)
 and sign in again — the screen offers the setup step. New accounts are made the
 same way: create the Supabase user, then `pnpm bootstrap:admin` (for an admin) or
 `POST /v1/stores/:storeId/staff` (for store staff).
+
+### The customer app
+
+The Expo app runs in its own terminal, on **http://localhost:8081**:
+
+```bash
+pnpm --filter @bokpoints/customer dev:web
+```
+
+It needs `apps/customer/.env` (copy `.env.example`) with the same Supabase URL and
+publishable key the till uses. Two local settings matter:
+
+- `apps/api/.env` must list the app's origin in `CORS_ORIGINS`, for example
+  `CORS_ORIGINS=http://localhost:8081`; restart the API after changing it.
+- On a physical phone, `127.0.0.1` is the phone itself. Set
+  `EXPO_PUBLIC_API_BASE=http://<your Mac's LAN IP>:3000` and start Expo with
+  `--lan`.
+
+Sign-in is an email one-time code. **Once**, in the Supabase dashboard, open
+Authentication > Email Templates > Magic Link and make sure the body contains the
+code, for example:
+
+```html
+<h2>Your BOKPOINTS code</h2>
+<p>{{ .Token }}</p>
+```
+
+Without `{{ .Token }}` the email only carries a link, and the app's six-digit field
+has nothing to accept. The built-in sender is rate-limited on the free plan; wait a
+minute between attempts.
+
+The first sign-in provisions the customer and their QR. The till scans the same
+opaque identifier it always has, so a new customer can be awarded points straight
+away. A production database must apply migration 0007 before this works.
 
 The scanner is a keyboard-wedge device: it types the code and presses Enter into
 the focused field. Without hardware, type `CUST-QR-0001` at Kahvila Bea and press
@@ -113,6 +149,11 @@ curl http://127.0.0.1:3000/v1/health
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/v1/me` | Who the caller is, their stores and each store's branches |
+| `GET` | `/v1/customer/me` | Customer: own profile and QR credential; provisions on the first call |
+| `PATCH` | `/v1/customer/me` | Customer: first name and language |
+| `GET` | `/v1/customer/me/stores` | Customer: stores with balances and last activity |
+| `GET` | `/v1/customer/me/stores/{storeId}/history` | Customer: last 100 entries with the balance after each |
+| `GET` | `/v1/customer/me/expiring` | Customer: points expiring within 14 days (`?days=` for another window) |
 | `POST` | `/v1/stores/{storeId}/identify` | Scanned credential to customer, first name and balance |
 | `POST` | `/v1/stores/{storeId}/awards/preview` | What a purchase would earn and when it expires; writes nothing |
 | `POST` | `/v1/stores/{storeId}/awards` | Award points (requires an `Idempotency-Key` header) |
@@ -133,12 +174,14 @@ pnpm lint
 pnpm test                                # unit
 DATABASE_URL=postgres://postgres:postgres@localhost:5432/bokpoints_test pnpm test:integration
 pnpm --filter @bokpoints/web build       # production build of the Cashier screen
+pnpm --filter @bokpoints/customer typecheck
+pnpm --filter @bokpoints/customer exec expo export --platform web   # customer web build
 ```
 
 The integration suite rebuilds `bokpoints_test` from the migration files on every run.
 It never touches `bokpoints_dev`.
 
-All five must pass before a change is done.
+All of these must pass before a change is done.
 
 ## Database
 
@@ -203,4 +246,7 @@ gh run watch
 | Integration tests fail to connect | Postgres is not running, or `DATABASE_URL` points at the wrong database. The tests expect `bokpoints_test`. |
 | `role "postgres" does not exist` | Homebrew's Postgres only creates the OS user. Create the role once: `psql -d postgres -c "CREATE ROLE postgres WITH SUPERUSER LOGIN PASSWORD 'postgres';"` |
 | The screen on :5173 cannot sign in | `apps/web/.env` is missing or has empty `VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY`. Copy `.env.example` and fill both; restart `pnpm dev`. |
+| The code email never arrives, or has no 6-digit code | Supabase's built-in sender is rate-limited (wait a minute). The Magic Link template must contain `{{ .Token }}`; a link-only email gives the app nothing to type. |
+| The customer app says the API is not answering | `EXPO_PUBLIC_API_BASE` must reach the API. On a phone that is the Mac's LAN address, not `127.0.0.1`. |
+| The customer web app is blocked by CORS | Add `http://localhost:8081` to `CORS_ORIGINS` in `apps/api/.env` and restart the API. |
 | The screen says the API is not answering | The API is not running on `127.0.0.1:3000`. `pnpm dev` starts both; check the API's own log first. |

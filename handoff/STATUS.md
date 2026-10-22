@@ -1,8 +1,8 @@
 # STATUS
 
 **Project:** BOKPOINTS, a B2B2C loyalty platform for SMEs in Finland / EU.
-**Phase:** MVP, build order steps 1 to 4 of `AGENT.md` section 13 are done (the Cashier screen, online flow only, now exists).
-**Last updated:** 22 Oct 2026, after Build 7 (the Cashier screen): `apps/web` is a working React + Vite PWA — sign-in with a second factor, first-time authenticator enrolment, store and branch resolution, scanner-wedge input, a server-side points preview, a confirm step and a recorded result. 56 unit and 142 integration tests green; the whole flow was exercised live against Supabase.
+**Phase:** MVP, build order steps 1 to 5 are done; step 5 has shipped its first slice (sign-in, onboarding, QR, balances, history, expiring notices).
+**Last updated:** 23 Oct 2026, after Build 8 (the customer app): `apps/customer` is an Expo app with a working web export; the API gained customer identity (`customers.auth_user_id`), provisioning with a `CUS-` QR credential, a separate `aal1` customer resolver, five customer-scoped endpoints and a CORS allow-list. 58 unit and 166 integration tests green; a real `aal1` token provisioned a customer and an award showed up in their stores and history.
 
 ## Done
 
@@ -95,7 +95,24 @@
   the preview writes nothing. Spec: `docs/superpowers/specs/2026-10-22-cashier-screen.md`;
   plan: `docs/superpowers/plans/2026-10-22-cashier-screen.md`.
 
-**Tests: 56 unit, 142 integration, all passing.**
+- **The customer app's first slice** (Build 8, D-111, D-112): `apps/customer` is
+  an Expo (React Native) app with a web export. Sign-in is an email one-time code
+  (FR-AUTH-1), then a mandatory first-name step; the home screen opens on the
+  personal QR, shows a notice when points expire within 14 days, and lists every
+  store with a balance and its last activity. Tapping a store shows the last 100
+  entries with the true balance after each (FR-CUS-1/2/3/8).
+- **Customer identity and API**: `customers.auth_user_id` (migration 0007,
+  local only), provisioning that links a verified email or refuses to take over a
+  linked row, one active `app_qr` credential per customer, and five endpoints that
+  always derive the identity from the token — profile get/patch, stores, history
+  and expiring. A separate resolver accepts `aal1` customer tokens with an email
+  claim, while staff stay on `aal2`. CORS is an explicit allow-list
+  (`CORS_ORIGINS`), empty by default.
+- **Verified live**: a real Supabase `aal1` token called `GET /v1/customer/me`,
+  which created customer + credential; a €12.50 award at Kahvila Bea then appeared
+  as 12 points in the customer's store list and history, with `balanceAfter` 12.
+
+**Tests: 58 unit, 166 integration, all passing.**
 
 ## In progress
 
@@ -116,29 +133,33 @@ Nothing. The last task is finished.
 
 In the order of `AGENT.md` section 13:
 
-1. **Customer app**: sign-up, QR, per-store balances and history, expiry notices
-   (build step 5). `apps/customer` is a stub today.
-2. **Pending customers, manual adjustments in the UI, fraud clawback, audit log**
+1. **Pending customers, manual adjustments in the UI, fraud clawback, audit log**
    (build step 6). The ledger side of adjustments and clawbacks already works.
-3. **Billing with Stripe** and the failed-payment states (build step 7).
-4. **Offline awarding**: signed QR, device verification, encrypted queue, sync and
+2. **Billing with Stripe** and the failed-payment states (build step 7).
+3. **Offline awarding**: signed QR, device verification, encrypted queue, sync and
    rejections (build step 8). Highest risk, so prototype the QR and sync early.
-5. **Reports, hardening, accessibility pass, store submissions** (build step 9).
-6. **Discount/campaign engine** — deferred by A until its own design round; the
+4. **Reports, hardening, accessibility pass, store submissions** (build step 9).
+5. **Discount/campaign engine** — deferred by A until its own design round; the
    activation rule (one per customer / repeatable / owner-set window) is still open.
+6. **The rest of FR-CUS**: per-store consents (FR-CUS-5), data export and account
+   deletion (FR-CUS-6), the lost-card / new-QR flow (FR-CUS-7), and push (v1.1).
 
 ### The next concrete task
 
-The Cashier screen works online. The next build step is **the customer app**
-(build step 5): sign-up, the member QR, per-store balances and history, and expiry
-notices, against the API that already exists. `apps/customer` is a stub.
+The customer app's first slice works. The next build step is **step 6**: register a
+customer at the till by email (the pending-customer flow), manual adjustments in
+the store UI, fraud clawback, and the audit log. The API's adjustment and clawback
+paths already exist; the work is the store-facing screens and the pending-customer
+rules.
 
-Two things left on the cashier side, deliberately open:
+Still open, deliberately:
 
-- Physical cards: the screen retries a scanned code as `nfc_card` when it is not
-  an app QR. Whether barcoded cards deserve their own credential type is a v1.1
-  schema question (the FR-CRD-5 round).
+- Physical cards: the customer app shows the same opaque identifier the till
+  already scans. Whether barcoded cards deserve their own credential type is a
+  v1.1 schema question (the FR-CRD-5 round).
 - Finnish UI strings, idle auto sign-out and receipt printing — later design work.
+- Code sign-in needs `{{ .Token }}` in the Supabase Magic Link template (one-time
+  dashboard edit, in the runbook).
 
 ## Risks to watch
 

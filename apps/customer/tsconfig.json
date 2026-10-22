@@ -14,7 +14,6 @@
     "index.ts",
     "src/**/*.ts",
     "src/**/*.tsx",
-    "test/**/*.ts",
-    "expo-env.d.ts"
+    "test/**/*.ts"
   ]
 }
