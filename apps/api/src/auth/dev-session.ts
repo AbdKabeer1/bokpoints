@@ -70,5 +70,10 @@ export function createDevCustomerResolver(): CustomerSessionResolver {
       if (email === '') return null;
       return { authUserId: uuidFromEmail(email), email };
     },
+    // Local development has no Supabase to ask, so this resolver treats
+    // every address as confirmed (D-120). Production never runs it.
+    async isEmailVerified(): Promise<boolean> {
+      return true;
+    },
   };
 }

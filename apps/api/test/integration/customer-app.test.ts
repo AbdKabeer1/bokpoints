@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../../src/app.js';
 import { createDevCustomerResolver, uuidFromEmail } from '../../src/auth/dev-session.js';
+import type { CustomerSessionResolver } from '../../src/auth/session.js';
 import { createDb, createPool, type Database } from '../../src/db/client.js';
 import { applyMigrations, truncateAll } from './setup.js';
 
@@ -398,5 +399,59 @@ describe('expiring window edges', () => {
     const res = await get('/v1/customer/me/expiring', 'new@test.dev');
 
     expect(res.json().items).toEqual([]);
+  });
+});
+
+/**
+ * Way Forward 4.2, D-120: a token whose email Supabase has not confirmed may
+ * neither create a customer row nor claim a pending one.
+ */
+describe('an unverified email (D-120)', () => {
+  const unverifiedApp = (email: string) => {
+    const customerResolver: CustomerSessionResolver = {
+      resolve: async (token) =>
+        token === 'unverified' ? { authUserId: randomUUID(), email } : null,
+      isEmailVerified: async () => false,
+    };
+    return buildApp({ db, customerResolver });
+  };
+
+  it('is refused before an account is created', async () => {
+    const app = await unverifiedApp('new.person@test.dev');
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/customer/me',
+      headers: { authorization: 'Bearer unverified' },
+    });
+    await app.close();
+
+    expect(res.statusCode).toBe(403);
+    expect(res.json()).toMatchObject({ error: { code: 'EMAIL_NOT_VERIFIED' } });
+
+    const count = await pool.query('SELECT count(*) FROM customers');
+    expect(Number(count.rows[0].count)).toBe(0);
+  });
+
+  it('is refused before an existing pending row is claimed', async () => {
+    const pendingId = randomUUID();
+    await pool.query("INSERT INTO customers (id, email, name) VALUES ($1, 'pending@test.dev', 'Walk In')", [
+      pendingId,
+    ]);
+
+    const app = await unverifiedApp('pending@test.dev');
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/customer/me',
+      headers: { authorization: 'Bearer unverified' },
+    });
+    await app.close();
+
+    expect(res.statusCode).toBe(403);
+
+    const row = await pool.query(
+      'SELECT auth_user_id, email_verified_at FROM customers WHERE id = $1',
+      [pendingId],
+    );
+    expect(row.rows[0]).toMatchObject({ auth_user_id: null, email_verified_at: null });
   });
 });

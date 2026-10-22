@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { and, desc, eq, gt, isNull, lte, sql } from 'drizzle-orm';
+import type { EmailVerifier } from '../auth/supabase-admin.js';
 import type { CustomerPrincipal } from '../auth/session.js';
 import type { Database } from './client.js';
 import { isUniqueViolation } from './errors.js';
@@ -13,11 +14,11 @@ import {
   stores,
 } from './schema.js';
 
-export type CustomerErrorCode = 'ACCOUNT_DELETED' | 'EMAIL_ALREADY_LINKED';
+export type CustomerErrorCode = 'ACCOUNT_DELETED' | 'EMAIL_ALREADY_LINKED' | 'EMAIL_NOT_VERIFIED';
 
 /**
  * A refusal the customer routes can report as-is. It is not a database error:
- * both cases are expected answers to a sign-in attempt.
+ * these are expected answers to a sign-in attempt, not failures.
  */
 export class CustomerError extends Error {
   readonly code: CustomerErrorCode;
@@ -83,103 +84,114 @@ export function customerCredentialIdentifier(): string {
 export async function provisionCustomer(
   db: Database,
   principal: CustomerPrincipal,
+  isEmailVerified?: EmailVerifier,
 ): Promise<ProvisionedCustomer> {
   try {
     return await db.transaction(async (tx) => {
-    const byAuth = await tx
-      .select()
-      .from(customers)
-      .where(eq(customers.authUserId, principal.authUserId))
-      .limit(1);
-
-    let row = byAuth[0];
-
-    if (row) {
-      if (row.status === 'deleted') {
-        throw new CustomerError('ACCOUNT_DELETED', 'This account has been deleted');
-      }
-    } else {
-      const byEmail = await tx
+      const byAuth = await tx
         .select()
         .from(customers)
-        .where(and(sql`lower(${customers.email}) = ${principal.email}`, isNull(customers.authUserId)))
+        .where(eq(customers.authUserId, principal.authUserId))
         .limit(1);
 
-      const unlinked = byEmail[0];
-      if (unlinked) {
-        if (unlinked.status === 'deleted') {
+      let row = byAuth[0];
+
+      if (row) {
+        if (row.status === 'deleted') {
           throw new CustomerError('ACCOUNT_DELETED', 'This account has been deleted');
         }
-
-        const linked = await tx
-          .update(customers)
-          .set({
-            authUserId: principal.authUserId,
-            emailVerifiedAt: sql`coalesce(${customers.emailVerifiedAt}, now())`,
-            updatedAt: new Date(),
-          })
-          .where(eq(customers.id, unlinked.id))
-          .returning();
-        row = linked[0];
       } else {
-        // A unique violation here is either a concurrent first sign-in (which
-        // the caller resolves by re-reading) or an email that really belongs
-        // to another account (which the caller answers with 409). Let the
-        // outer handler tell those apart; deciding here hides the raw error.
-        const inserted = await tx
-          .insert(customers)
-          .values({
-            email: principal.email,
-            name: '',
-            authUserId: principal.authUserId,
-            emailVerifiedAt: new Date(),
-          })
-          .returning();
-        row = inserted[0];
+        // D-120, Way Forward 4.2: nothing may be created or claimed until
+        // Supabase has confirmed this address. An already-linked row is found
+        // by `sub` above and needs no re-check.
+        if (isEmailVerified !== undefined && !(await isEmailVerified(principal.authUserId))) {
+          throw new CustomerError(
+            'EMAIL_NOT_VERIFIED',
+            'This email address has not been confirmed yet',
+          );
+        }
+
+        const byEmail = await tx
+          .select()
+          .from(customers)
+          .where(and(sql`lower(${customers.email}) = ${principal.email}`, isNull(customers.authUserId)))
+          .limit(1);
+
+        const unlinked = byEmail[0];
+        if (unlinked) {
+          if (unlinked.status === 'deleted') {
+            throw new CustomerError('ACCOUNT_DELETED', 'This account has been deleted');
+          }
+
+          const linked = await tx
+            .update(customers)
+            .set({
+              authUserId: principal.authUserId,
+              emailVerifiedAt: sql`coalesce(${customers.emailVerifiedAt}, now())`,
+              updatedAt: new Date(),
+            })
+            .where(eq(customers.id, unlinked.id))
+            .returning();
+          row = linked[0];
+        } else {
+          // A unique violation here is either a concurrent first sign-in (which
+          // the caller resolves by re-reading) or an email that really belongs
+          // to another account (which the caller answers with 409). Let the
+          // outer handler tell those apart; deciding here hides the raw error.
+          const inserted = await tx
+            .insert(customers)
+            .values({
+              email: principal.email,
+              name: '',
+              authUserId: principal.authUserId,
+              emailVerifiedAt: new Date(),
+            })
+            .returning();
+          row = inserted[0];
+        }
       }
-    }
 
-    if (!row) throw new Error('Provisioning produced no customer row');
+      if (!row) throw new Error('Provisioning produced no customer row');
 
-    const active = await tx
-      .select({ identifier: credentials.identifier })
-      .from(credentials)
-      .where(
-        and(
-          eq(credentials.customerId, row.id),
-          eq(credentials.type, 'app_qr'),
-          eq(credentials.status, 'active'),
-        ),
-      )
-      .limit(1);
+      const active = await tx
+        .select({ identifier: credentials.identifier })
+        .from(credentials)
+        .where(
+          and(
+            eq(credentials.customerId, row.id),
+            eq(credentials.type, 'app_qr'),
+            eq(credentials.status, 'active'),
+          ),
+        )
+        .limit(1);
 
-    let credentialIdentifier = active[0]?.identifier;
-    if (credentialIdentifier === undefined) {
-      // A 128-bit random identifier cannot realistically collide, and a
-      // unique violation would abort this transaction anyway, so there is
-      // no retry inside it.
-      const created = await tx
-        .insert(credentials)
-        .values({
-          customerId: row.id,
-          type: 'app_qr',
-          identifier: customerCredentialIdentifier(),
-        })
-        .returning({ identifier: credentials.identifier });
-      const identifier = created[0]?.identifier;
-      if (identifier === undefined) throw new Error('Could not create a credential');
-      credentialIdentifier = identifier;
-    }
+      let credentialIdentifier = active[0]?.identifier;
+      if (credentialIdentifier === undefined) {
+        // A 128-bit random identifier cannot realistically collide, and a
+        // unique violation would abort this transaction anyway, so there is
+        // no retry inside it.
+        const created = await tx
+          .insert(credentials)
+          .values({
+            customerId: row.id,
+            type: 'app_qr',
+            identifier: customerCredentialIdentifier(),
+          })
+          .returning({ identifier: credentials.identifier });
+        const identifier = created[0]?.identifier;
+        if (identifier === undefined) throw new Error('Could not create a credential');
+        credentialIdentifier = identifier;
+      }
 
-    return {
-      id: row.id,
-      email: row.email,
-      name: row.name,
-      language: row.language,
-      createdAt: row.createdAt,
-      credentialIdentifier,
-    };
-    });
+      return {
+        id: row.id,
+        email: row.email,
+        name: row.name,
+        language: row.language,
+        createdAt: row.createdAt,
+        credentialIdentifier,
+      };
+      });
   } catch (error) {
     if (error instanceof CustomerError) throw error;
     if (!isUniqueViolation(error)) throw error;

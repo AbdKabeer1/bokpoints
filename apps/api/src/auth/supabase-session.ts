@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm';
 import { createRemoteJWKSet, errors, jwtVerify, type JWTPayload, type JWTVerifyGetKey } from 'jose';
 import type { Database } from '../db/client.js';
 import { staffUsers } from '../db/schema.js';
+import { createEmailVerifierFromEnv } from './supabase-admin.js';
 import {
   MfaRequiredError,
   type AuthenticatedPrincipal,
@@ -129,5 +130,9 @@ export function createSupabaseCustomerResolver(
 
       return { authUserId, email: email.trim().toLowerCase() };
     },
+
+    // D-120: the token has no confirmation claim (checked against a real
+    // token), so provisioning asks the Auth Admin API instead.
+    isEmailVerified: createEmailVerifierFromEnv(),
   };
 }

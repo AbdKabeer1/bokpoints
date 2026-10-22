@@ -50,4 +50,12 @@ export interface CustomerPrincipal {
 
 export interface CustomerSessionResolver {
   resolve(token: string): Promise<CustomerPrincipal | null>;
+  /**
+   * True only when Supabase has confirmed this person's email (D-120).
+   * Provisioning asks before it creates or claims a customer row, so an
+   * unconfirmed sign-up can never take over somebody's points. The Supabase
+   * resolver checks the Auth Admin API; the development resolver says yes,
+   * because it exists for local work where there is no Supabase at all.
+   */
+  isEmailVerified?(authUserId: string): Promise<boolean>;
 }

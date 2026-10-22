@@ -43,7 +43,7 @@ const meBody = (customer: CustomerProfile, credentialIdentifier: string) => ({
 });
 
 const customerErrorStatus = (code: string): 403 | 409 =>
-  code === 'ACCOUNT_DELETED' ? 403 : 409;
+  code === 'EMAIL_ALREADY_LINKED' ? 409 : 403;
 
 /**
  * The customer's own data (FR-CUS-1, FR-CUS-2, FR-CUS-3, FR-CUS-5, FR-CUS-8).
@@ -88,7 +88,7 @@ export const customerRoutes: FastifyPluginAsyncZod<CustomerRouteOptions> = async
       }
 
       try {
-        const customer = await provisionCustomer(db, principal);
+        const customer = await provisionCustomer(db, principal, customerResolver?.isEmailVerified);
         return reply.send(meBody(customer, customer.credentialIdentifier));
       } catch (error) {
         if (error instanceof CustomerError) {
@@ -125,7 +125,7 @@ export const customerRoutes: FastifyPluginAsyncZod<CustomerRouteOptions> = async
       }
 
       try {
-        const existing = await provisionCustomer(db, principal);
+        const existing = await provisionCustomer(db, principal, customerResolver?.isEmailVerified);
         const updated = await updateCustomerProfile(db, existing.id, request.body);
         return reply.send(meBody(updated, existing.credentialIdentifier));
       } catch (error) {
@@ -141,7 +141,7 @@ export const customerRoutes: FastifyPluginAsyncZod<CustomerRouteOptions> = async
 
   const provision = async (principal: CustomerPrincipal) => {
     try {
-      return await provisionCustomer(db, principal);
+      return await provisionCustomer(db, principal, customerResolver?.isEmailVerified);
     } catch (error) {
       if (error instanceof CustomerError) return error;
       throw error;
