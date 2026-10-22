@@ -5,6 +5,7 @@ import type { Database } from './client.js';
 import { isUniqueViolation } from './errors.js';
 import {
   credentials,
+  customerStoreLinks,
   customers,
   pointsBalances,
   pointsBatches,
@@ -419,4 +420,139 @@ export async function customerExpiring(
       ),
     )
     .orderBy(pointsBatches.expiresAt);
+}
+
+
+export interface StoreRegisteredCustomer {
+  customerId: string;
+  name: string;
+  email: string;
+  balance: number;
+  pending: boolean;
+}
+
+async function findByEmail(db: Database, email: string) {
+  const rows = await db
+    .select()
+    .from(customers)
+    .where(sql`lower(${customers.email}) = ${email}`)
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/**
+ * Registers a customer at the till by email (FRD 4.4).
+ *
+ * A row with no `auth_user_id` is the pending customer: it can hold points,
+ * batches and history, and the first sign-in with that email claims it
+ * (D-111). Registering the same address twice returns the same customer, and
+ * an address that already has an account is reused, never duplicated.
+ */
+export async function registerStoreCustomer(
+  db: Database,
+  input: { storeId: string; email: string; name?: string },
+): Promise<StoreRegisteredCustomer> {
+  const email = input.email.trim().toLowerCase();
+
+  let row = await findByEmail(db, email);
+  if (row) {
+    if (row.status === 'deleted') {
+      throw new CustomerError('ACCOUNT_DELETED', 'That customer account has been deleted');
+    }
+  } else {
+    try {
+      const inserted = await db
+        .insert(customers)
+        .values({ email, name: input.name ?? '' })
+        .returning();
+      row = inserted[0] ?? null;
+      if (!row) throw new Error('Could not register the customer');
+    } catch (error) {
+      if (!isUniqueViolation(error)) throw error;
+      // Two tills registered the same new address at once; the other one won.
+      row = await findByEmail(db, email);
+      if (!row) throw error;
+    }
+  }
+
+  // Fill a missing name, never overwrite the name the customer chose.
+  if (input.name !== undefined && row.name.trim() === '') {
+    const updated = await db
+      .update(customers)
+      .set({ name: input.name, updatedAt: new Date() })
+      .where(eq(customers.id, row.id))
+      .returning();
+    row = updated[0] ?? row;
+  }
+
+  await db
+    .insert(customerStoreLinks)
+    .values({ customerId: row.id, storeId: input.storeId })
+    .onConflictDoNothing();
+
+  const balanceRows = await db
+    .select({ balance: pointsBalances.balance })
+    .from(pointsBalances)
+    .where(
+      and(
+        eq(pointsBalances.customerId, row.id),
+        eq(pointsBalances.storeId, input.storeId),
+      ),
+    )
+    .limit(1);
+
+  return {
+    customerId: row.id,
+    name: row.name,
+    email: row.email,
+    balance: balanceRows[0]?.balance ?? 0,
+    pending: row.authUserId === null,
+  };
+}
+
+export interface StoreCustomerListRow {
+  customerId: string;
+  name: string;
+  email: string;
+  balance: number;
+  pending: boolean;
+  joinedAt: Date;
+}
+
+/** The store's customers (FRD section 2: owners and managers), newest first. */
+export async function listStoreCustomers(
+  db: Database,
+  storeId: string,
+  query?: string,
+): Promise<StoreCustomerListRow[]> {
+  const pattern = query === undefined ? undefined : `%${query.toLowerCase()}%`;
+
+  return db
+    .select({
+      customerId: customers.id,
+      name: customers.name,
+      email: customers.email,
+      balance: sql<number>`coalesce(${pointsBalances.balance}, 0)`,
+      pending: sql<boolean>`${customers.authUserId} is null`,
+      joinedAt: customerStoreLinks.joinedAt,
+    })
+    .from(customerStoreLinks)
+    .innerJoin(customers, eq(customers.id, customerStoreLinks.customerId))
+    .leftJoin(
+      pointsBalances,
+      and(
+        eq(pointsBalances.customerId, customers.id),
+        eq(pointsBalances.storeId, customerStoreLinks.storeId),
+      ),
+    )
+    .where(
+      and(
+        eq(customerStoreLinks.storeId, storeId),
+        pattern === undefined
+          ? undefined
+          : sql`(lower(${customers.name}) like ${pattern} or lower(${customers.email}) like ${pattern})`,
+      ),
+    )
+    .orderBy(desc(customerStoreLinks.joinedAt))
+    .limit(50);
 }

@@ -16,6 +16,7 @@ import { adminRoutes } from './routes/admin.js';
 import { customerRoutes } from './routes/customer.js';
 import { meRoutes } from './routes/me.js';
 import { staffRoutes } from './routes/staff.js';
+import { storeCustomerRoutes } from './routes/store-customers.js';
 import { storeRoutes } from './routes/stores.js';
 
 export interface RateLimitOptions {
@@ -159,6 +160,11 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     await app.register(customerRoutes, {
       db: options.db,
       customerResolver: options.customerResolver,
+      rateLimit: options.rateLimit,
+    });
+    await app.register(storeCustomerRoutes, {
+      db: options.db,
+      sessionResolver: options.sessionResolver,
       rateLimit: options.rateLimit,
     });
   }

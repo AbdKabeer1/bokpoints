@@ -291,3 +291,42 @@ export const customerExpiringResponseSchema = z.object({
 export const customerExpiringQuerySchema = z.object({
   days: z.coerce.number().int().min(1).max(365).default(14),
 });
+
+/**
+ * Registering a customer at the till (FRD 4.4). The email is normalised, so
+ * A@Shop.com and a@shop.com register the same person.
+ */
+export const registerCustomerRequestSchema = z.object({
+  email: z
+    .string()
+    .trim()
+    .max(200)
+    .regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'That is not an email address')
+    .transform((value) => value.toLowerCase()),
+  name: z.string().trim().min(1).max(100).optional(),
+});
+
+export const registeredCustomerSchema = z.object({
+  customerId: z.string().uuid(),
+  firstName: z.string(),
+  email: z.string(),
+  balance: z.number().int(),
+  pending: z.boolean(),
+});
+
+export const storeCustomerSchema = z.object({
+  customerId: z.string().uuid(),
+  name: z.string(),
+  email: z.string(),
+  balance: z.number().int(),
+  pending: z.boolean(),
+  joinedAt: z.string(),
+});
+
+export const storeCustomersResponseSchema = z.object({
+  customers: z.array(storeCustomerSchema),
+});
+
+export const storeCustomersQuerySchema = z.object({
+  query: z.string().trim().max(200).optional(),
+});

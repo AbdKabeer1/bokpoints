@@ -17,6 +17,7 @@ export type Capability =
   | 'points.fraud_clawback'
   | 'devices.manage'
   | 'customers.list'
+  | 'customers.register'
   | 'customers.lookup'
   | 'customers.view_scanned'
   | 'products.manage'
@@ -75,6 +76,7 @@ const MATRIX: Record<Role, Partial<Record<Capability, PermissionDecision>>> = {
     'points.adjust': grant('store'),
     'devices.manage': grant('store'),
     'customers.list': grant('store'),
+    'customers.register': grant('store'),
     'products.manage': grant('store'),
     'campaigns.manage': grant('store'),
     'consent.manage_own': grant('own'),
@@ -88,6 +90,7 @@ const MATRIX: Record<Role, Partial<Record<Capability, PermissionDecision>>> = {
     'points.adjust': grant('store'),
     'devices.manage': grant('store'),
     'customers.list': grant('store'),
+    'customers.register': grant('store'),
     'products.manage': grant('store'),
     'campaigns.manage': grant('store'),
     'consent.manage_own': grant('own'),
@@ -95,6 +98,7 @@ const MATRIX: Record<Role, Partial<Record<Capability, PermissionDecision>>> = {
   },
   cashier: {
     'points.award': grant('store'),
+    'customers.register': grant('store'),
     'customers.view_scanned': grant('store'),
     'consent.manage_own': grant('own'),
   },
