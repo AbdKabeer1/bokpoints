@@ -7,8 +7,9 @@ import {
   storeIdParamsSchema,
 } from '@bokpoints/shared';
 import { authorizeStoreRequest } from '../auth/authorize.js';
+import { isUniqueViolation } from '../db/errors.js';
 import { auditLogEntries, storeLocations, storeMembers } from '../db/schema.js';
-import { upsertStaffAccount } from '../db/staff.js';
+import { createStaffAccountForInvite, StaffAccountError } from '../db/staff.js';
 import type { RouteOptions } from './stores.js';
 
 const bearer = (header: string | undefined): string | undefined =>
@@ -36,6 +37,7 @@ export const staffRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
           400: apiErrorSchema,
           401: apiErrorSchema,
           403: apiErrorSchema,
+          409: apiErrorSchema,
         },
       },
     },
@@ -91,33 +93,68 @@ export const staffRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
       }
       const locationId = body.locationId ?? null;
 
-      const created = await db.transaction(async (tx) => {
-        const userId = await upsertStaffAccount(tx, {
-          email: body.email,
-          name: body.name,
-          authUserId: body.authUserId,
-          isAdmin: false,
+      const runInvite = async (): Promise<string> =>
+        db.transaction(async (tx) => {
+          // D-119: create the account only when the email is new; an
+          // existing account comes back untouched (Way Forward 4.1).
+          const { userId } = await createStaffAccountForInvite(tx, {
+            email: body.email,
+            name: body.name,
+            authUserId: body.authUserId,
+            isAdmin: false,
+          });
+
+          const already = await tx
+            .select({ id: storeMembers.id })
+            .from(storeMembers)
+            .where(and(eq(storeMembers.storeId, storeId), eq(storeMembers.userId, userId)))
+            .limit(1);
+          if (already[0] !== undefined) {
+            throw new StaffAccountError(
+              'ALREADY_MEMBER',
+              'That person is already a member of this store',
+            );
+          }
+
+          const inserted = await tx
+            .insert(storeMembers)
+            .values({ storeId, userId, role: body.role, locationId })
+            .returning({ id: storeMembers.id });
+          const memberId = inserted[0]?.id;
+          if (!memberId) throw new Error('Could not create the membership');
+
+          await tx.insert(auditLogEntries).values({
+            actorId: auth.staffUserId,
+            actorRole: auth.role,
+            action: 'staff.invite',
+            storeId,
+            targetType: 'staff',
+            targetId: memberId,
+            after: { role: body.role, locationId },
+          });
+
+          return memberId;
         });
 
-        const inserted = await tx
-          .insert(storeMembers)
-          .values({ storeId, userId, role: body.role, locationId })
-          .returning({ id: storeMembers.id });
-        const memberId = inserted[0]?.id;
-        if (!memberId) throw new Error('Could not create the membership');
+      const reject = (error: StaffAccountError) =>
+        reply.code(409).send({ error: { code: error.code, message: error.message } });
 
-        await tx.insert(auditLogEntries).values({
-          actorId: auth.staffUserId,
-          actorRole: auth.role,
-          action: 'staff.invite',
-          storeId,
-          targetType: 'staff',
-          targetId: memberId,
-          after: { role: body.role, locationId },
-        });
-
-        return memberId;
-      });
+      let created: string;
+      try {
+        created = await runInvite();
+      } catch (error) {
+        if (error instanceof StaffAccountError) return reject(error);
+        if (!isUniqueViolation(error)) throw error;
+        // Two invites for the same brand-new email at the same moment: the
+        // other one won the insert, so run once more against the state it
+        // left behind instead of hiding the raw violation.
+        try {
+          created = await runInvite();
+        } catch (retryError) {
+          if (retryError instanceof StaffAccountError) return reject(retryError);
+          throw retryError;
+        }
+      }
 
       return reply.code(201).send({
         memberId: created,

@@ -16,7 +16,7 @@ import {
   stores,
 } from '../db/schema.js';
 import { LedgerError, recordFraudClawback, type LedgerErrorCode } from '../db/ledger.js';
-import { upsertStaffAccount } from '../db/staff.js';
+import { createStaffAccountForInvite, StaffAccountError } from '../db/staff.js';
 import { LEDGER_ERROR_STATUS } from './stores.js';
 import type { RouteOptions } from './stores.js';
 
@@ -51,6 +51,7 @@ export const adminRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
           201: createdStoreResponseSchema,
           401: apiErrorSchema,
           403: apiErrorSchema,
+          409: apiErrorSchema,
         },
       },
     },
@@ -65,7 +66,7 @@ export const adminRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
 
       const body = request.body;
 
-      const created = await db.transaction(async (tx) => {
+      const runCreate = () => db.transaction(async (tx) => {
         const insertedStore = await tx
           .insert(stores)
           .values({
@@ -104,9 +105,9 @@ export const adminRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
           branches.push(row);
         }
 
-        // D-094: the upsert is idempotent by email, so re-running an invite
-        // changes nothing instead of failing on a duplicate.
-        const ownerId = await upsertStaffAccount(tx, {
+        // D-119: an owner email that already exists is reused untouched —
+        // creating a store can never alter an existing account (4.1).
+        const { userId: ownerId } = await createStaffAccountForInvite(tx, {
           email: body.owner.email,
           name: body.owner.name,
           authUserId: body.owner.authUserId,
@@ -131,6 +132,16 @@ export const adminRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
 
         return { storeId, branches, memberId };
       });
+
+      let created: Awaited<ReturnType<typeof runCreate>>;
+      try {
+        created = await runCreate();
+      } catch (error) {
+        if (error instanceof StaffAccountError) {
+          return reply.code(409).send({ error: { code: error.code, message: error.message } });
+        }
+        throw error;
+      }
 
       return reply.code(201).send({
         storeId: created.storeId,

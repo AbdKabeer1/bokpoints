@@ -331,3 +331,108 @@ describe('an outsider inviting staff', () => {
     expect(res.json()).toMatchObject({ error: { code: 'STORE_MISMATCH' } });
   });
 });
+
+/**
+ * Way Forward 4.1: an invitation must never take over an account. The invite
+ * path may only create a new account, or add a membership to an existing one.
+ */
+describe('inviting an email that already exists (D-119)', () => {
+  it('adds a membership and leaves the existing account untouched', async () => {
+    const { storeId } = await storeWithBranches();
+    const adminAuthId = randomUUID();
+    await pool.query(
+      "UPDATE staff_users SET name = 'Real Admin', auth_user_id = $1 WHERE email = 'admin@test.dev'",
+      [adminAuthId],
+    );
+
+    const res = await postStaffInvite(
+      'owner.aino@test.dev',
+      storeId,
+      invitePayload('cashier', { email: 'admin@test.dev', name: 'Hijacked Name' }),
+    );
+    expect(res.statusCode).toBe(201);
+
+    const account = await pool.query(
+      "SELECT name, is_admin, auth_user_id FROM staff_users WHERE email = 'admin@test.dev'",
+    );
+    expect(account.rows[0]).toMatchObject({
+      name: 'Real Admin',
+      is_admin: true,
+      auth_user_id: adminAuthId,
+    });
+
+    const member = await pool.query(
+      `SELECT sm.role FROM store_members sm
+       JOIN staff_users su ON su.id = sm.user_id
+       WHERE sm.store_id = $1 AND su.email = 'admin@test.dev'`,
+      [storeId],
+    );
+    expect(member.rows).toEqual([{ role: 'cashier' }]);
+  });
+
+  it('refuses a Supabase id that already belongs to another account', async () => {
+    const { storeId } = await storeWithBranches();
+    const linkedId = randomUUID();
+    await pool.query("UPDATE staff_users SET auth_user_id = $1 WHERE email = 'admin@test.dev'", [
+      linkedId,
+    ]);
+
+    const res = await postStaffInvite(
+      'owner.aino@test.dev',
+      storeId,
+      invitePayload('cashier', { email: 'brand.new@test.dev', authUserId: linkedId }),
+    );
+    expect(res.statusCode).toBe(409);
+    expect(res.json()).toMatchObject({ error: { code: 'AUTH_USER_ALREADY_LINKED' } });
+
+    const account = await pool.query(
+      "SELECT count(*) FROM staff_users WHERE email = 'brand.new@test.dev'",
+    );
+    expect(Number(account.rows[0].count)).toBe(0);
+    const member = await pool.query(
+      `SELECT count(*) FROM store_members sm
+       JOIN staff_users su ON su.id = sm.user_id
+       WHERE sm.store_id = $1 AND su.email = 'brand.new@test.dev'`,
+      [storeId],
+    );
+    expect(Number(member.rows[0].count)).toBe(0);
+  });
+
+  it('refuses to invite the same person to the same store twice', async () => {
+    const { storeId } = await storeWithBranches();
+    const first = await postStaffInvite('owner.aino@test.dev', storeId, invitePayload('cashier'));
+    expect(first.statusCode).toBe(201);
+
+    const again = await postStaffInvite('owner.aino@test.dev', storeId, invitePayload('cashier'));
+    expect(again.statusCode).toBe(409);
+    expect(again.json()).toMatchObject({ error: { code: 'ALREADY_MEMBER' } });
+
+    const count = await pool.query(
+      `SELECT count(*) FROM store_members sm
+       JOIN staff_users su ON su.id = sm.user_id
+       WHERE sm.store_id = $1 AND su.email = 'new.cashier@test.dev'`,
+      [storeId],
+    );
+    expect(Number(count.rows[0].count)).toBe(1);
+  });
+
+  it('creates a store whose owner email already exists without altering it', async () => {
+    const ownerId = randomUUID();
+    await pool.query(
+      `INSERT INTO staff_users (id, email, name, is_admin, auth_user_id)
+       VALUES ($1, 'owner.existing@test.dev', 'Existing Owner', false, $2)`,
+      [ownerId, randomUUID()],
+    );
+
+    const res = await postAdminStores('admin@test.dev', {
+      ...validStorePayload,
+      owner: { email: 'owner.existing@test.dev', name: 'Hijacked', authUserId: randomUUID() },
+    });
+    expect(res.statusCode).toBe(201);
+
+    const account = await pool.query(
+      "SELECT name, is_admin FROM staff_users WHERE email = 'owner.existing@test.dev'",
+    );
+    expect(account.rows[0]).toMatchObject({ name: 'Existing Owner', is_admin: false });
+  });
+});
