@@ -2,5 +2,25 @@
   "name": "@bokpoints/customer",
   "version": "0.0.0",
   "private": true,
-  "type": "module"
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "expo": "^58.0.17",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-native": "0.88.0",
+    "react-native-qrcode-svg": "^6.3.27",
+    "react-native-svg": "15.16.0",
+    "react-native-web": "^0.21.4"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "typescript": "6.0.3"
+  },
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start",
+    "dev:web": "expo start --web --port 8081",
+    "build": "expo export --platform web",
+    "typecheck": "tsc --noEmit"
+  }
 }

@@ -29,4 +29,11 @@ export default tseslint.config(
       'no-console': 'off',
     },
   },
+  {
+    // Expo and Babel config files are CommonJS by design.
+    files: ['apps/customer/metro.config.js', 'apps/customer/babel.config.js'],
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+    },
+  },
 );

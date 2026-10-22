@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "name": "BOKPOINTS",
+    "slug": "bokpoints-customer",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "bokpoints",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    }
+  }
+}
