@@ -1,12 +1,24 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import {
   apiErrorSchema,
+  customerExpiringQuerySchema,
+  customerExpiringResponseSchema,
+  customerHistoryResponseSchema,
   customerMeResponseSchema,
+  customerStoresResponseSchema,
+  storeIdParamsSchema,
   updateCustomerRequestSchema,
 } from '@bokpoints/shared';
 import type { CustomerPrincipal, CustomerSessionResolver } from '../auth/session.js';
 import type { Database } from '../db/client.js';
-import { CustomerError, provisionCustomer, updateCustomerProfile } from '../db/customers.js';
+import {
+  CustomerError,
+  customerExpiring,
+  customerStoreHistory,
+  customerStores,
+  provisionCustomer,
+  updateCustomerProfile,
+} from '../db/customers.js';
 import type { CustomerProfile } from '../db/customers.js';
 
 export interface CustomerRouteOptions {
@@ -124,6 +136,144 @@ export const customerRoutes: FastifyPluginAsyncZod<CustomerRouteOptions> = async
         }
         throw error;
       }
+    },
+  );
+
+  const provision = async (principal: CustomerPrincipal) => {
+    try {
+      return await provisionCustomer(db, principal);
+    } catch (error) {
+      if (error instanceof CustomerError) return error;
+      throw error;
+    }
+  };
+
+  app.get(
+    '/v1/customer/me/stores',
+    {
+      config: { rateLimit: rateLimit ?? { max: 120, timeWindow: '1 minute' } },
+      schema: {
+        response: {
+          200: customerStoresResponseSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+          409: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const principal = await resolve(request.headers.authorization);
+      if (principal === null) {
+        return reply
+          .code(401)
+          .send({ error: { code: 'INVALID_TOKEN', message: 'That access token is not valid' } });
+      }
+
+      const customer = await provision(principal);
+      if (customer instanceof CustomerError) {
+        return reply
+          .code(customerErrorStatus(customer.code))
+          .send({ error: { code: customer.code, message: customer.message } });
+      }
+
+      const rows = await customerStores(db, customer.id);
+      return reply.send({
+        stores: rows.map((row) => ({
+          ...row,
+          lastActivityAt: new Date(row.lastActivityAt).toISOString(),
+        })),
+      });
+    },
+  );
+
+  app.get(
+    '/v1/customer/me/stores/:storeId/history',
+    {
+      config: { rateLimit: rateLimit ?? { max: 120, timeWindow: '1 minute' } },
+      schema: {
+        params: storeIdParamsSchema,
+        response: {
+          200: customerHistoryResponseSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+          404: apiErrorSchema,
+          409: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const principal = await resolve(request.headers.authorization);
+      if (principal === null) {
+        return reply
+          .code(401)
+          .send({ error: { code: 'INVALID_TOKEN', message: 'That access token is not valid' } });
+      }
+
+      const customer = await provision(principal);
+      if (customer instanceof CustomerError) {
+        return reply
+          .code(customerErrorStatus(customer.code))
+          .send({ error: { code: customer.code, message: customer.message } });
+      }
+
+      const history = await customerStoreHistory(db, customer.id, request.params.storeId);
+      if (history === null) {
+        return reply.code(404).send({
+          error: {
+            code: 'STORE_NOT_FOUND',
+            message: 'This customer has no history at that store',
+          },
+        });
+      }
+
+      return reply.send({
+        storeName: history.storeName,
+        balance: history.balance,
+        entries: history.entries.map((entry) => ({
+          ...entry,
+          createdAt: new Date(entry.createdAt).toISOString(),
+        })),
+      });
+    },
+  );
+
+  app.get(
+    '/v1/customer/me/expiring',
+    {
+      config: { rateLimit: rateLimit ?? { max: 120, timeWindow: '1 minute' } },
+      schema: {
+        querystring: customerExpiringQuerySchema,
+        response: {
+          200: customerExpiringResponseSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+          409: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const principal = await resolve(request.headers.authorization);
+      if (principal === null) {
+        return reply
+          .code(401)
+          .send({ error: { code: 'INVALID_TOKEN', message: 'That access token is not valid' } });
+      }
+
+      const customer = await provision(principal);
+      if (customer instanceof CustomerError) {
+        return reply
+          .code(customerErrorStatus(customer.code))
+          .send({ error: { code: customer.code, message: customer.message } });
+      }
+
+      const items = await customerExpiring(db, customer.id, request.query.days);
+      return reply.send({
+        windowDays: request.query.days,
+        items: items.map((item) => ({
+          ...item,
+          expiresAt: new Date(item.expiresAt).toISOString(),
+        })),
+      });
     },
   );
 };

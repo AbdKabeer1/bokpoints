@@ -153,3 +153,185 @@ describe('PATCH /v1/customer/me', () => {
     expect(after.json().credential.identifier).toBe(first.json().credential.identifier);
   });
 });
+
+async function makeCustomer(email: string): Promise<string> {
+  const res = await get('/v1/customer/me', email);
+  return res.json().customer.id as string;
+}
+
+async function makeStore(name: string): Promise<string> {
+  const id = randomUUID();
+  await pool.query('INSERT INTO stores (id, name, status) VALUES ($1, $2, $3)', [
+    id,
+    name,
+    'active',
+  ]);
+  return id;
+}
+
+async function addEntry(
+  customerId: string,
+  storeId: string,
+  type: 'earn' | 'adjust' | 'expire',
+  points: number,
+  at: string,
+): Promise<string> {
+  const inserted = await pool.query(
+    `INSERT INTO points_ledger_entries (customer_id, store_id, type, points, created_at)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING id`,
+    [customerId, storeId, type, points, at],
+  );
+  await pool.query(
+    `INSERT INTO points_balances (customer_id, store_id, balance)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (customer_id, store_id)
+     DO UPDATE SET balance = points_balances.balance + EXCLUDED.balance, updated_at = now()`,
+    [customerId, storeId, points],
+  );
+
+  return inserted.rows[0].id as string;
+}
+
+async function addBatch(
+  customerId: string,
+  storeId: string,
+  points: number,
+  expiresAt: string,
+): Promise<void> {
+  const entryId = await addEntry(customerId, storeId, 'earn', points, '2026-10-01T10:00:00Z');
+  await pool.query(
+    `INSERT INTO points_batches
+       (earn_entry_id, customer_id, store_id, original_points, remaining_points, expires_at)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [entryId, customerId, storeId, points, points, expiresAt],
+  );
+}
+
+describe('GET /v1/customer/me/stores', () => {
+  it('lists only stores with activity, newest first, with the live balance', async () => {
+    const customerId = await makeCustomer('new@test.dev');
+    const storeA = await makeStore('Kahvila A');
+    const storeB = await makeStore('Kahvila B');
+
+    await addEntry(customerId, storeA, 'earn', 25, '2026-10-20T10:00:00Z');
+    await addEntry(customerId, storeB, 'earn', 10, '2026-10-21T10:00:00Z');
+    await addEntry(customerId, storeA, 'expire', -25, '2026-10-22T10:00:00Z');
+
+    const res = await get('/v1/customer/me/stores', 'new@test.dev');
+
+    expect(res.statusCode).toBe(200);
+    const stores = res.json().stores as Array<Record<string, unknown>>;
+    expect(stores.map((store) => store.name)).toEqual(['Kahvila A', 'Kahvila B']);
+    expect(stores[0]).toMatchObject({ balance: 0 });
+    expect(stores[1]).toMatchObject({ balance: 10 });
+    expect(typeof stores[0]?.lastActivityAt).toBe('string');
+  });
+
+  it('is empty for a customer with no activity', async () => {
+    const res = await get('/v1/customer/me/stores', 'fresh@test.dev');
+    expect(res.statusCode).toBe(200);
+    expect(res.json().stores).toEqual([]);
+  });
+});
+
+describe('GET /v1/customer/me/stores/:storeId/history', () => {
+  it('returns the true running balance, newest first', async () => {
+    const customerId = await makeCustomer('new@test.dev');
+    const storeId = await makeStore('Kahvila A');
+
+    await addEntry(customerId, storeId, 'earn', 25, '2026-10-20T10:00:00Z');
+    await addEntry(customerId, storeId, 'adjust', -10, '2026-10-21T10:00:00Z');
+    await addEntry(customerId, storeId, 'earn', 5, '2026-10-22T10:00:00Z');
+
+    const res = await get(`/v1/customer/me/stores/${storeId}/history`, 'new@test.dev');
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().storeName).toBe('Kahvila A');
+    expect(res.json().balance).toBe(20);
+    expect(res.json().entries).toMatchObject([
+      { type: 'earn', points: 5, balanceAfter: 20 },
+      { type: 'adjust', points: -10, balanceAfter: 15 },
+      { type: 'earn', points: 25, balanceAfter: 25 },
+    ]);
+  });
+
+  it('caps the list at 100 entries and keeps balanceAfter correct', async () => {
+    const customerId = await makeCustomer('new@test.dev');
+    const storeId = await makeStore('Kahvila A');
+
+    await pool.query(
+      `INSERT INTO points_ledger_entries (customer_id, store_id, type, points, created_at)
+       SELECT $1, $2, 'earn', 1, timestamptz '2026-01-01 00:00:00+00' + (i || ' minutes')::interval
+       FROM generate_series(1, 105) AS i`,
+      [customerId, storeId],
+    );
+    await pool.query(
+      `INSERT INTO points_balances (customer_id, store_id, balance) VALUES ($1, $2, 105)`,
+      [customerId, storeId],
+    );
+
+    const res = await get(`/v1/customer/me/stores/${storeId}/history`, 'new@test.dev');
+
+    expect(res.json().entries).toHaveLength(100);
+    expect(res.json().entries[0]).toMatchObject({ points: 1, balanceAfter: 105 });
+    expect(res.json().entries[99]).toMatchObject({ points: 1, balanceAfter: 6 });
+  });
+
+  it('refuses a store the customer has no history at', async () => {
+    await makeCustomer('new@test.dev');
+    const res = await get(
+      `/v1/customer/me/stores/${randomUUID()}/history`,
+      'new@test.dev',
+    );
+    expect(res.statusCode).toBe(404);
+    expect(res.json()).toMatchObject({ error: { code: 'STORE_NOT_FOUND' } });
+  });
+
+  it("never shows another customer's history", async () => {
+    const mine = await makeCustomer('mine@test.dev');
+    const storeId = await makeStore('Kahvila A');
+    await addEntry(mine, storeId, 'earn', 25, '2026-10-20T10:00:00Z');
+
+    const res = await get(`/v1/customer/me/stores/${storeId}/history`, 'other@test.dev');
+
+    expect(res.statusCode).toBe(404);
+  });
+});
+
+describe('GET /v1/customer/me/expiring', () => {
+  it('returns only batches inside the window, excluding zero and later ones', async () => {
+    const customerId = await makeCustomer('new@test.dev');
+    const storeId = await makeStore('Kahvila A');
+    const inTenDays = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString();
+    const inFiveDays = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString();
+    const inTwentyDays = new Date(Date.now() + 20 * 24 * 60 * 60 * 1000).toISOString();
+
+    await addBatch(customerId, storeId, 5, inTenDays);
+    await addBatch(customerId, storeId, 0, inFiveDays);
+    await addBatch(customerId, storeId, 7, inTwentyDays);
+
+    const res = await get('/v1/customer/me/expiring', 'new@test.dev');
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().windowDays).toBe(14);
+    expect(res.json().items).toHaveLength(1);
+    expect(res.json().items[0]).toMatchObject({
+      storeName: 'Kahvila A',
+      points: 5,
+    });
+  });
+
+  it('honours a wider window when asked', async () => {
+    const customerId = await makeCustomer('new@test.dev');
+    const storeId = await makeStore('Kahvila A');
+    const inTwentyDays = new Date(Date.now() + 20 * 24 * 60 * 60 * 1000).toISOString();
+    await addBatch(customerId, storeId, 7, inTwentyDays);
+
+    const res = await get('/v1/customer/me/expiring?days=30', 'new@test.dev');
+
+    expect(res.json().windowDays).toBe(30);
+    expect(res.json().items).toHaveLength(1);
+    expect(res.json().items[0]).toMatchObject({ points: 7 });
+  });
+});

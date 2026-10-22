@@ -249,3 +249,45 @@ export const updateCustomerRequestSchema = z
   .refine((value) => value.name !== undefined || value.language !== undefined, {
     message: 'Send a name, a language, or both',
   });
+
+export const customerStoreSchema = z.object({
+  storeId: z.string().uuid(),
+  name: z.string(),
+  balance: z.number().int(),
+  lastActivityAt: z.string(),
+});
+
+export const customerStoresResponseSchema = z.object({
+  stores: z.array(customerStoreSchema),
+});
+
+export const customerHistoryEntrySchema = z.object({
+  id: z.string().uuid(),
+  createdAt: z.string(),
+  type: z.string(),
+  points: z.number().int(),
+  balanceAfter: z.number().int(),
+});
+
+export const customerHistoryResponseSchema = z.object({
+  storeName: z.string(),
+  balance: z.number().int(),
+  entries: z.array(customerHistoryEntrySchema),
+});
+
+export const customerExpiringItemSchema = z.object({
+  storeId: z.string().uuid(),
+  storeName: z.string(),
+  points: z.number().int(),
+  expiresAt: z.string(),
+});
+
+export const customerExpiringResponseSchema = z.object({
+  windowDays: z.number().int(),
+  items: z.array(customerExpiringItemSchema),
+});
+
+/** FR-CUS-8 proposes a 14-day reminder window; a caller may ask for another. */
+export const customerExpiringQuerySchema = z.object({
+  days: z.coerce.number().int().min(1).max(365).default(14),
+});
