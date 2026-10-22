@@ -60,6 +60,16 @@ curl -H "Authorization: Bearer <token>" http://127.0.0.1:3000/v1/...
 Do not set `ALLOW_DEV_AUTH` together with `SUPABASE_URL`: the server refuses to start.
 The secret key and the database password stay in `apps/api/.env` only.
 
+### Migrate the hosted database
+
+The hosted Supabase Postgres keeps its URL in `apps/api/.env` as `SUPABASE_DB_URL`
+(separate from the active local `DATABASE_URL`, which always points at local dev).
+To apply pending migrations there, from `apps/api`:
+
+```bash
+DATABASE_URL="$(sed -n 's/^SUPABASE_DB_URL=//p' .env)" pnpm db:migrate
+```
+
 Health check:
 
 ```bash

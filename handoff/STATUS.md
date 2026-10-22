@@ -2,7 +2,7 @@
 
 **Project:** BOKPOINTS, a B2B2C loyalty platform for SMEs in Finland / EU.
 **Phase:** MVP, build order steps 1 and 2 of `AGENT.md` section 13 are done.
-**Last updated:** 22 Oct 2026, after the review round of 22 Oct (four findings implemented, three confirmed and documented).
+**Last updated:** 22 Oct 2026, after applying the Supabase auth and store-branches patch onto a branch and migrating `0006` to the hosted Supabase database (45 unit, 111 integration tests green).
 
 ## Done
 
@@ -52,6 +52,11 @@
 - **Migration journal fixed** (D-106): `0005` was missing from Drizzle's journal, so a
   real `drizzle-kit migrate` would have skipped it. It is replaced by a generated
   migration, and a test now keeps the journal and the files in step.
+- **Hosted `0006` migration applied** (Build 5): the fresh migration — store branches,
+  `auth_user_id`, location foreign keys, row-level security — is live on the Supabase
+  project (`eu-north-1`) as well as locally. RLS is enabled on every table with no
+  policies (D-102), verified server-side against the hosted database. The hosted
+  connection lives in `apps/api/.env` as `SUPABASE_DB_URL`.
 
 **Tests: 45 unit, 111 integration, all passing.**
 
