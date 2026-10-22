@@ -330,3 +330,19 @@ export const storeCustomersResponseSchema = z.object({
 export const storeCustomersQuerySchema = z.object({
   query: z.string().trim().max(200).optional(),
 });
+
+/** A manual adjustment by an owner or manager (FRD 4.5). */
+export const adjustmentRequestSchema = z.object({
+  points: z
+    .number()
+    .int()
+    .min(-1_000_000)
+    .max(1_000_000)
+    .refine((value) => value !== 0, { message: 'Points cannot be zero' }),
+  reason: z.string().trim().min(3).max(500),
+});
+
+export const adjustmentResponseSchema = z.object({
+  entryId: z.string().uuid().nullable(),
+  balance: z.number().int(),
+});

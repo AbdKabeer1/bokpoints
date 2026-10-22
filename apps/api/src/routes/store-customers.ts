@@ -1,6 +1,9 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import {
+  adjustmentRequestSchema,
+  adjustmentResponseSchema,
   apiErrorSchema,
+  customerParamsSchema,
   registerCustomerRequestSchema,
   registeredCustomerSchema,
   storeCustomersQuerySchema,
@@ -8,6 +11,8 @@ import {
   storeIdParamsSchema,
 } from '@bokpoints/shared';
 import { authorizeStoreRequest } from '../auth/authorize.js';
+import { LedgerError, recordAdjust, type LedgerErrorCode } from '../db/ledger.js';
+import { LEDGER_ERROR_STATUS } from './stores.js';
 import type { Database } from '../db/client.js';
 import {
   CustomerError,
@@ -79,6 +84,59 @@ export const storeCustomerRoutes: FastifyPluginAsyncZod<StoreCustomerRouteOption
       } catch (error) {
         if (error instanceof CustomerError) {
           return reply.code(409).send({ error: { code: error.code, message: error.message } });
+        }
+        throw error;
+      }
+    },
+  );
+
+
+  app.post(
+    '/v1/stores/:storeId/customers/:customerId/adjustments',
+    {
+      config: { rateLimit: rateLimit ?? { max: 60, timeWindow: '1 minute' } },
+      schema: {
+        params: customerParamsSchema,
+        body: adjustmentRequestSchema,
+        response: {
+          200: adjustmentResponseSchema,
+          201: adjustmentResponseSchema,
+          400: apiErrorSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+          404: apiErrorSchema,
+          409: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { storeId, customerId } = request.params;
+      const auth = await authorizeStoreRequest(db, sessionResolver, {
+        token: bearer(request.headers.authorization),
+        storeId,
+        anyOf: ['points.adjust'],
+      });
+      if (!auth.ok) {
+        return reply.code(auth.status).send({ error: auth.error });
+      }
+
+      try {
+        const result = await recordAdjust(db, {
+          customerId,
+          storeId,
+          points: request.body.points,
+          reason: request.body.reason,
+          staffId: auth.staffUserId,
+        });
+
+        // 201 when points were added, 200 when they were taken away: both are
+        // a completed adjustment, and the shape is the same.
+        return reply.code(request.body.points > 0 ? 201 : 200).send(result);
+      } catch (error) {
+        if (error instanceof LedgerError) {
+          return reply
+            .code(LEDGER_ERROR_STATUS[error.code as LedgerErrorCode] ?? 400)
+            .send({ error: { code: error.code, message: error.message } });
         }
         throw error;
       }

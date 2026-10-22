@@ -200,3 +200,91 @@ describe('GET /v1/stores/:storeId/customers', () => {
     expect(other.statusCode).toBe(403);
   });
 });
+
+async function customerWithBalance(balance: number): Promise<string> {
+  const id = randomUUID();
+  await pool.query('INSERT INTO customers (id, email, name) VALUES ($1, $2, $3)', [
+    id,
+    `${id}@test.dev`,
+    'Test Customer',
+  ]);
+  if (balance !== 0) {
+    await pool.query(
+      'INSERT INTO points_balances (customer_id, store_id, balance) VALUES ($1, $2, $3)',
+      [id, storeId, balance],
+    );
+  }
+  return id;
+}
+
+const adjust = (customerId: string, token: string, body: Record<string, unknown>) =>
+  post(`/v1/stores/${storeId}/customers/${customerId}/adjustments`, token, body);
+
+describe('POST /v1/stores/:storeId/customers/:customerId/adjustments', () => {
+  it('adds and removes points, and refuses to go below zero', async () => {
+    const customerId = await customerWithBalance(0);
+
+    const added = await adjust(customerId, 'owner@test.dev', {
+      points: 10,
+      reason: 'Goodwill for the wait',
+    });
+    expect(added.statusCode).toBe(201);
+    expect(added.json()).toMatchObject({ balance: 10 });
+
+    const removed = await adjust(customerId, 'manager@test.dev', {
+      points: -4,
+      reason: 'Corrected a double scan',
+    });
+    expect(removed.statusCode).toBe(200);
+    expect(removed.json()).toMatchObject({ balance: 6 });
+
+    const tooMuch = await adjust(customerId, 'owner@test.dev', {
+      points: -100,
+      reason: 'Trying to take too much',
+    });
+    expect(tooMuch.statusCode).toBe(409);
+    expect(tooMuch.json()).toMatchObject({ error: { code: 'BALANCE_WOULD_GO_NEGATIVE' } });
+
+    const row = await pool.query(
+      'SELECT balance FROM points_balances WHERE customer_id = $1 AND store_id = $2',
+      [customerId, storeId],
+    );
+    expect(row.rows[0].balance).toBe(6);
+  });
+
+  it('needs a real reason and a non-zero amount', async () => {
+    const customerId = await customerWithBalance(5);
+
+    expect((await adjust(customerId, 'owner@test.dev', { points: 5 })).statusCode).toBe(400);
+    expect(
+      (await adjust(customerId, 'owner@test.dev', { points: 0, reason: 'Nothing at all' })).statusCode,
+    ).toBe(400);
+    expect(
+      (await adjust(customerId, 'owner@test.dev', { points: 1, reason: 'x' })).statusCode,
+    ).toBe(400);
+  });
+
+  it('refuses a cashier', async () => {
+    const customerId = await customerWithBalance(5);
+    const res = await adjust(customerId, 'cashier@test.dev', {
+      points: 1,
+      reason: 'Should not work',
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('writes an audit entry with the reason and the actor', async () => {
+    const customerId = await customerWithBalance(0);
+    await adjust(customerId, 'owner@test.dev', { points: 7, reason: 'Service recovery' });
+
+    const audit = await pool.query(
+      "SELECT action, reason, target_id, actor_id FROM audit_log_entries WHERE action = 'points.adjust'",
+    );
+    expect(audit.rows).toHaveLength(1);
+    expect(audit.rows[0]).toMatchObject({
+      action: 'points.adjust',
+      reason: 'Service recovery',
+      target_id: customerId,
+    });
+  });
+});

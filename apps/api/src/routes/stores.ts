@@ -32,7 +32,7 @@ const bearer = (header: string | undefined): string | undefined =>
 /**
  * How a ledger failure is reported over HTTP.
  */
-const LEDGER_ERROR_STATUS = {
+export const LEDGER_ERROR_STATUS = {
   BELOW_MINIMUM: 400,
   INVALID_AMOUNT: 400,
   REASON_REQUIRED: 400,
