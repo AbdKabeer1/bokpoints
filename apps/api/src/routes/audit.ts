@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, type SQL } from 'drizzle-orm';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import {
   adminAuditQuerySchema,
@@ -32,7 +32,7 @@ const bearer = (header: string | undefined): string | undefined =>
 export const auditRoutes: FastifyPluginAsyncZod<AuditRouteOptions> = async (app, options) => {
   const { db, sessionResolver, rateLimit } = options;
 
-  const selectEntries = (where: Parameters<typeof and>[0]) =>
+  const selectEntries = (where: SQL | undefined) =>
     db
       .select({
         id: auditLogEntries.id,
