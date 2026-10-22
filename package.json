@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "pnpm -r --parallel --if-present dev",
-    "build": "pnpm --filter @bokpoints/shared build && pnpm --filter @bokpoints/api build",
+    "build": "pnpm --filter @bokpoints/shared build && pnpm --filter @bokpoints/api build && pnpm --filter @bokpoints/web build",
     "typecheck": "pnpm --filter @bokpoints/shared build && pnpm -r --parallel --if-present typecheck",
     "lint": "eslint .",
     "format": "prettier --write .",

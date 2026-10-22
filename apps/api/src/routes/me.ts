@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { apiErrorSchema, meResponseSchema } from '@bokpoints/shared';
 import { authorizeStaffRequest } from '../auth/authorize.js';
@@ -74,11 +74,33 @@ export const meRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, options
         .where(and(eq(storeMembers.userId, auth.staffUserId), eq(storeMembers.status, 'active')))
         .orderBy(stores.name);
 
+      const storeIds = memberships.map((membership) => membership.storeId);
+      const branchRows =
+        storeIds.length === 0
+          ? []
+          : await db
+              .select({
+                storeId: storeLocations.storeId,
+                id: storeLocations.id,
+                name: storeLocations.name,
+              })
+              .from(storeLocations)
+              .where(
+                and(
+                  inArray(storeLocations.storeId, storeIds),
+                  eq(storeLocations.status, 'active'),
+                ),
+              )
+              .orderBy(storeLocations.name);
+
       return reply.send({
         staff,
         memberships: memberships.map((membership) => ({
           ...membership,
           role: roleOf(membership.role),
+          branches: branchRows
+            .filter((branch) => branch.storeId === membership.storeId)
+            .map((branch) => ({ id: branch.id, name: branch.name })),
         })),
       });
     },

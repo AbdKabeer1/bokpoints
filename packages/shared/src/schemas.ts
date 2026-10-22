@@ -171,13 +171,21 @@ export const meStaffSchema = z.object({
   isAdmin: z.boolean(),
 });
 
+export const meBranchSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+});
+
 export const meMembershipSchema = z.object({
   storeId: z.string().uuid(),
   storeName: z.string(),
   role: z.enum(['owner', 'manager', 'cashier']),
+  /** The one branch this member is limited to, or null for every branch (D-103). */
   locationId: z.string().uuid().nullable(),
   locationName: z.string().nullable(),
   status: z.string(),
+  /** The store's active branches, so a till can pick the right one (D-103). */
+  branches: z.array(meBranchSchema),
 });
 
 export const meResponseSchema = z.object({

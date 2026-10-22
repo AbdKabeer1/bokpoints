@@ -73,8 +73,8 @@ Files: `apps/web/src/format.ts` (`parseAmountToCents`, `normalizeScan`,
 
 `parseAmountToCents`: `'12,50'|'12.50' → 1250`, `'12' → 1200`, `'0.5' → 50`,
 `''|'abc'|'12.345'|'-1' → null`. `normalizeScan`: trims whitespace/CR/tab and
-uppercases. `cashierMessage`: known API codes → plain sentences, unknown →
-generic sentence containing the code.
+keeps the case (the server matches identifiers exactly). `cashierMessage`: known
+API codes → plain sentences, unknown → generic sentence containing the code.
 
 ## Task 5 — web app
 

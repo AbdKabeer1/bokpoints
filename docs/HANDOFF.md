@@ -35,8 +35,8 @@ is re-exported.
 | HANDOFF.md, DECISIONS.md | v0.2 (this file and its companion)                                                                                                                                                             |
 | Technology stack         | Locked (see `AGENT.md`, section 3)                                                                                                                                                             |
 | Repository               | Created at `~/bokpoints`, private GitHub remote `github.com/AbdKabeer1/bokpoints`                                                                                                              |
-| Code                      | Monorepo skeleton, CI, points engine in `packages/shared`, ledger schema and migrations, transactional ledger write path, Fastify API with the award endpoint, the Supabase session resolver (second factor enforced), optional store branches, and row-level security on every table |
-| Tests                     | 45 unit (Vitest) and 131 integration (real local Postgres), all passing                                                                                                                        |
+| Code                      | Monorepo skeleton, CI, points engine in `packages/shared`, ledger schema and migrations, transactional ledger write path, Fastify API (identify, award, balance, store setup, invites, expiry, `/v1/me`, side-effect-free award preview), the Supabase session resolver (second factor enforced), optional store branches, row-level security on every table, and the Cashier screen in `apps/web` (React + Vite PWA) |
+| Tests                     | 56 unit (Vitest) and 142 integration (real local Postgres), all passing                                                                                                                        |
 | Accounts (Stripe, Supabase, email provider, hosting, Apple and Google developer accounts) | Supabase: a dev project exists in Stockholm (`eu-north-1`), Free plan. Stripe, the email provider, hosting, a domain, Apple and Google: none confirmed |
 | Pilot stores             | None chosen                                                                                                                                                                                    |
 
@@ -48,31 +48,25 @@ Not in the MVP: rewards and redemption, products and discounts, campaigns and pu
 
 ## 5. Next steps (in order)
 
-1. **Exercise the Supabase resolver against the live project** (build step 3).
-   The resolver, the MFA check, the `auth_user_id` link, the branch layer and
-   row-level security are built and tested with locally generated keys; none of
-   it has been run against the real Supabase project yet. Put `SUPABASE_URL` and
-   `SUPABASE_PUBLISHABLE_KEY` in `.env`, create a user in the dashboard, run
-   `pnpm bootstrap:admin`, then `pnpm staff:login` and call the API with the
-   token it prints. The project must have an asymmetric signing key active
-   (the JWKS address returns a key).
-2. **Points expiry job.** A daily job that finds `earn` entries whose expiry date has
-   passed and writes an `expire` entry for each batch, using the FIFO rules already in
-   `packages/shared`. It must be idempotent. This covers `AC-6` and needs no provider.
-3. **Admin store onboarding; store, branch and staff setup with invites** (build
-   step 3). Auth itself is done; this is the endpoints that create stores, branches
-   and memberships, and the pricing meter (not yet decided).
-4. **Cashier screen, online flow only, with the confirm step** (build step 4).
-   `apps/web` is a stub today.
-5. **Customer app: sign-up, QR, per-store balances and history, expiry notices**
+1. **Customer app: sign-up, QR, per-store balances and history, expiry notices**
    (build step 5). `apps/customer` is a stub today.
-6. **Pending customers (register by email); manual adjustments; fraud clawback; audit
-   log** (build step 6). The ledger side of adjustments and clawbacks already works.
-7. **Billing with Stripe and the failed-payment states** (build step 7).
-8. **Offline awarding: signed QR, device verification, encrypted queue, sync and
+2. **Pending customers (register by email); manual adjustments in the UI; fraud
+   clawback; audit log** (build step 6). The ledger side of adjustments and clawbacks
+   already works.
+3. **Billing with Stripe and the failed-payment states** (build step 7).
+4. **Offline awarding: signed QR, device verification, encrypted queue, sync and
    rejections** (build step 8). Prototype the QR and sync early, because it is the
    highest technical risk.
-9. **Reports, hardening, accessibility pass, store submissions** (build step 9).
+5. **Reports, hardening, accessibility pass, store submissions** (build step 9).
+
+Build steps 1–4 are done: schema, points engine, ledger, API, live Supabase auth, store
+setup with invites, the expiry job, and now the Cashier screen. The session log below and
+`handoff/STATUS.md` hold the detail.
+
+Deferred by A, wanting its own design round later: the **discount/campaign engine**
+(customer activates an offer, the cashier applies it, the price drops and points are
+earned on the reduced price). Its open question — one activation per customer, or
+repeatable, or a validity window the owner sets — is parked for that round.
 
 Parallel, non-code tasks for A:
 
@@ -125,6 +119,7 @@ Newest first. One entry per session. Keep each entry to a few lines.
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
 | Build 5    | Supabase auth: the session resolver verifies tokens against the project's public keys and requires a second factor (D-098 to D-101); `auth_user_id` links staff to Supabase users; optional store branches with a database-enforced store match (D-103, D-104); row-level security on every table (D-102); `bootstrap:admin` and `staff:login` scripts (D-105); `dev` reads `.env`. Found and fixed a migration (`0005`) that was missing from the Drizzle journal and added a test for it (D-106). | 45 unit and 111 integration tests pass | Run the resolver against the live Supabase project, then the points expiry job |
 | Build 6    | Store setup and the points expiry job: an admin creates the whole store in one call (active store, points rule version 1, optional branches, first owner), owners and managers invite staff with an optional one-branch limit (D-107); `pnpm expiry:run` expires each due batch once, safe the same day and under parallel runs (D-108). Plan: `docs/superpowers/plans/2026-10-22-store-setup-and-expiry.md` | 45 unit and 131 integration tests pass | Run the resolver against the live Supabase project — store creation now makes the first real award testable end to end |
+| Build 7    | The Cashier screen, online only: `GET /v1/me` (identity, memberships, the store's branches) and `POST /v1/stores/:storeId/awards/preview`, which returns the points and expiry without writing anything (D-109); `apps/web` is a React + Vite PWA with a keyboard-wedge scan field (no camera), sign-in with a second factor including first-time authenticator enrolment, the store/branch the caller works at, a debounced preview, a confirm step with a fresh idempotency key, and a recorded result with the new balance (D-110). Spec: `docs/superpowers/specs/2026-10-22-cashier-screen.md` | 56 unit and 142 integration tests pass; the whole flow was run live against Supabase (identify `CUST-QR-0001` → Aino, 15 points; preview of €12.50 → 12 points, expiring 22 Jan 2027, balance unchanged) | The customer app (build step 5), or the discount/campaign design round A deferred |
 | Build 4    | Implemented the review findings of 22 Oct: `TRUST_PROXY` (off by default) passed to Fastify as `trustProxy`, so the rate limiter keys on the caller behind a load balancer (D-095, D-097); the idempotency race path now refuses a different amount (D-092) instead of replaying the winner; batch drawdowns take `FOR UPDATE` row locks so concurrent adjustments cannot drive a batch negative; the earn rate is bounded by a CHECK at 1,000,000 thousandths (D-093); fixed two misplaced docblocks (`env.ts`, `ledger.ts`); documented the public `/v1/openapi.json` in D-095; corrected the test counts in the handoff documents | 42 unit and 73 integration tests pass                                                                                                         | The Supabase session resolver, then the points expiry job      |
 | Build 3    | Fixed the review findings: point batches so an expiry cannot double-deduct, the rule that applies now ignores a rule scheduled for the future, store, staff and customer status checks on the write path, credential state checks on identify, a clean 404 for an unknown customer, a 409 when an idempotency key is reused with a different amount, a cap on the purchase amount, case-insensitive email uniqueness, rate limiting and security headers                                                                                                                                                                             | 42 unit and 53 integration tests pass                                                                                                         | The Supabase session resolver, then the points expiry job      |
 | Build 2    | Added the award endpoint with a pluggable session resolver, the identify and balance endpoints, server-side store scoping and permission checks, the OpenAPI document generated from the shared Zod schemas, and the Supabase seam                                                                                                                                                                                                                                                                                                                                                                                                   | 42 unit and 33 integration tests pass. The award endpoint is live but authenticates through the development resolver until Supabase is chosen | The Supabase session resolver, then the points expiry job      |

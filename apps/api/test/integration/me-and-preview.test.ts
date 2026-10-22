@@ -15,6 +15,7 @@ let db: Database;
 let storeId: string;
 let otherStoreId: string;
 let kamppiId: string;
+let tooeloeId: string;
 let customerId: string;
 
 async function staffUser(
@@ -78,7 +79,7 @@ beforeEach(async () => {
   );
 
   kamppiId = randomUUID();
-  const tooeloeId = randomUUID();
+  tooeloeId = randomUUID();
   const otherBranchId = randomUUID();
   await pool.query(
     `INSERT INTO store_locations (id, store_id, name, status)
@@ -115,6 +116,10 @@ describe('GET /v1/me', () => {
           locationId: null,
           locationName: null,
           status: 'active',
+          branches: [
+            { id: kamppiId, name: 'Kamppi' },
+            { id: tooeloeId, name: 'Töölö' },
+          ],
         },
       ],
     });

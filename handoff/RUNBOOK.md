@@ -30,12 +30,43 @@ environment.
 ## Run
 
 ```bash
-pnpm dev                      # API with hot reload on http://127.0.0.1:3000
-ALLOW_DEV_AUTH=true pnpm dev  # same, with the development session resolver
-pnpm build                    # build packages/shared and apps/api
+pnpm dev                      # API on http://127.0.0.1:3000 and the Cashier screen on http://localhost:5173
+ALLOW_DEV_AUTH=true pnpm dev  # with the development session resolver (local API testing)
+pnpm build                    # build packages/shared, apps/api and apps/web
 ```
 
-`pnpm dev` reads `apps/api/.env` if there is one.
+`pnpm dev` runs every workspace's dev script in parallel: the API (hot reload)
+and Vite. The screen calls the API through Vite's `/v1` proxy, so the browser sees
+one origin and no CORS setup is needed. `apps/api/.env` supplies the API's
+settings; `apps/web/.env` supplies the Supabase URL and publishable key (copy
+`apps/web/.env.example` and fill it in, or the screen cannot sign in).
+
+### The Cashier screen
+
+Open **http://localhost:5173**, sign in with a staff member's email and password,
+then type the 6-digit code from an authenticator app. On a first sign-in the
+screen shows the key to add to the authenticator, then asks for the first code.
+
+Demo accounts on the live Supabase project (created during the live run):
+
+| Account             | Password          | Who                                   |
+| ------------------- | ----------------- | ------------------------------------- |
+| `cashier@bk.test`   | `BokpointsDemo3!` | Cashier at Kahvila Bea, Kamppi only   |
+| `owner@bk.test`     | `BokpointsDemo2!` | Owner of Kahvila Bea, both branches   |
+| `admin@bk.test`     | `BokpointsDemo1!` | Admin, no store membership            |
+
+The authenticator secrets for those three accounts are in `secrets.json` in this
+session's temporary `bk-live/` folder
+(`/private/var/folders/rz/jn4g4j7s4qn_50dc5vb5glj80000gn/T/opencode/bk-live/`),
+which is not part of the repo and may not survive a reboot. If a secret is lost,
+delete that account's factor in the Supabase dashboard (Authentication > Users)
+and sign in again — the screen offers the setup step. New accounts are made the
+same way: create the Supabase user, then `pnpm bootstrap:admin` (for an admin) or
+`POST /v1/stores/:storeId/staff` (for store staff).
+
+The scanner is a keyboard-wedge device: it types the code and presses Enter into
+the focused field. Without hardware, type `CUST-QR-0001` at Kahvila Bea and press
+Enter; the customer is Aino, with 15 points.
 
 `ALLOW_DEV_AUTH` is off by default and the server refuses to start with it on in
 production. With it on, the bearer token is a staff member's email address. The
@@ -81,7 +112,9 @@ curl http://127.0.0.1:3000/v1/health
 
 | Method | Path | Purpose |
 | --- | --- | --- |
+| `GET` | `/v1/me` | Who the caller is, their stores and each store's branches |
 | `POST` | `/v1/stores/{storeId}/identify` | Scanned credential to customer, first name and balance |
+| `POST` | `/v1/stores/{storeId}/awards/preview` | What a purchase would earn and when it expires; writes nothing |
 | `POST` | `/v1/stores/{storeId}/awards` | Award points (requires an `Idempotency-Key` header) |
 | `GET` | `/v1/stores/{storeId}/customers/{customerId}/balance` | Balance at that store |
 | `POST` | `/v1/admin/stores` | Admin: create the store with its points rule, branches and first owner |
@@ -99,12 +132,13 @@ pnpm typecheck
 pnpm lint
 pnpm test                                # unit
 DATABASE_URL=postgres://postgres:postgres@localhost:5432/bokpoints_test pnpm test:integration
+pnpm --filter @bokpoints/web build       # production build of the Cashier screen
 ```
 
 The integration suite rebuilds `bokpoints_test` from the migration files on every run.
 It never touches `bokpoints_dev`.
 
-All four must pass before a change is done.
+All five must pass before a change is done.
 
 ## Database
 
@@ -141,7 +175,10 @@ pnpm db:migrate
 Not set up. The API needs an EU container host and the web app a static host, and
 neither provider has been chosen yet (`docs/DECISIONS.md` D-059). The API builds to
 `apps/api/dist` and starts with `node dist/server.js`, with `DATABASE_URL`, `PORT`,
-`HOST` and `LOG_LEVEL` supplied by the host's secret store.
+`HOST` and `LOG_LEVEL` supplied by the host's secret store. The screen builds to
+`apps/web/dist`; set `VITE_API_BASE` to the API origin at build time (without it the
+screen calls the same origin, which is what the dev proxy provides), and add that
+origin to the API's CORS allow-list when the API gets one with the deploy.
 
 ## CI
 
@@ -165,3 +202,5 @@ gh run watch
 | `Cannot find module '@bokpoints/shared'` | The shared package has not been built. Run `pnpm --filter @bokpoints/shared build`, or use `pnpm typecheck`, which builds it first. |
 | Integration tests fail to connect | Postgres is not running, or `DATABASE_URL` points at the wrong database. The tests expect `bokpoints_test`. |
 | `role "postgres" does not exist` | Homebrew's Postgres only creates the OS user. Create the role once: `psql -d postgres -c "CREATE ROLE postgres WITH SUPERUSER LOGIN PASSWORD 'postgres';"` |
+| The screen on :5173 cannot sign in | `apps/web/.env` is missing or has empty `VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY`. Copy `.env.example` and fill both; restart `pnpm dev`. |
+| The screen says the API is not answering | The API is not running on `127.0.0.1:3000`. `pnpm dev` starts both; check the API's own log first. |

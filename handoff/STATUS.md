@@ -1,8 +1,8 @@
 # STATUS
 
 **Project:** BOKPOINTS, a B2B2C loyalty platform for SMEs in Finland / EU.
-**Phase:** MVP, build order steps 1 and 2 of `AGENT.md` section 13 are done.
-**Last updated:** 22 Oct 2026, after Build 6 (store setup endpoints + points expiry job) and the first live run against the Supabase project: real tokens, the first store, a branch-limited cashier, a real award and an expiry pass (45 unit, 131 integration tests green; CI green on `main`).
+**Phase:** MVP, build order steps 1 to 4 of `AGENT.md` section 13 are done (the Cashier screen, online flow only, now exists).
+**Last updated:** 22 Oct 2026, after Build 7 (the Cashier screen): `apps/web` is a working React + Vite PWA — sign-in with a second factor, first-time authenticator enrolment, store and branch resolution, scanner-wedge input, a server-side points preview, a confirm step and a recorded result. 56 unit and 142 integration tests green; the whole flow was exercised live against Supabase.
 
 ## Done
 
@@ -77,7 +77,25 @@
   nothing on a second run. `ALLOW_DEV_AUTH` is now off, so the dev resolver is
   not in play; the two scripts read `apps/api/.env` directly.
 
-**Tests: 45 unit, 131 integration, all passing.**
+- **The Cashier screen** (Build 7, D-109, D-110): `apps/web` is a real React +
+  Vite + TypeScript PWA (`pnpm dev` now starts the API and the screen together).
+  It signs in with Supabase email + password + TOTP, including first-time
+  authenticator enrolment; resolves the caller's store and branch through
+  `GET /v1/me`; takes a scan from a keyboard-wedge scanner (or a typed code) into
+  a focused input; identifies the customer and shows their balance; previews the
+  points live from a new read-only endpoint
+  (`POST /v1/stores/:storeId/awards/preview`) so the maths never lives in the
+  browser; confirms with a fresh idempotency key; and shows the recorded points,
+  new balance and expiry. Plain-language error states; installable PWA shell with
+  no offline cache (the offline queue stays build step 8).
+- **Verified live, end to end**: with a real Supabase token through the Vite
+  proxy, `/v1/me` returned the cashier's membership and the store's two branches,
+  `/identify` with `CUST-QR-0001` returned Aino (15 points), and a €12.50 preview
+  returned 12 points expiring 22 Jan 2027 at Kamppi while the balance stayed 15 —
+  the preview writes nothing. Spec: `docs/superpowers/specs/2026-10-22-cashier-screen.md`;
+  plan: `docs/superpowers/plans/2026-10-22-cashier-screen.md`.
+
+**Tests: 56 unit, 142 integration, all passing.**
 
 ## In progress
 
@@ -98,29 +116,29 @@ Nothing. The last task is finished.
 
 In the order of `AGENT.md` section 13:
 
-1. ~~Run the Supabase resolver against the live project.~~ **Done** — see the live-run
-   entry under Done. `pnpm staff:login` stays the manual path for real sign-ins.
-2. **Cashier screen, online flow only**, with the confirm step (build step 4).
-   `apps/web` is a stub today.
-3. **Customer app**: sign-up, QR, per-store balances and history, expiry notices
+1. **Customer app**: sign-up, QR, per-store balances and history, expiry notices
    (build step 5). `apps/customer` is a stub today.
-4. **Pending customers, manual adjustments in the UI, fraud clawback, audit log**
+2. **Pending customers, manual adjustments in the UI, fraud clawback, audit log**
    (build step 6). The ledger side of adjustments and clawbacks already works.
-5. **Billing with Stripe** and the failed-payment states (build step 7).
-6. **Offline awarding**: signed QR, device verification, encrypted queue, sync and
+3. **Billing with Stripe** and the failed-payment states (build step 7).
+4. **Offline awarding**: signed QR, device verification, encrypted queue, sync and
    rejections (build step 8). Highest risk, so prototype the QR and sync early.
-7. **Reports, hardening, accessibility pass, store submissions** (build step 9).
+5. **Reports, hardening, accessibility pass, store submissions** (build step 9).
+6. **Discount/campaign engine** — deferred by A until its own design round; the
+   activation rule (one per customer / repeatable / owner-set window) is still open.
 
 ### The next concrete task
 
-Store creation, invites, the live auth and the expiry job all exist now, so the next
-task is **the Cashier screen, online flow only** (build step 4):
+The Cashier screen works online. The next build step is **the customer app**
+(build step 5): sign-up, the member QR, per-store balances and history, and expiry
+notices, against the API that already exists. `apps/customer` is a stub.
 
-- Identify a scanned credential (first name and balance), award with a confirm
-  step, showing the awarded points.
-- It talks to the three operations already built and permission-checked on the
-  server; `apps/web` is a stub today.
-- Manual sign-in for hardware-less testing: `pnpm staff:login`.
+Two things left on the cashier side, deliberately open:
+
+- Physical cards: the screen retries a scanned code as `nfc_card` when it is not
+  an app QR. Whether barcoded cards deserve their own credential type is a v1.1
+  schema question (the FR-CRD-5 round).
+- Finnish UI strings, idle auto sign-out and receipt printing — later design work.
 
 ## Risks to watch
 
