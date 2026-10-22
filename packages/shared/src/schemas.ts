@@ -352,3 +352,28 @@ export const clawbackRequestSchema = z.object({
   points: z.number().int().min(1).max(1_000_000),
   caseNote: z.string().trim().min(3).max(1000),
 });
+
+export const auditEntrySchema = z.object({
+  id: z.string().uuid(),
+  action: z.string(),
+  actorEmail: z.string().nullable(),
+  targetType: z.string().nullable(),
+  targetId: z.string().uuid().nullable(),
+  reason: z.string().nullable(),
+  createdAt: z.string(),
+  before: z.unknown().nullable(),
+  after: z.unknown().nullable(),
+});
+
+export const auditResponseSchema = z.object({
+  entries: z.array(auditEntrySchema),
+});
+
+export const auditQuerySchema = z.object({
+  action: z.string().trim().max(100).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+
+export const adminAuditQuerySchema = auditQuerySchema.extend({
+  storeId: z.string().uuid().optional(),
+});

@@ -340,3 +340,55 @@ describe('POST /v1/admin/stores/:storeId/customers/:customerId/clawback', () => 
     ).toBe(400);
   });
 });
+
+describe('audit log reading', () => {
+  it('shows the owner what just happened, newest first, with the reason', async () => {
+    const customerId = await customerWithBalance(0);
+    await adjust(customerId, 'owner@test.dev', { points: 5, reason: 'First correction' });
+    await adjust(customerId, 'owner@test.dev', { points: 2, reason: 'Second correction' });
+
+    const res = await get(`/v1/stores/${storeId}/audit`, 'owner@test.dev');
+
+    expect(res.statusCode).toBe(200);
+    const entries = res.json().entries as Array<Record<string, unknown>>;
+    expect(entries.length).toBeGreaterThanOrEqual(2);
+    expect(entries[0]).toMatchObject({ action: 'points.adjust', reason: 'Second correction' });
+    expect(entries[0]?.actorEmail).toBe('owner@test.dev');
+  });
+
+  it('filters by action and caps the limit', async () => {
+    const customerId = await customerWithBalance(0);
+    await adjust(customerId, 'owner@test.dev', { points: 5, reason: 'A correction' });
+
+    const filtered = await get(
+      `/v1/stores/${storeId}/audit?action=points.adjust&limit=10`,
+      'manager@test.dev',
+    );
+    expect(filtered.json().entries).toHaveLength(1);
+
+    const otherAction = await get(
+      `/v1/stores/${storeId}/audit?action=points.earn`,
+      'manager@test.dev',
+    );
+    expect(otherAction.json().entries).toEqual([]);
+  });
+
+  it('refuses a cashier and another store owner', async () => {
+    expect((await get(`/v1/stores/${storeId}/audit`, 'cashier@test.dev')).statusCode).toBe(403);
+    expect((await get(`/v1/stores/${storeId}/audit`, 'other.owner@test.dev')).statusCode).toBe(403);
+  });
+
+  it('lets an admin read across stores and filter by store', async () => {
+    const customerId = await customerWithBalance(0);
+    await adjust(customerId, 'owner@test.dev', { points: 5, reason: 'A correction' });
+
+    const all = await get('/v1/admin/audit', 'admin@test.dev');
+    expect(all.statusCode).toBe(200);
+    expect(all.json().entries.length).toBeGreaterThanOrEqual(1);
+
+    const scoped = await get(`/v1/admin/audit?storeId=${otherStoreId}`, 'admin@test.dev');
+    expect(scoped.json().entries).toEqual([]);
+
+    expect((await get('/v1/admin/audit', 'owner@test.dev')).statusCode).toBe(403);
+  });
+});
