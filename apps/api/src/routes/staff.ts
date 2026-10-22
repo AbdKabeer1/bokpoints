@@ -7,8 +7,6 @@ import {
   storeIdParamsSchema,
 } from '@bokpoints/shared';
 import { authorizeStoreRequest } from '../auth/authorize.js';
-import type { SessionResolver } from '../auth/session.js';
-import type { Database } from '../db/client.js';
 import { auditLogEntries, storeLocations, storeMembers } from '../db/schema.js';
 import { upsertStaffAccount } from '../db/staff.js';
 import type { RouteOptions } from './stores.js';

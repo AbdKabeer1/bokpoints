@@ -104,6 +104,13 @@ const failure = (
   message: string,
 ): AuthResult => ({ ok: false, status, error: { code, message } });
 
+export interface AuthorizeOptions {
+  token: string | undefined;
+  storeId: string;
+  /** The capability that grants access. Any one of them is enough. */
+  anyOf: Capability[];
+}
+
 /**
  * Turns the role stored on a store membership into the role used by the
  * permissions matrix (FRD section 2).

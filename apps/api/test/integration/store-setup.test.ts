@@ -75,7 +75,10 @@ beforeEach(async () => {
   );
 });
 
-const postAdminStores = async (token: string | null, payload: unknown) => {
+const postAdminStores = async (
+  token: string | null,
+  payload: Record<string, unknown>,
+) => {
   const app = await buildApp({ db, sessionResolver: createDevSessionResolver(db) });
   const res = await app.inject({
     method: 'POST',

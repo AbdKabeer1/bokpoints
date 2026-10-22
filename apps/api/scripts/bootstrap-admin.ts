@@ -9,7 +9,7 @@
  *        pnpm bootstrap:admin --email you@example.com --name "Your Name" \
  *          --auth-user-id <the User UID>
  *
- * It reads DATABASE_URL from the environment or the repo's .env file. Running
+ * It reads DATABASE_URL from the environment or apps/api/.env. Running
  * it twice with the same input changes nothing.
  */
 import { parseArgs } from 'node:util';
@@ -17,7 +17,7 @@ import { createDb, createPool } from '../src/db/client.js';
 import { upsertStaffAccount } from '../src/db/staff.js';
 
 try {
-  process.loadEnvFile(new URL('../../../.env', import.meta.url));
+  process.loadEnvFile(new URL('../../.env', import.meta.url));
 } catch {
   /* no .env file: rely on the real environment */
 }

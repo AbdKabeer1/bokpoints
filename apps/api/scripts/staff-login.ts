@@ -8,7 +8,7 @@
  * Run with:  pnpm staff:login --email you@example.com
  *
  * It needs SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY (from the environment or
- * the repo's .env file) and prompts for the password and the code. The first
+ * apps/api/.env) and prompts for the password and the code. The first
  * time, it enrols an authenticator app and prints the secret to add to it.
  * The printed token is short-lived. Never share it or commit it.
  */
@@ -17,7 +17,7 @@ import { parseArgs } from 'node:util';
 import { createClient } from '@supabase/supabase-js';
 
 try {
-  process.loadEnvFile(new URL('../../../.env', import.meta.url));
+  process.loadEnvFile(new URL('../../.env', import.meta.url));
 } catch {
   /* no .env file: rely on the real environment */
 }
