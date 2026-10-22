@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "credentials_one_active_qr_per_customer" ON "credentials" USING btree ("customer_id") WHERE "credentials"."type" = 'app_qr' and "credentials"."status" = 'active';

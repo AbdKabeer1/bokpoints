@@ -57,6 +57,13 @@
       "when": 1792704174531,
       "tag": "0007_bright_scorpion",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792705019571,
+      "tag": "0008_conscious_night_nurse",
+      "breakpoints": true
     }
   ]
 }

@@ -77,7 +77,12 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
 
   // Only the named origins get browser access. `false` disables CORS
   // entirely, which is the safe default for a locally proxied app.
-  await app.register(cors, { origin: options.corsOrigins ?? false });
+  await app.register(cors, {
+    origin: options.corsOrigins ?? false,
+    // PATCH is part of the customer profile; the default list omits it and a
+    // browser preflight would then block onboarding (found in review).
+    methods: ['GET', 'HEAD', 'POST', 'PATCH', 'OPTIONS'],
+  });
 
   // Rate limiting is applied per route, not globally: the scanning and
   // awarding endpoints need it, the health check does not (AGENT.md

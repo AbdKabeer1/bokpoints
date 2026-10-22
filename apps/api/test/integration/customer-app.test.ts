@@ -335,3 +335,68 @@ describe('GET /v1/customer/me/expiring', () => {
     expect(res.json().items[0]).toMatchObject({ points: 7 });
   });
 });
+
+describe('first sign-in under concurrency', () => {
+  it('answers every simultaneous first call with the same customer and credential', async () => {
+    // One app, five overlapping requests: this is the shape the app itself
+    // produces when sign-in fires the auth listener and the screen's callback.
+    const app = await buildApp({ db, customerResolver: createDevCustomerResolver() });
+    const results = await Promise.all(
+      Array.from({ length: 5 }, () =>
+        app.inject({
+          method: 'GET',
+          url: '/v1/customer/me',
+          headers: { authorization: 'Bearer race@test.dev' },
+        }),
+      ),
+    );
+    await app.close();
+
+    expect(results.map((res) => res.statusCode)).toEqual([200, 200, 200, 200, 200]);
+    const identifiers = new Set(results.map((res) => res.json().credential.identifier));
+    expect(identifiers.size).toBe(1);
+
+    const customers = await pool.query('SELECT count(*) FROM customers');
+    const credentials = await pool.query('SELECT count(*) FROM credentials');
+    expect(Number(customers.rows[0].count)).toBe(1);
+    expect(Number(credentials.rows[0].count)).toBe(1);
+  });
+
+  it('allows only one active app_qr credential per customer', async () => {
+    const me = await get('/v1/customer/me', 'cred@test.dev');
+    const customerId = me.json().customer.id as string;
+
+    await expect(
+      pool.query(
+        `INSERT INTO credentials (customer_id, type, identifier)
+         VALUES ($1, 'app_qr', 'CUS-SECOND000000000000000000')`,
+        [customerId],
+      ),
+    ).rejects.toThrow(/unique|duplicate/i);
+  });
+});
+
+describe('expiring window edges', () => {
+  it('includes a batch expiring exactly 14 days from now', async () => {
+    const customerId = await makeCustomer('new@test.dev');
+    const storeId = await makeStore('Kahvila A');
+    const exactly = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+    await addBatch(customerId, storeId, 9, exactly);
+
+    const res = await get('/v1/customer/me/expiring', 'new@test.dev');
+
+    expect(res.json().items).toHaveLength(1);
+    expect(res.json().items[0]).toMatchObject({ points: 9 });
+  });
+
+  it('excludes a batch that has already expired', async () => {
+    const customerId = await makeCustomer('new@test.dev');
+    const storeId = await makeStore('Kahvila A');
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    await addBatch(customerId, storeId, 5, yesterday);
+
+    const res = await get('/v1/customer/me/expiring', 'new@test.dev');
+
+    expect(res.json().items).toEqual([]);
+  });
+});

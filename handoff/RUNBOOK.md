@@ -96,6 +96,11 @@ Without `{{ .Token }}` the email only carries a link, and the app's six-digit fi
 has nothing to accept. The built-in sender is rate-limited on the free plan; wait a
 minute between attempts.
 
+**Keep Authentication > Providers > Email > Confirm email ON.** First sign-in links an
+unlinked customer row by the token's email, and that is only safe while Supabase has
+verified the address. The API logs a warning at boot if the project has confirmations
+off (`mailer_autoconfirm`).
+
 The first sign-in provisions the customer and their QR. The till scans the same
 opaque identifier it always has, so a new customer can be awarded points straight
 away. A production database must apply migration 0007 before this works.

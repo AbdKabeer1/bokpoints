@@ -2,7 +2,7 @@
 
 **Project:** BOKPOINTS, a B2B2C loyalty platform for SMEs in Finland / EU.
 **Phase:** MVP, build order steps 1 to 5 are done; step 5 has shipped its first slice (sign-in, onboarding, QR, balances, history, expiring notices).
-**Last updated:** 23 Oct 2026, after Build 8 (the customer app): `apps/customer` is an Expo app with a working web export; the API gained customer identity (`customers.auth_user_id`), provisioning with a `CUS-` QR credential, a separate `aal1` customer resolver, five customer-scoped endpoints and a CORS allow-list. 58 unit and 166 integration tests green; a real `aal1` token provisioned a customer and an award showed up in their stores and history.
+**Last updated:** 23 Oct 2026, after Build 8 (the customer app): `apps/customer` is an Expo app with a working web export; the API gained customer identity (`customers.auth_user_id`), provisioning with a `CUS-` QR credential, a separate `aal1` customer resolver, five customer-scoped endpoints and a CORS allow-list. 67 unit and 166 integration tests green; a real `aal1` token provisioned a customer and an award showed up in their stores and history.
 
 ## Done
 
@@ -112,7 +112,7 @@
   which created customer + credential; a €12.50 award at Kahvila Bea then appeared
   as 12 points in the customer's store list and history, with `balanceAfter` 12.
 
-**Tests: 58 unit, 166 integration, all passing.**
+**Tests: 67 unit, 166 integration, all passing.**
 
 ## In progress
 

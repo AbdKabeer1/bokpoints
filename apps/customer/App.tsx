@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { getMe, type Me } from './src/lib/api';
 import { hasConfig, onAuthChange, signOut, supabase } from './src/lib/session';
 import { colors } from './src/lib/theme';
@@ -16,24 +16,44 @@ type Phase =
 
 export function App() {
   const [phase, setPhase] = useState<Phase>({ kind: 'loading' });
+  const inFlight = useRef<Promise<void> | null>(null);
 
   const refresh = useCallback(async () => {
-    const { data } = await supabase.auth.getSession();
-    const session = data.session;
-    if (session === null) {
-      setPhase({ kind: 'signed-out' });
-      return;
-    }
+    // Sign-in fires the auth listener and the screen callback at the same
+    // time; one in-flight profile load answers both.
+    if (inFlight.current !== null) return inFlight.current;
 
+    const run = (async () => {
+      const { data } = await supabase.auth.getSession();
+      const session = data.session;
+      if (session === null) {
+        setPhase({ kind: 'signed-out' });
+        return;
+      }
+
+      try {
+        const me = await getMe(session.access_token);
+        setPhase(
+          me.onboardingComplete
+            ? { kind: 'ready', token: session.access_token, me }
+            : { kind: 'onboarding', token: session.access_token, me },
+        );
+      } catch {
+        // A transient failure must not replace a working screen: the QR is
+        // the one thing a customer needs when the network is poor.
+        setPhase((current) =>
+          current.kind === 'ready' || current.kind === 'onboarding'
+            ? current
+            : { kind: 'error', message: 'We could not reach your account. Check your connection.' },
+        );
+      }
+    })();
+
+    inFlight.current = run;
     try {
-      const me = await getMe(session.access_token);
-      setPhase(
-        me.onboardingComplete
-          ? { kind: 'ready', token: session.access_token, me }
-          : { kind: 'onboarding', token: session.access_token, me },
-      );
-    } catch {
-      setPhase({ kind: 'error', message: 'We could not reach your account. Check your connection.' });
+      await run;
+    } finally {
+      inFlight.current = null;
     }
   }, []);
 
@@ -72,22 +92,20 @@ export function App() {
         <View style={styles.centered}>
           <Text style={styles.title}>BOKPOINTS</Text>
           <Text style={styles.muted}>{phase.message}</Text>
+          <Pressable style={styles.primary} onPress={() => void refresh()}>
+            <Text style={styles.primaryText}>Try again</Text>
+          </Pressable>
+          <Pressable style={styles.secondary} onPress={() => void handleSignOut()}>
+            <Text style={styles.secondaryText}>Sign out</Text>
+          </Pressable>
         </View>
       );
     case 'signed-out':
       return <SignIn onSignedIn={() => void refresh()} />;
     case 'onboarding':
-      return (
-        <Onboarding token={phase.token} me={phase.me} onDone={() => void refresh()} />
-      );
+      return <Onboarding token={phase.token} me={phase.me} onDone={() => void refresh()} />;
     case 'ready':
-      return (
-        <Home
-          token={phase.token}
-          me={phase.me}
-          onSignOut={() => void handleSignOut()}
-        />
-      );
+      return <Home token={phase.token} me={phase.me} onSignOut={() => void handleSignOut()} />;
   }
 }
 
@@ -111,5 +129,26 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     textAlign: 'center',
+  },
+  primary: {
+    marginTop: 22,
+    backgroundColor: '#f5b301',
+    borderRadius: 12,
+    paddingVertical: 13,
+    paddingHorizontal: 28,
+  },
+  primaryText: {
+    color: '#1c1400',
+    fontWeight: '800',
+    fontSize: 15,
+  },
+  secondary: {
+    marginTop: 12,
+    paddingVertical: 8,
+  },
+  secondaryText: {
+    color: colors.muted,
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

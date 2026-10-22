@@ -39,6 +39,25 @@ describe('buildApp', () => {
     await app.close();
   });
 
+
+  it('allows PATCH in a preflight, so the app can save a name', async () => {
+    const app = await buildApp({ corsOrigins: ['http://localhost:8081'] });
+    const res = await app.inject({
+      method: 'OPTIONS',
+      url: '/v1/customer/me',
+      headers: {
+        origin: 'http://localhost:8081',
+        'access-control-request-method': 'PATCH',
+        'access-control-request-headers': 'authorization,content-type',
+      },
+    });
+
+    expect(res.statusCode).toBe(204);
+    expect(res.headers['access-control-allow-methods']).toContain('PATCH');
+    expect(String(res.headers['access-control-allow-headers'] ?? '')).toMatch(/authorization/i);
+    await app.close();
+  });
+
   it('sends no CORS headers when no origin is configured', async () => {
     const app = await buildApp();
     const res = await app.inject({

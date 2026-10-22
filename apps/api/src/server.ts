@@ -54,6 +54,35 @@ function resolveCustomerResolver(): CustomerSessionResolver | undefined {
   return createDevCustomerResolver();
 }
 
+/**
+ * Customer provisioning links an unlinked customer row by the token's email
+ * (D-111). Supabase only proves that email when email confirmation is on, so
+ * a project with confirmations disabled would reopen the takeover path. The
+ * token carries no verified flag, so the API says this loudly at boot.
+ */
+async function warnIfEmailConfirmationIsOff(): Promise<void> {
+  if (!env.SUPABASE_URL) return;
+  try {
+    const response = await fetch(`${env.SUPABASE_URL.replace(/\/+$/, '')}/auth/v1/settings`, {
+      headers: { apikey: process.env['SUPABASE_PUBLISHABLE_KEY'] ?? '' },
+      signal: AbortSignal.timeout(2000),
+    });
+    if (!response.ok) return;
+    const settings = (await response.json()) as { mailer_autoconfirm?: boolean };
+    if (settings.mailer_autoconfirm === true) {
+      console.warn(
+        'WARNING: Supabase email confirmation is OFF. Customer sign-in links an ' +
+          'existing customer row by verified email; turn Confirm email on in the ' +
+          'Supabase dashboard.',
+      );
+    }
+  } catch {
+    // A courtesy check must never stop the server from booting.
+  }
+}
+
+await warnIfEmailConfirmationIsOff();
+
 const app = await buildApp({
   db,
   sessionResolver: resolveSessionResolver(),

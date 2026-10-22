@@ -83,7 +83,8 @@ export async function provisionCustomer(
   db: Database,
   principal: CustomerPrincipal,
 ): Promise<ProvisionedCustomer> {
-  return db.transaction(async (tx) => {
+  try {
+    return await db.transaction(async (tx) => {
     const byAuth = await tx
       .select()
       .from(customers)
@@ -120,26 +121,20 @@ export async function provisionCustomer(
           .returning();
         row = linked[0];
       } else {
-        try {
-          const inserted = await tx
-            .insert(customers)
-            .values({
-              email: principal.email,
-              name: '',
-              authUserId: principal.authUserId,
-              emailVerifiedAt: new Date(),
-            })
-            .returning();
-          row = inserted[0];
-        } catch (error) {
-          if (isUniqueViolation(error)) {
-            throw new CustomerError(
-              'EMAIL_ALREADY_LINKED',
-              'That email already belongs to another account. Sign in with the original address.',
-            );
-          }
-          throw error;
-        }
+        // A unique violation here is either a concurrent first sign-in (which
+        // the caller resolves by re-reading) or an email that really belongs
+        // to another account (which the caller answers with 409). Let the
+        // outer handler tell those apart; deciding here hides the raw error.
+        const inserted = await tx
+          .insert(customers)
+          .values({
+            email: principal.email,
+            name: '',
+            authUserId: principal.authUserId,
+            emailVerifiedAt: new Date(),
+          })
+          .returning();
+        row = inserted[0];
       }
     }
 
@@ -183,7 +178,79 @@ export async function provisionCustomer(
       createdAt: row.createdAt,
       credentialIdentifier,
     };
-  });
+    });
+  } catch (error) {
+    if (error instanceof CustomerError) throw error;
+    if (!isUniqueViolation(error)) throw error;
+
+    // A concurrent first call won the insert. The app fires two /me calls on
+    // sign-in (the auth listener and the screen's callback), so this is the
+    // ordinary case, not an exotic one: answer with what the winner created.
+    const settled = await readSettledCustomer(db, principal);
+    if (settled !== null) return settled;
+
+    const emailTaken = await db
+      .select({ id: customers.id })
+      .from(customers)
+      .where(sql`lower(${customers.email}) = ${principal.email}`)
+      .limit(1);
+    if (emailTaken[0]) {
+      throw new CustomerError(
+        'EMAIL_ALREADY_LINKED',
+        'That email already belongs to another account. Sign in with the original address.',
+      );
+    }
+
+    throw error;
+  }
+}
+
+/**
+ * Reads what a concurrent first call created, after a unique violation.
+ *
+ * The losing request must get the same answer as the winner; refusing it
+ * would show a false "email already used" error on a customer's very first
+ * visit.
+ */
+async function readSettledCustomer(
+  db: Database,
+  principal: CustomerPrincipal,
+): Promise<ProvisionedCustomer | null> {
+  const rows = await db
+    .select()
+    .from(customers)
+    .where(eq(customers.authUserId, principal.authUserId))
+    .limit(1);
+
+  const row = rows[0];
+  if (!row) return null;
+  if (row.status === 'deleted') {
+    throw new CustomerError('ACCOUNT_DELETED', 'This account has been deleted');
+  }
+
+  const active = await db
+    .select({ identifier: credentials.identifier })
+    .from(credentials)
+    .where(
+      and(
+        eq(credentials.customerId, row.id),
+        eq(credentials.type, 'app_qr'),
+        eq(credentials.status, 'active'),
+      ),
+    )
+    .limit(1);
+
+  const identifier = active[0]?.identifier;
+  if (identifier === undefined) throw new Error('Provisioned customer has no active credential');
+
+  return {
+    id: row.id,
+    email: row.email,
+    name: row.name,
+    language: row.language,
+    createdAt: row.createdAt,
+    credentialIdentifier: identifier,
+  };
 }
 
 /** Applies a profile patch; the caller has already validated and trimmed it. */

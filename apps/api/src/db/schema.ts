@@ -196,6 +196,12 @@ export const credentials = pgTable(
   },
   (t) => [
     uniqueIndex('credentials_type_identifier_unique').on(t.type, t.identifier),
+    // At most one live app QR per customer (D-111). Without this, two
+    // simultaneous first sign-ins could mint two codes and the till would
+    // accept one the app no longer shows.
+    uniqueIndex('credentials_one_active_qr_per_customer')
+      .on(t.customerId)
+      .where(sql`${t.type} = 'app_qr' and ${t.status} = 'active'`),
     check('credentials_type_check', sql`${t.type} in ('app_qr', 'nfc_card', 'wallet_pass')`),
     check('credentials_status_check', sql`${t.status} in ('active', 'lost', 'revoked')`),
     index('credentials_customer_idx').on(t.customerId),

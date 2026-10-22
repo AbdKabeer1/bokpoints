@@ -11,11 +11,6 @@ export const envSchema = z.object({
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   /**
-   * How many awards a single caller may make per minute. A busy till is
-   * far below this; it is there to stop a runaway client (AGENT.md
-   * section 8).
-   */
-  /**
    * The Supabase project URL. When it is set the API verifies Supabase access
    * tokens (D-100). It is required in production. The API only ever needs the
    * URL; the keys stay with the apps and the admin scripts.
@@ -29,6 +24,11 @@ export const envSchema = z.object({
     (value) => (value === '' ? undefined : value),
     z.string().url().optional(),
   ),
+  /**
+   * How many awards a single caller may make per minute. A busy till is
+   * far below this; it is there to stop a runaway client (AGENT.md
+   * section 8).
+   */
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(120),
   /**
    * On when the API runs behind a load balancer or reverse proxy (D-095),

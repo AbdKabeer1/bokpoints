@@ -37,7 +37,11 @@ export async function verifyEmailCode(email: string, code: string): Promise<void
 }
 
 export async function signOut(): Promise<void> {
-  await supabase.auth.signOut();
+  const { error } = await supabase.auth.signOut();
+  if (!error) return;
+  // The server could not be told, but a shared browser must still forget the
+  // previous customer's session rather than restore it on the next load.
+  await supabase.auth.signOut({ scope: 'local' });
 }
 
 export async function accessToken(): Promise<string | null> {
