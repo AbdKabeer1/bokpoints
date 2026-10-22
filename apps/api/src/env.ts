@@ -11,16 +11,26 @@ export const envSchema = z.object({
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   /**
-   * Enables the development session resolver, where the bearer token is a
-   * staff email address. It must never be on in production: the server
-   * would accept anybody who knows a staff email.
-   */
-  /**
    * How many awards a single caller may make per minute. A busy till is
    * far below this; it is there to stop a runaway client (AGENT.md
    * section 8).
    */
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(120),
+  /**
+   * On when the API runs behind a load balancer or reverse proxy (D-095),
+   * so `request.ip` — and the rate limiter key — is the caller's address
+   * from `X-Forwarded-For` rather than the proxy's. Off when the API is
+   * reached directly: with it on, a caller could forge that header.
+   */
+  TRUST_PROXY: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  /**
+   * Enables the development session resolver, where the bearer token is a
+   * staff email address. It must never be on in production: the server
+   * would accept anybody who knows a staff email.
+   */
   ALLOW_DEV_AUTH: z
     .enum(['true', 'false'])
     .default('false')

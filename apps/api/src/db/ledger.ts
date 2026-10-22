@@ -28,15 +28,15 @@ export type LedgerErrorCode =
   | 'IDEMPOTENCY_KEY_REUSED';
 
 /**
- * A typed failure for an expected error, so the API can map it to a clear
- * message in the UI (AGENT.md section 10).
- */
-/**
  * The store states in which awarding is allowed. A paused store still
  * awards (D-042); a suspended or offboarded store does not (FR-PTS-6).
  */
 const AWARDING_STORE_STATUSES = new Set(['active', 'paused']);
 
+/**
+ * A typed failure for an expected error, so the API can map it to a clear
+ * message in the UI (AGENT.md section 10).
+ */
 export class LedgerError extends Error {
   readonly code: LedgerErrorCode;
 
@@ -134,10 +134,7 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
         .limit(1);
       const storeStatus = store[0]?.status;
       if (!storeStatus || !AWARDING_STORE_STATUSES.has(storeStatus)) {
-        throw new LedgerError(
-          'STORE_NOT_AWARDING',
-          'This store cannot award points at the moment',
-        );
+        throw new LedgerError('STORE_NOT_AWARDING', 'This store cannot award points at the moment');
       }
 
       const customer = await tx
@@ -255,7 +252,11 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
     if (!isUniqueViolation(error)) throw error;
 
     const winner = await db
-      .select({ id: pointsLedgerEntries.id, points: pointsLedgerEntries.points })
+      .select({
+        id: pointsLedgerEntries.id,
+        points: pointsLedgerEntries.points,
+        amountCents: pointsLedgerEntries.amountCents,
+      })
       .from(pointsLedgerEntries)
       .where(
         and(
@@ -268,6 +269,17 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
 
     const found = winner[0];
     if (!found) throw error;
+
+    // D-092 applies on the race path too: the loser of two concurrent
+    // awards with the same key but a different amount is a mistake, and
+    // must not look like a replay of the winner.
+    if (found.amountCents !== null && found.amountCents !== input.amountCents) {
+      throw new LedgerError(
+        'IDEMPOTENCY_KEY_REUSED',
+        'That idempotency key was already used for a different amount',
+      );
+    }
+
     return { entryId: found.id, points: found.points, awarded: true, replayed: true };
   }
 }
@@ -383,12 +395,7 @@ export async function recordFraudClawback(
       })
       .returning({ id: pointsLedgerEntries.id });
 
-    const newBalance = await applyBalanceDelta(
-      tx,
-      input.customerId,
-      input.storeId,
-      input.points,
-    );
+    const newBalance = await applyBalanceDelta(tx, input.customerId, input.storeId, input.points);
 
     // FRD 4.6: the link is marked as under fraud review.
     await tx

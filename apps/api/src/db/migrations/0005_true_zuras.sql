@@ -1,0 +1,2 @@
+ALTER TABLE "points_rules" DROP CONSTRAINT "points_rules_rate_check";--> statement-breakpoint
+ALTER TABLE "points_rules" ADD CONSTRAINT "points_rules_rate_check" CHECK ("points_rules"."points_per_euro_thousandths" > 0 and "points_rules"."points_per_euro_thousandths" <= 1000000);

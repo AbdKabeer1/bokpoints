@@ -50,7 +50,12 @@ export async function listBatches(
         eq(pointsBatches.storeId, storeId),
         sql`${pointsBatches.remainingPoints} > 0`,
       ),
-    );
+    )
+    // Row locks keep two concurrent drawdowns from reading the same
+    // remaining counts and computing consumption plans that drive a batch
+    // negative: the second plan is computed after the first transaction
+    // commits, so the FIFO consumption always sees the real numbers.
+    .for('update');
 
   return rows.map((row) => ({
     entryId: row.earnEntryId,

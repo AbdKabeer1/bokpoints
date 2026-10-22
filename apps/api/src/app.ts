@@ -24,8 +24,19 @@ export interface BuildAppOptions {
   logger?: boolean;
   /** Overrides the rate limits. Used by the tests to keep them small. */
   rateLimit?: RateLimitOptions | undefined;
-  /** Whether the interactive API documentation is served. Off in production. */
+  /**
+   * Whether the interactive API documentation is served. Off in production.
+   */
   enableDocs?: boolean | undefined;
+  /**
+   * Passed to Fastify as `trustProxy`. On when the API runs behind a load
+   * balancer or reverse proxy, so `request.ip` (and therefore the rate
+   * limiter key) is the caller's address from `X-Forwarded-For` instead of
+   * the proxy's, and each caller still gets its own bucket (D-095). Off
+   * when the API is reached directly, so a forged header cannot defeat the
+   * limiter.
+   */
+  trustProxy?: boolean | undefined;
 }
 
 /**
@@ -38,6 +49,7 @@ export interface BuildAppOptions {
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
   const app = Fastify({
     logger: options.logger ?? false,
+    trustProxy: options.trustProxy ?? false,
   }).withTypeProvider<ZodTypeProvider>();
 
   app.setValidatorCompiler(validatorCompiler);

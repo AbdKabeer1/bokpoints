@@ -2,7 +2,7 @@
 
 **Project:** BOKPOINTS, a B2B2C loyalty platform for SMEs in Finland / EU.
 **Phase:** MVP, build order steps 1 and 2 of `AGENT.md` section 13 are done.
-**Last updated:** 21 Oct 2026.
+**Last updated:** 22 Oct 2026, after the review round of 22 Oct (four findings implemented, three confirmed and documented).
 
 ## Done
 
@@ -32,8 +32,14 @@
 - **Point batches**: every award creates a batch that records its expiry date and its
   remaining points. Adjustments and clawbacks draw the batches down, so the expiry
   job cannot take the same points twice.
+- **Review round of 22 Oct 2026** (from the external review): `TRUST_PROXY` passed to
+  Fastify as `trustProxy` so the rate limiter keys on the caller behind a proxy
+  (D-095); the idempotency race path refuses a different amount (D-092); batch
+  drawdowns lock the rows they read (`FOR UPDATE`); the earn rate is bounded by a
+  CHECK (`points_rules_rate_check` at 1,000,000 thousandths, D-093); two misplaced
+  docblocks fixed; the public `/v1/openapi.json` documented in D-095.
 
-**Tests: 42 unit, 53 integration, all passing.**
+**Tests: 42 unit, 73 integration, all passing.**
 
 ## In progress
 
@@ -41,12 +47,13 @@ Nothing. The last task is finished.
 
 ## Blocked
 
-- **Providers are not chosen.** Supabase, Stripe, the email provider and the hosting
-  providers are all still open (`docs/DECISIONS.md` D-059). The award endpoint
-  authenticates through the `SessionResolver` interface, but the resolver that
-  actually verifies a Supabase token is not written yet, so the API runs on the
-  development resolver (off by default, never in production). Billing and the
-  customer app cannot be built end to end until at least Supabase and Stripe are picked.
+- **Supabase is now chosen in practice.** A project exists and its URL plus anon and
+  service-role keys live in `apps/api/.env` (git-ignored). The hosted Postgres is
+  already migrated, including the rate-bound CHECK. What is still missing: the
+  resolver that verifies Supabase tokens (`apps/api/src/auth/session.ts`) and MFA
+  for staff and admins (FR-AUTH-2). Stripe, the email provider and the hosting
+  providers are still open (`docs/DECISIONS.md` D-059). Billing and the customer
+  app cannot be built end to end until at least Stripe is picked.
 - **The offline QR design is not final.** D-022 is still `Proposed`. It is the highest
   technical risk in the MVP and needs an architecture decision before it is built.
 
@@ -58,16 +65,16 @@ In the order of `AGENT.md` section 13:
    `apps/api/src/auth/session.ts` and the award endpoint authenticates for real.
    Staff and admin accounts also need MFA (FR-AUTH-2). Needs Supabase.
 2. **The points expiry job.** See below.
-2. **Cashier screen, online flow only**, with the confirm step (build step 4).
+3. **Cashier screen, online flow only**, with the confirm step (build step 4).
    `apps/web` is a stub today.
-3. **Customer app**: sign-up, QR, per-store balances and history, expiry notices
+4. **Customer app**: sign-up, QR, per-store balances and history, expiry notices
    (build step 5). `apps/customer` is a stub today.
-4. **Pending customers, manual adjustments in the UI, fraud clawback, audit log**
+5. **Pending customers, manual adjustments in the UI, fraud clawback, audit log**
    (build step 6). The ledger side of adjustments and clawbacks already works.
-5. **Billing with Stripe** and the failed-payment states (build step 7).
-6. **Offline awarding**: signed QR, device verification, encrypted queue, sync and
+6. **Billing with Stripe** and the failed-payment states (build step 7).
+7. **Offline awarding**: signed QR, device verification, encrypted queue, sync and
    rejections (build step 8). Highest risk, so prototype the QR and sync early.
-7. **Reports, hardening, accessibility pass, store submissions** (build step 9).
+8. **Reports, hardening, accessibility pass, store submissions** (build step 9).
 
 ### The next concrete task
 

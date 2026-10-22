@@ -32,6 +32,9 @@ const app = await buildApp({
   rateLimit: { max: env.RATE_LIMIT_MAX, timeWindow: '1 minute' },
   // The interactive documentation is not served in production.
   enableDocs: env.NODE_ENV !== 'production',
+  // Behind the load balancer the rate limiter must key on the caller, not
+  // on the proxy (D-095).
+  trustProxy: env.TRUST_PROXY,
 });
 
 app.addHook('onClose', async () => {

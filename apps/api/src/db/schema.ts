@@ -184,6 +184,11 @@ export const pointsRules = pgTable(
       .references(() => stores.id),
     // FR-STO-5: a rule change applies to future purchases only.
     ruleVersion: integer('rule_version').notNull(),
+    // D-093: bounded at 1,000,000 thousandths (1,000 points per euro, both
+    // ints far beyond any real loyalty scheme) so that on the largest
+    // purchase the API accepts (€1,000,000) the multiplication stays
+    // exactly representable and the award stays inside the int4 points
+    // column for any rate the CHECK allows.
     pointsPerEuroThousandths: integer('points_per_euro_thousandths').notNull(),
     minPurchaseCents: integer('min_purchase_cents'),
     maxPointsPerTransaction: integer('max_points_per_transaction'),
@@ -193,8 +198,14 @@ export const pointsRules = pgTable(
   },
   (t) => [
     uniqueIndex('points_rules_store_version_unique').on(t.storeId, t.ruleVersion),
-    check('points_rules_rate_check', sql`${t.pointsPerEuroThousandths} > 0`),
-    check('points_rules_min_purchase_check', sql`${t.minPurchaseCents} is null or ${t.minPurchaseCents} >= 0`),
+    check(
+      'points_rules_rate_check',
+      sql`${t.pointsPerEuroThousandths} > 0 and ${t.pointsPerEuroThousandths} <= 1000000`,
+    ),
+    check(
+      'points_rules_min_purchase_check',
+      sql`${t.minPurchaseCents} is null or ${t.minPurchaseCents} >= 0`,
+    ),
     check(
       'points_rules_max_points_check',
       sql`${t.maxPointsPerTransaction} is null or ${t.maxPointsPerTransaction} >= 0`,
@@ -373,5 +384,8 @@ export const auditLogEntries = pgTable(
     reason: text('reason'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('audit_log_entries_store_idx').on(t.storeId), index('audit_log_entries_created_idx').on(t.createdAt)],
+  (t) => [
+    index('audit_log_entries_store_idx').on(t.storeId),
+    index('audit_log_entries_created_idx').on(t.createdAt),
+  ],
 );
