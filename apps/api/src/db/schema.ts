@@ -29,6 +29,12 @@ export const customers = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     email: text('email').notNull(),
+    /**
+     * The Supabase user behind this customer (D-111), the same link
+     * `staff_users.auth_user_id` provides for staff. Null until the customer
+     * signs in for the first time.
+     */
+    authUserId: uuid('auth_user_id'),
     name: text('name').notNull(),
     phone: text('phone'),
     emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
@@ -41,6 +47,7 @@ export const customers = pgTable(
     // FR-AUTH-3: email is unique per customer. Compared case-insensitively,
     // because A@shop.com and a@shop.com are the same person.
     uniqueIndex('customers_email_unique').on(sql`lower(${t.email})`),
+    uniqueIndex('customers_auth_user_unique').on(t.authUserId),
     check('customers_status_check', sql`${t.status} in ('active', 'deleted')`),
   ],
 ).enableRLS();
