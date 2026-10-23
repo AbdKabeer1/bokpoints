@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { getMe, type Me } from './src/lib/api';
 import { hasConfig, onAuthChange, signOut, supabase } from './src/lib/session';
 import { colors } from './src/lib/theme';
 import { Home } from './src/screens/Home';
 import { Onboarding } from './src/screens/Onboarding';
 import { SignIn } from './src/screens/SignIn';
+import { Splash } from './src/screens/Splash';
 
 type Phase =
   | { kind: 'loading' }
@@ -16,6 +17,11 @@ type Phase =
 
 export function App() {
   const [phase, setPhase] = useState<Phase>({ kind: 'loading' });
+  // The intro plays once per launch. A signed-in customer still sees it, and
+  // lands straight on their QR afterwards, so the brand never flashes a
+  // half-built screen.
+  const [introDone, setIntroDone] = useState(false);
+  const handleIntroDone = useCallback(() => setIntroDone(true), []);
   const inFlight = useRef<Promise<void> | null>(null);
 
   const refresh = useCallback(async () => {
@@ -80,13 +86,13 @@ export function App() {
     );
   }
 
+  // The intro and the session check run together: whichever finishes last
+  // decides what appears, and the splash never cuts off mid-animation.
+  if (!introDone || phase.kind === 'loading') {
+    return <Splash onDone={handleIntroDone} />;
+  }
+
   switch (phase.kind) {
-    case 'loading':
-      return (
-        <View style={styles.centered}>
-          <ActivityIndicator color={colors.gold} />
-        </View>
-      );
     case 'error':
       return (
         <View style={styles.centered}>
@@ -132,14 +138,14 @@ const styles = StyleSheet.create({
   },
   primary: {
     marginTop: 22,
-    backgroundColor: '#f5b301',
-    borderRadius: 12,
-    paddingVertical: 13,
+    backgroundColor: colors.green,
+    borderRadius: 14,
+    paddingVertical: 14,
     paddingHorizontal: 28,
   },
   primaryText: {
-    color: '#1c1400',
-    fontWeight: '800',
+    color: colors.onGreen,
+    fontWeight: '700',
     fontSize: 15,
   },
   secondary: {

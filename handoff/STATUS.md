@@ -6,6 +6,12 @@
 
 ## Done
 
+- **Customer app first impression.** A new animated splash (mark, wordmark and
+  tagline in sequence, then a fade; skipped when the OS asks for reduced motion) plays
+  while the session is checked, then hands off to a rebuilt sign-in page: white page,
+  green action, the promise, three benefits, one email field, and a focused-input
+  state. The palette is now white/green with the old names aliased, so Home,
+  Onboarding and history picked it up too.
 - **Discount, reversal, QR and device decisions (D-129 to D-135).** Recorded in
   `docs/DECISIONS.md` and applied to the PRD and FRD: points on the amount actually paid
   (D-129), the store funds its own discounts and the platform never settles (D-130), one
