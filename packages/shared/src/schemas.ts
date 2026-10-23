@@ -170,6 +170,20 @@ export const invitedStaffResponseSchema = z.object({
   status: z.string(),
 });
 
+/** Who works at the store, for the owner portal's people page. */
+export const storeStaffMemberSchema = z.object({
+  memberId: z.string().uuid(),
+  email: z.string(),
+  name: z.string(),
+  role: z.string(),
+  status: z.string(),
+  locationName: z.string().nullable(),
+});
+
+export const storeStaffResponseSchema = z.object({
+  members: z.array(storeStaffMemberSchema),
+});
+
 /**
  * Who the caller is, and the stores they work at. The Cashier screen calls
  * this before it knows which store it is selling for; a POS integration can

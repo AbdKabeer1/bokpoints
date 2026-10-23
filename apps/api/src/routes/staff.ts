@@ -5,10 +5,11 @@ import {
   invitedStaffResponseSchema,
   inviteStaffRequestSchema,
   storeIdParamsSchema,
+  storeStaffResponseSchema,
 } from '@bokpoints/shared';
 import { authorizeStoreRequest } from '../auth/authorize.js';
 import { isUniqueViolation } from '../db/errors.js';
-import { auditLogEntries, storeLocations, storeMembers } from '../db/schema.js';
+import { auditLogEntries, storeLocations, storeMembers, staffUsers } from '../db/schema.js';
 import { createStaffAccountForInvite, StaffAccountError } from '../db/staff.js';
 import type { RouteOptions } from './stores.js';
 
@@ -22,6 +23,61 @@ const bearer = (header: string | undefined): string | undefined =>
  */
 export const staffRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, options) => {
   const { db, sessionResolver, rateLimit } = options;
+
+  /** Who works here, for the owner portal's people page (WP5 read). */
+  app.get(
+    '/v1/stores/:storeId/staff',
+    {
+      config: {
+        rateLimit: rateLimit ?? { max: 60, timeWindow: '1 minute' },
+      },
+      schema: {
+        params: storeIdParamsSchema,
+        response: {
+          200: storeStaffResponseSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { storeId } = request.params;
+      const auth = await authorizeStoreRequest(db, sessionResolver, {
+        token: bearer(request.headers.authorization),
+        storeId,
+        anyOf: ['staff.manage'],
+      });
+      if (!auth.ok) {
+        return reply.code(auth.status).send({ error: auth.error });
+      }
+
+      const rows = await db
+        .select({
+          memberId: storeMembers.id,
+          email: staffUsers.email,
+          name: staffUsers.name,
+          role: storeMembers.role,
+          status: storeMembers.status,
+          locationName: storeLocations.name,
+        })
+        .from(storeMembers)
+        .innerJoin(staffUsers, eq(staffUsers.id, storeMembers.userId))
+        .leftJoin(storeLocations, eq(storeLocations.id, storeMembers.locationId))
+        .where(eq(storeMembers.storeId, storeId))
+        .orderBy(staffUsers.name);
+
+      return reply.code(200).send({
+        members: rows.map((row) => ({
+          memberId: row.memberId,
+          email: row.email ?? '',
+          name: row.name ?? '',
+          role: row.role,
+          status: row.status,
+          locationName: row.locationName ?? null,
+        })),
+      });
+    },
+  );
 
   app.post(
     '/v1/stores/:storeId/staff',

@@ -1,10 +1,20 @@
 # STATUS
 
 **Project:** BOKPOINTS, a B2B2C loyalty platform for SMEs in Finland / EU.
-**Phase:** MVP, worked through `BOKPOINTS The Way Forward.md` one work package at a time. WP0 (security) and WP1 (documents) are done; **WP2 — store-owned earning rules — is next**.
-**Last updated:** 23 Oct 2026, after WP0 and WP1 of the Way Forward. WP0 closed both security bugs: an invitation can no longer alter an existing staff account (create only for new emails, membership otherwise, refuse a Supabase id that already belongs to someone else), and provisioning requires a verified email before it creates or claims a customer row (server-side Auth Admin check, failing closed). WP1 applied the plan to the PRD, the FRD (new families FR-RUL, FR-CHK, FR-SAL and AC-12 to AC-18) and DECISIONS (D-115 to D-128). 75 unit and 195 integration tests green; the live staff data was checked and is clean.
+**Phase:** MVP, worked through `BOKPOINTS The Way Forward.md` one work package at a time. WP0, WP1 and WP2 (store-owned rules) are done. A brought the three surfaces forward before WP3: the till restyle and the owner portal are in, the customer app's first impression is in. **Next up: WP3 — sale record (D-129/131), then the rotating QR (D-133).**
+**Last updated:** 23 Oct 2026, after Build 14 (owner portal). Build 13 closed WP2: versioned store-owned rules with supersede-on-edit, pause/resume that really stops awarding, an `every_nth_visit` rule type counted in the ledger, and a simulate endpoint. Build 14 put the first owner UI on top of it (`apps/owner`, D-137). 87 unit and 211 integration tests green. Migrations 0007-0010 are applied locally and still waiting on your word for the hosted database.
 
 ## Done
+
+- **Build 14 — the owner portal (`apps/owner`, "Poket Merchant Platform", :5174).**
+  Sign-in and TOTP identical to the till, four sections. **Rules** is the point-calculation
+  control: see every current rule in one line each, create one of the four types, change a
+  rule by saving the next version (history stays append-only), pause/resume, and **Try it**
+  simulates the draft before it is saved. **Customers**: search, register without the app,
+  manual adjustments with an audit reason. **People**: the new `GET /v1/stores/:storeId/staff`
+  (invitations not wired yet - they wait on the invite-provider decision D-113). **Audit**:
+  the store log with before/after JSON. New shared schemas: `storeStaffMemberSchema`,
+  `storeStaffResponseSchema`.
 
 - **Customer app first impression.** A new animated splash (mark, wordmark and
   tagline in sequence, then a fade; skipped when the OS asks for reduced motion) plays

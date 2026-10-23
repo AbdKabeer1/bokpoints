@@ -1,0 +1,533 @@
+/*
+ * Poket Merchant Platform — owner portal.
+ * Same design language as the till: white surfaces, dark green actions,
+ * near-black bar, mint hairlines.
+ */
+
+:root {
+  --bg: #f4f8f6;
+  --surface: #ffffff;
+  --ink: #0f1512;
+  --ink-soft: #33413a;
+  --muted: #5f6f66;
+  --line: #e3ebe6;
+  --line-strong: #d4ded8;
+  --green: #0b7a4b;
+  --green-deep: #075c38;
+  --green-soft: #e8f4ee;
+  --gold: #b98a1b;
+  --danger: #b42318;
+  --danger-soft: #f6d5d1;
+  --bar: #0f1512;
+  --radius: 12px;
+  --shadow: 0 1px 2px rgb(15 21 18 / 6%), 0 8px 24px rgb(15 21 18 / 6%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family:
+    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0 0 12px;
+  line-height: 1.3;
+}
+
+h1 {
+  font-size: 22px;
+}
+
+h2 {
+  font-size: 19px;
+}
+
+h3 {
+  font-size: 16px;
+}
+
+p {
+  margin: 0 0 10px;
+}
+
+code {
+  font-family: 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+  font-size: 0.92em;
+}
+
+/* ── Brand ─────────────────────────────────────────────────────────────── */
+
+.brand {
+  margin: 0 0 18px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.brand-word {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.brand-word::after {
+  content: '.';
+  color: var(--green);
+}
+
+.brand-tag {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ── Centered cards (sign-in, MFA, store pick) ─────────────────────────── */
+
+.centered {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+}
+
+.narrow {
+  width: min(420px, 100%);
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 22px;
+}
+
+.choices {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.choice {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  background: var(--green-soft);
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  color: var(--green-deep);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.choice:hover {
+  border-color: var(--green);
+}
+
+.secret,
+.uri {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 15px;
+  background: var(--green-soft);
+  border: 1px dashed var(--line-strong);
+  border-radius: 8px;
+  padding: 10px 12px;
+  word-break: break-all;
+}
+
+.uri {
+  font-size: 12px;
+}
+
+/* ── Forms ─────────────────────────────────────────────────────────────── */
+
+label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  margin: 12px 0 4px;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: 2px solid var(--green);
+  outline-offset: 1px;
+  border-color: var(--green);
+}
+
+button {
+  font: inherit;
+  font-weight: 600;
+  border-radius: 10px;
+  padding: 10px 16px;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.primary {
+  background: var(--green);
+  color: #ffffff;
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--green-deep);
+}
+
+.ghost {
+  background: transparent;
+  color: var(--green-deep);
+  border-color: var(--line-strong);
+}
+
+.ghost:hover:not(:disabled) {
+  border-color: var(--green);
+  background: var(--green-soft);
+}
+
+.ghost.danger {
+  color: var(--danger);
+}
+
+.ghost.danger:hover:not(:disabled) {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.small {
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.error {
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 10px 0;
+  font-weight: 500;
+}
+
+.oknote {
+  color: var(--green-deep);
+  background: var(--green-soft);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 10px 0;
+  font-weight: 500;
+}
+
+.emptynote {
+  color: var(--muted);
+  border: 1px dashed var(--line-strong);
+  border-radius: 10px;
+  padding: 16px;
+  text-align: center;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.small {
+  font-size: 13px;
+}
+
+/* ── Portal shell ──────────────────────────────────────────────────────── */
+
+.portal {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  background: var(--bar);
+  color: #ffffff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 24px;
+}
+
+.topbar .brand-word {
+  color: #ffffff;
+  font-size: 20px;
+}
+
+.topbar .brand-tag {
+  color: #9fb3a9;
+}
+
+.topbar .store {
+  margin: 0;
+  font-weight: 600;
+  color: #d9e6df;
+  font-size: 14px;
+}
+
+.who {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.who .muted {
+  color: #9fb3a9;
+  font-size: 13px;
+}
+
+.topbar .ghost {
+  color: #ffffff;
+  border-color: #3a463f;
+}
+
+.topbar .ghost:hover:not(:disabled) {
+  border-color: #6f8a7c;
+  background: #1a241f;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  padding: 6px 24px 0;
+}
+
+.tab {
+  background: transparent;
+  color: var(--muted);
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 8px 8px 0 0;
+  padding: 10px 14px;
+}
+
+.tab:hover {
+  color: var(--ink);
+}
+
+.tab.active {
+  color: var(--green-deep);
+  border-bottom-color: var(--green);
+}
+
+.workspace {
+  padding: 24px;
+  max-width: 1040px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.sectionhead {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+/* ── Rules ─────────────────────────────────────────────────────────────── */
+
+.stack {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.rulecard {
+  padding: 18px 20px;
+}
+
+.rulemain {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.ruletext {
+  font-size: 17px;
+  font-weight: 600;
+  margin: 6px 0 2px;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.chip {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+
+.chip.active {
+  background: var(--green-soft);
+  color: var(--green-deep);
+}
+
+.chip.paused,
+.chip.pending {
+  background: #f3efe4;
+  color: var(--gold);
+}
+
+.editor {
+  margin-bottom: 18px;
+}
+
+.tryrow {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-top: 12px;
+}
+
+.tryfield {
+  flex: 1;
+}
+
+.tryfield.grow {
+  flex: 2;
+}
+
+.history {
+  margin-top: 20px;
+}
+
+/* ── Tables ────────────────────────────────────────────────────────────── */
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+
+.table th {
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: #fbfdfc;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.formrow td {
+  background: #fbfdfc;
+}
+
+.inlineform {
+  width: 100%;
+}
+
+.searchrow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.searchrow input {
+  max-width: 320px;
+}
+
+.searchrow select {
+  max-width: 170px;
+  width: auto;
+}
+
+.searchrow label {
+  margin: 0;
+  white-space: nowrap;
+}
+
+.actioncode {
+  background: var(--green-soft);
+  color: var(--green-deep);
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 12px;
+}
+
+.detail {
+  margin: 8px 0 0;
+  font-size: 12px;
+  max-height: 240px;
+  overflow: auto;
+  background: #fbfdfc;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+details summary {
+  cursor: pointer;
+  color: var(--green-deep);
+  font-weight: 600;
+}

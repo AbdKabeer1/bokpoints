@@ -1,0 +1,170 @@
+import { useCallback, useEffect, useState } from 'react';
+import { ApiError, getMe, type Membership, type Me } from './api';
+import { assuranceLevel, onAuthChange, signOut, supabase } from './auth';
+import { Login } from './Login';
+import { Mfa } from './Mfa';
+import { StorePicker } from './StorePicker';
+import { RulesScreen } from './screens/Rules';
+import { CustomersScreen } from './screens/Customers';
+import { PeopleScreen } from './screens/People';
+import { AuditScreen } from './screens/AuditScreen';
+
+type Phase =
+  | { kind: 'loading' }
+  | { kind: 'signed-out' }
+  | { kind: 'needs-code'; email: string }
+  | { kind: 'ready'; token: string; me: Me }
+  | { kind: 'unreachable'; message: string };
+
+type Tab = 'rules' | 'customers' | 'people' | 'audit';
+
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'rules', label: 'Rules' },
+  { id: 'customers', label: 'Customers' },
+  { id: 'people', label: 'People' },
+  { id: 'audit', label: 'Audit' },
+];
+
+export function App() {
+  const [phase, setPhase] = useState<Phase>({ kind: 'loading' });
+  const [chosenStoreId, setChosenStoreId] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>('rules');
+
+  const refresh = useCallback(async () => {
+    const { data } = await supabase.auth.getSession();
+    const session = data.session;
+    if (session === null) {
+      setPhase({ kind: 'signed-out' });
+      return;
+    }
+
+    if ((await assuranceLevel()) !== 'aal2') {
+      setPhase({ kind: 'needs-code', email: session.user.email ?? '' });
+      return;
+    }
+
+    try {
+      const me = await getMe(session.access_token);
+      setPhase({ kind: 'ready', token: session.access_token, me });
+    } catch (caught) {
+      if (caught instanceof ApiError && (caught.status === 401 || caught.code === 'MFA_REQUIRED')) {
+        setPhase({ kind: 'signed-out' });
+      } else {
+        setPhase({
+          kind: 'unreachable',
+          message: caught instanceof Error ? caught.message : 'The API is not reachable.',
+        });
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+    return onAuthChange(() => void refresh());
+  }, [refresh]);
+
+  const handleSignOut = useCallback(async () => {
+    await signOut();
+    setChosenStoreId(null);
+    setPhase({ kind: 'signed-out' });
+  }, []);
+
+  switch (phase.kind) {
+    case 'loading':
+      return (
+        <main className="centered">
+          <p className="brand">
+            <span className="brand-word">Poket</span>
+            <span className="brand-tag">Merchant Platform</span>
+          </p>
+          <p className="muted">Starting…</p>
+        </main>
+      );
+    case 'unreachable':
+      return (
+        <main className="centered">
+          <div className="card narrow">
+            <p className="brand">
+              <span className="brand-word">Poket</span>
+              <span className="brand-tag">Merchant Platform</span>
+            </p>
+            <h1>The platform is offline</h1>
+            <p className="muted">{phase.message}</p>
+            <button className="primary" type="button" onClick={() => void refresh()}>
+              Try again
+            </button>
+          </div>
+        </main>
+      );
+    case 'signed-out':
+      return <Login onSignedIn={() => void refresh()} />;
+    case 'needs-code':
+      return (
+        <Mfa
+          email={phase.email}
+          onVerified={() => void refresh()}
+          onSignOut={() => void handleSignOut()}
+        />
+      );
+    case 'ready': {
+      const memberships = phase.me.memberships;
+      const membership: Membership | undefined =
+        memberships.find((candidate) => candidate.storeId === chosenStoreId) ??
+        (memberships.length === 1 ? memberships[0] : undefined);
+
+      if (membership === undefined) {
+        return (
+          <StorePicker
+            me={phase.me}
+            onChoose={setChosenStoreId}
+            onSignOut={() => void handleSignOut()}
+          />
+        );
+      }
+
+      return (
+        <div className="portal">
+          <header className="topbar">
+            <div>
+              <p className="brand">
+                <span className="brand-word">Poket</span>
+                <span className="brand-tag">Merchant Platform</span>
+              </p>
+              <p className="store">{membership.storeName}</p>
+            </div>
+            <div className="who">
+              <span className="muted">{phase.me.staff.email}</span>
+              <button className="ghost small" type="button" onClick={() => void handleSignOut()}>
+                Sign out
+              </button>
+            </div>
+          </header>
+
+          <nav className="tabs" aria-label="Sections">
+            {TABS.map((entry) => (
+              <button
+                key={entry.id}
+                type="button"
+                className={entry.id === tab ? 'tab active' : 'tab'}
+                onClick={() => setTab(entry.id)}
+              >
+                {entry.label}
+              </button>
+            ))}
+          </nav>
+
+          <main className="workspace">
+            {tab === 'rules' && (
+              <RulesScreen token={phase.token} storeId={membership.storeId} />
+            )}
+            {tab === 'customers' && (
+              <CustomersScreen token={phase.token} storeId={membership.storeId} />
+            )}
+            {tab === 'people' && <PeopleScreen token={phase.token} storeId={membership.storeId} />}
+            {tab === 'audit' && <AuditScreen token={phase.token} storeId={membership.storeId} />}
+          </main>
+        </div>
+      );
+    }
+  }
+}
