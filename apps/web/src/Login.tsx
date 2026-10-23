@@ -29,7 +29,7 @@ export function Login({ onSignedIn }: { onSignedIn: () => void }) {
   return (
     <main className="centered">
       <form className="card narrow" onSubmit={(event) => void handleSubmit(event)}>
-        <p className="brand">BOKPOINTS</p>
+        <p className="brand">Poket</p>
         <h1>Till sign-in</h1>
         <label htmlFor="email">Email</label>
         <input

@@ -11,7 +11,7 @@ export function StorePicker({ me, onChoose, onSignOut }: StorePickerProps) {
   return (
     <main className="centered">
       <div className="card narrow">
-        <p className="brand">BOKPOINTS</p>
+        <p className="brand">Poket</p>
         <h1>Which store?</h1>
         {me.memberships.length === 0 ? (
           <p className="muted">
