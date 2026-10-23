@@ -1,18 +1,22 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   ApiError,
   award,
   getBalance,
   identify,
   previewAward,
+  recentAwards,
   registerCustomer,
   type AwardBody,
   type AwardPreview,
   type Identified,
   type Membership,
+  type RecentAwards,
 } from './api';
-import { cashierMessage } from './errors';
+import { cashierMessage, HELP_LINE } from './errors';
 import { formatDate, isEmail, normalizeScan, parseAmountToCents } from './format';
+import { ScanCamera } from './ScanCamera';
+import { playScanOk } from './sound';
 
 interface TillProps {
   token: string;
@@ -26,6 +30,14 @@ interface AwardRecorded {
   balance: number;
   expiresAt: string | null;
 }
+
+/** Plain names for the breakdown rows a cashier reads at a glance. */
+const RULE_LABELS: Record<string, string> = {
+  per_euro: 'per euro',
+  fixed_per_purchase: 'per purchase',
+  threshold_bonus: 'threshold bonus',
+  every_nth_visit: 'every Nth visit',
+};
 
 /**
  * The till itself: scan → customer → amount → confirm → recorded.
@@ -51,6 +63,10 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
   const [registerEmail, setRegisterEmail] = useState('');
   const [registerName, setRegisterName] = useState('');
   const [registerError, setRegisterError] = useState<string | null>(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [recent, setRecent] = useState<RecentAwards['entries'] | null>(null);
+  const [flashOk, setFlashOk] = useState(false);
+  const [idleWarn, setIdleWarn] = useState(false);
 
   const scanRef = useRef<HTMLInputElement>(null);
   const amountRef = useRef<HTMLInputElement>(null);
@@ -107,23 +123,78 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
     };
   }, [amount, customer, token, membership.storeId, effectiveLocationId]);
 
-  const handleScan = async (event: FormEvent) => {
-    event.preventDefault();
-    const code = normalizeScan(scanValue);
-    if (code === '') return;
+  /** What this till last recorded (FR-STO-9). A failure just shows nothing. */
+  const loadRecent = useCallback(async () => {
+    try {
+      setRecent((await recentAwards(token, membership.storeId)).entries);
+    } catch {
+      setRecent(null);
+    }
+  }, [token, membership.storeId]);
+
+  useEffect(() => {
+    void loadRecent();
+  }, [loadRecent]);
+
+  // Idle sign-out: a shared till must not stay open at the counter. The
+  // last minute shows a warning; any touch, key or tap resets the clock.
+  useEffect(() => {
+    const LIMIT_MS = 15 * 60 * 1000;
+    const WARN_MS = LIMIT_MS - 60 * 1000;
+    let last = Date.now();
+    const touch = () => {
+      last = Date.now();
+      setIdleWarn(false);
+    };
+    const events = ['pointerdown', 'keydown', 'touchstart'] as const;
+    for (const name of events) window.addEventListener(name, touch, { passive: true });
+    const timer = window.setInterval(() => {
+      const idle = Date.now() - last;
+      if (idle >= LIMIT_MS) onSignOut();
+      else setIdleWarn(idle >= WARN_MS);
+    }, 5000);
+    return () => {
+      for (const name of events) window.removeEventListener(name, touch);
+      window.clearInterval(timer);
+    };
+  }, [onSignOut]);
+
+  /**
+   * One identify path for both ways of reading a code — the scanner that
+   * types, and the camera. Success beeps, shows the customer and flashes
+   * the card; failure says why and returns focus to the scan field.
+   */
+  const runIdentify = async (code: string): Promise<boolean> => {
+    if (code === '') return false;
 
     setBusy(true);
     setError(null);
     try {
       setCustomer(await identify(token, membership.storeId, code));
       setScanValue('');
+      playScanOk();
+      setFlashOk(true);
+      window.setTimeout(() => setFlashOk(false), 900);
+      return true;
     } catch (caught) {
       setError(caught instanceof ApiError ? cashierMessage(caught.code) : 'The API is not answering.');
       setScanValue('');
       scanRef.current?.focus();
+      return false;
     } finally {
       setBusy(false);
     }
+  };
+
+  const handleScan = async (event: FormEvent) => {
+    event.preventDefault();
+    await runIdentify(normalizeScan(scanValue));
+  };
+
+  /** A camera read: keep the camera open on a miss so they can try again. */
+  const handleCameraRead = async (text: string) => {
+    const ok = await runIdentify(normalizeScan(text));
+    if (ok) setCameraOpen(false);
   };
 
   const handleConfirm = async () => {
@@ -141,6 +212,7 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
         balance: balance.balance,
         expiresAt: preview?.expiresAt ?? null,
       });
+      void loadRecent();
     } catch (caught) {
       setError(caught instanceof ApiError ? cashierMessage(caught.code) : 'Could not record the award.');
     } finally {
@@ -207,6 +279,11 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
 
   return (
     <main className="till">
+      {idleWarn && (
+        <p className="idlewarn" role="status">
+          Signing out in a minute — touch the screen to stay signed in.
+        </p>
+      )}
       <header className="topbar">
         <div>
           <p className="brand"><span className="brand-word">Poket</span><span className="brand-tag">Store Portal</span></p>
@@ -239,7 +316,7 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
         })}
       </nav>
 
-      <section className="card tillcard">
+      <section className={flashOk ? 'card tillcard flash-ok' : 'card tillcard'}>
         {recorded !== null ? (
           <div className="result">
             <div className="resultmark" aria-hidden="true">✓</div>
@@ -304,6 +381,7 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
               </div>
             </form>
           ) : (
+            <>
             <form className="scan" onSubmit={(event) => void handleScan(event)}>
               <p className="eyebrow">Scan member code</p>
               <input
@@ -332,8 +410,42 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
               >
                 Customer without the app
               </button>
+              <button
+                className="ghost"
+                type="button"
+                onClick={() => {
+                  setError(null);
+                  setCameraOpen(true);
+                }}
+                disabled={busy}
+              >
+                Scan with camera
+              </button>
             </form>
+            {recent !== null && recent.length > 0 && (
+              <div className="recent">
+                <p className="eyebrow">Latest at this till</p>
+                {recent.map((entry) => (
+                  <p className="recentline" key={entry.entryId}>
+                    <span className="recenttime">
+                      {new Date(entry.createdAt).toLocaleTimeString('en-GB', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
+                    <span className="recentname">{entry.customerName}</span>
+                    <span className="recentpoints">+{entry.points}</span>
+                  </p>
+                ))}
+              </div>
+            )}
+            </>
           )
+        ) : cameraOpen ? (
+          <ScanCamera
+            onRead={(text) => void handleCameraRead(text)}
+            onClose={() => setCameraOpen(false)}
+          />
         ) : (
           <div className="customer">
             <p className="eyebrow">Customer</p>
@@ -384,6 +496,17 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
                   {preview.locationName === null ? '' : ` · at ${preview.locationName}`}
                   {preview.expiresAt === null ? '' : ` · expires ${formatDate(preview.expiresAt)}`}
                 </p>
+                {preview.breakdown !== undefined && preview.breakdown.length > 0 && (
+                  <ul className="breakdown" aria-label="Which rules gave the points">
+                    {preview.breakdown.map((entry, index) => (
+                      <li key={`${entry.type}-${entry.version}-${index}`}>
+                        {entry.applied
+                          ? `+${entry.points} pts · ${RULE_LABELS[entry.type] ?? entry.type} (v${entry.version})`
+                          : `no pts · ${RULE_LABELS[entry.type] ?? entry.type} — ${cashierMessage(entry.reason ?? 'condition_not_met')}`}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             ) : (
               <p className={previewError !== null ? 'preview error' : 'preview'}>{previewLine()}</p>
@@ -406,6 +529,7 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
         )}
 
         {error !== null && <p className="error">{error}</p>}
+        <p className="helpline muted small">{HELP_LINE}</p>
       </section>
     </main>
   );

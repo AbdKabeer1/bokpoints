@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import type { z } from 'zod';
 import type { earningRuleDefinitionSchema } from '@bokpoints/shared';
 import {
@@ -17,6 +17,8 @@ import {
   earningRulesResponseSchema,
   identifyRequestSchema,
   identifyResponseSchema,
+  recentAwardsQuerySchema,
+  recentAwardsResponseSchema,
   idempotencyKeyHeaderSchema,
   ruleSimulateRequestSchema,
   ruleSimulateResponseSchema,
@@ -29,7 +31,14 @@ import { authorizeStoreRequest } from '../auth/authorize.js';
 import type { SessionResolver } from '../auth/session.js';
 import type { Database } from '../db/client.js';
 import { getBalance, LedgerError, previewEarn, recordEarn } from '../db/ledger.js';
-import { auditLogEntries, credentials, customers, earningRules, stores } from '../db/schema.js';
+import {
+  auditLogEntries,
+  credentials,
+  customers,
+  earningRules,
+  pointsLedgerEntries,
+  stores,
+} from '../db/schema.js';
 import {
   conditionsFromDefinition,
   currentProgramFor,
@@ -348,6 +357,73 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
   );
 
   /** The customer's balance at this store. Never another store's balance. */
+  /**
+   * The till's own recent awards (FR-STO-9): what this cashier last
+   * recorded at this store, newest first, so the queue can be checked at
+   * a glance. Cashiers see their own; the store owner sees the same
+   * history through the audit log.
+   */
+  app.get(
+    '/v1/stores/:storeId/awards/recent',
+    {
+      config: {
+        rateLimit: rateLimit ?? { max: 120, timeWindow: '1 minute' },
+      },
+      schema: {
+        params: storeIdParamsSchema,
+        querystring: recentAwardsQuerySchema,
+        response: {
+          200: recentAwardsResponseSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { storeId } = request.params;
+      const auth = await authorizeStoreRequest(db, sessionResolver, {
+        token: bearer(request.headers.authorization),
+        storeId,
+        anyOf: ['points.award'],
+      });
+      if (!auth.ok) {
+        return reply.code(auth.status).send({ error: auth.error });
+      }
+
+      const rows = await db
+        .select({
+          entryId: pointsLedgerEntries.id,
+          customerName: customers.name,
+          points: pointsLedgerEntries.points,
+          amountCents: pointsLedgerEntries.amountCents,
+          breakdown: pointsLedgerEntries.rulesApplied,
+          createdAt: pointsLedgerEntries.createdAt,
+        })
+        .from(pointsLedgerEntries)
+        .innerJoin(customers, eq(customers.id, pointsLedgerEntries.customerId))
+        .where(
+          and(
+            eq(pointsLedgerEntries.storeId, storeId),
+            eq(pointsLedgerEntries.staffId, auth.staffUserId),
+            eq(pointsLedgerEntries.type, 'earn'),
+          ),
+        )
+        .orderBy(desc(pointsLedgerEntries.createdAt))
+        .limit(request.query.limit);
+
+      return reply.code(200).send({
+        entries: rows.map((row) => ({
+          entryId: row.entryId,
+          customerName: row.customerName,
+          points: row.points,
+          amountCents: row.amountCents,
+          breakdown: Array.isArray(row.breakdown) ? row.breakdown : null,
+          createdAt: row.createdAt.toISOString(),
+        })),
+      });
+    },
+  );
+
   app.get(
     '/v1/stores/:storeId/customers/:customerId/balance',
     {

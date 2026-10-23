@@ -5,6 +5,7 @@ import {
   balanceResponseSchema,
   identifyResponseSchema,
   meResponseSchema,
+  recentAwardsResponseSchema,
   registeredCustomerSchema,
 } from '@bokpoints/shared';
 
@@ -133,8 +134,18 @@ export const getBalance = (token: string, storeId: string, customerId: string) =
     token,
   });
 
+/** The till's own recent awards (FR-STO-9), newest first. */
+export const recentAwards = (token: string, storeId: string) =>
+  request(recentAwardsResponseSchema, {
+    method: 'GET',
+    path: `/v1/stores/${storeId}/awards/recent`,
+    token,
+  });
+
 export type Me = Awaited<ReturnType<typeof getMe>>;
 export type Membership = Me['memberships'][number];
 export type Identified = Awaited<ReturnType<typeof identify>>;
 export type AwardPreview = Awaited<ReturnType<typeof previewAward>>;
+export type RecentAwards = Awaited<ReturnType<typeof recentAwards>>;
+export type RecentAwardEntry = RecentAwards['entries'][number];
 export type RegisteredCustomer = Awaited<ReturnType<typeof registerCustomer>>;

@@ -538,3 +538,99 @@ select:focus {
     font-size: 1.2rem;
   }
 }
+
+/* ── Build 15: scan feedback, camera, recent awards, idle warning ──────── */
+
+.idlewarn {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  margin: 0;
+  padding: 10px 16px;
+  text-align: center;
+  font-weight: 600;
+  color: #7a5c00;
+  background: #fdf3d8;
+  border-bottom: 1px solid #e8d49a;
+}
+
+.tillcard.flash-ok {
+  animation: scanflash 900ms ease-out;
+}
+
+@keyframes scanflash {
+  0% {
+    box-shadow: 0 0 0 3px var(--green);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+.cam {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.camzone {
+  width: min(320px, 100%);
+  min-height: 240px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #0f1512;
+  border: 1px solid var(--line-strong);
+}
+
+.breakdown {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  text-align: left;
+  font-size: 0.85rem;
+  background: var(--green-soft);
+  border-radius: 8px;
+  color: var(--green-dark);
+}
+
+.breakdown li {
+  padding: 2px 0;
+}
+
+.recent {
+  margin-top: 18px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line-strong);
+  text-align: left;
+}
+
+.recentline {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  margin: 2px 0;
+}
+
+.recenttime {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+}
+
+.recentname {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recentpoints {
+  font-weight: 700;
+  color: var(--green-dark);
+}
+
+.helpline {
+  margin-top: 14px;
+  text-align: center;
+}

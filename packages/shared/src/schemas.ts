@@ -63,6 +63,28 @@ export const awardResponseSchema = z.object({
   breakdown: z.array(pointsBreakdownEntrySchema).optional(),
 });
 
+/**
+ * The till's "recent awards" list (FR-STO-9): the calling cashier's own
+ * latest earn entries at this store, newest first.
+ */
+export const recentAwardsQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(50).default(10),
+});
+
+export const recentAwardEntrySchema = z.object({
+  entryId: z.string().uuid(),
+  customerName: z.string(),
+  points: z.number().int(),
+  amountCents: z.number().int().nullable(),
+  /** The rules that produced it, exactly as the ledger froze them. */
+  breakdown: z.array(pointsBreakdownEntrySchema).nullable(),
+  createdAt: z.string(),
+});
+
+export const recentAwardsResponseSchema = z.object({
+  entries: z.array(recentAwardEntrySchema),
+});
+
 export const identifyResponseSchema = z.object({
   customerId: z.string().uuid(),
   firstName: z.string(),

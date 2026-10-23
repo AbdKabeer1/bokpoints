@@ -6,6 +6,13 @@
 
 ## Done
 
+- **Build 15 — till hardening.** The preview shows which rules gave the points; the
+  camera can scan the customer's code with beep-and-flash feedback; a "latest at this
+  till" list shows the cashier's own recent awards (new endpoint, 4 new tests); the till
+  signs out after 15 idle minutes behind a cancelable one-minute warning; every error
+  reads in plain words. Typecheck, lint, 87 unit and 215 integration tests green; the
+  vite build succeeds. Build 16 next: WP3 sale record + the payment-confirmation step.
+
 - **Build 14b — A answered the component document's three questions (23 Oct).**
   (1) Stores edit their own page in the pilot: brand image and colours plus their
   offerings — D-139; campaign editing stays v1.1 per the document. (2) Levels and
