@@ -10,7 +10,8 @@
   tagline in sequence, then a fade; skipped when the OS asks for reduced motion) plays
   while the session is checked, then hands off to a rebuilt sign-in page: white page,
   green action, the promise, three benefits, one email field, and a focused-input
-  state. The palette is now white/green with the old names aliased, so Home,
+  state; the three benefits tick in one after the other as solid green checks. The
+  palette is now white/green with the old names aliased, so Home,
   Onboarding and history picked it up too. The customer-facing name is **Poket**
   (D-136), shown as a letter-by-letter animated wordmark with a green dot; the repo,
   packages, API and till keep BOKPOINTS until a full rename is approved.

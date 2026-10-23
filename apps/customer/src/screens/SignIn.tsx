@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+  AccessibilityInfo,
   ActivityIndicator,
   Animated,
   Easing,
@@ -40,15 +41,51 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
   const [focused, setFocused] = useState<'email' | 'code' | null>(null);
 
   const enter = useRef(new Animated.Value(0)).current;
+  // One value per benefit: each green tick pops in after the page settles, so
+  // the three reasons land one after the other instead of all at once.
+  const ticks = useRef(BENEFITS.map(() => new Animated.Value(0))).current;
 
   useEffect(() => {
+    const native = Platform.OS !== 'web';
+
     Animated.timing(enter, {
       toValue: 1,
       duration: 420,
       easing: Easing.out(Easing.cubic),
-      useNativeDriver: Platform.OS !== 'web',
+      useNativeDriver: native,
     }).start();
-  }, [enter]);
+
+    let cancelled = false;
+    const reveal = (reduceMotion: boolean) => {
+      if (cancelled) return;
+      if (reduceMotion) {
+        for (const tick of ticks) tick.setValue(1);
+        return;
+      }
+      Animated.sequence([
+        Animated.delay(380),
+        Animated.stagger(
+          170,
+          ticks.map((tick) =>
+            Animated.spring(tick, {
+              toValue: 1,
+              friction: 5,
+              tension: 140,
+              useNativeDriver: native,
+            }),
+          ),
+        ),
+      ]).start();
+    };
+
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then(reveal)
+      .catch(() => reveal(false));
+
+    return () => {
+      cancelled = true;
+    };
+  }, [enter, ticks]);
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -127,12 +164,14 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
               </Text>
 
               <View style={styles.benefits}>
-                {BENEFITS.map((benefit) => (
-                  <View key={benefit} style={styles.benefitRow}>
-                    <View style={styles.tick}>
+                {ticks.map((tick, index) => (
+                  <View key={BENEFITS[index] ?? index} style={styles.benefitRow}>
+                    <Animated.View
+                      style={[styles.tick, { opacity: tick, transform: [{ scale: tick }] }]}
+                    >
                       <Text style={styles.tickText}>✓</Text>
-                    </View>
-                    <Text style={styles.benefitText}>{benefit}</Text>
+                    </Animated.View>
+                    <Text style={styles.benefitText}>{BENEFITS[index] ?? ''}</Text>
                   </View>
                 ))}
               </View>
@@ -338,17 +377,17 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   tick: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: colors.greenSoft,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.green,
     alignItems: 'center',
     justifyContent: 'center',
   },
   tickText: {
-    color: colors.green,
-    fontSize: 12,
-    fontWeight: '800',
+    color: colors.onGreen,
+    fontSize: 13,
+    fontWeight: '900',
   },
   benefitText: {
     color: colors.text,
