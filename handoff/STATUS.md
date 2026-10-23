@@ -149,7 +149,20 @@
 
 ## In progress
 
-Nothing. The last task is finished.
+**WP2 — store-owned earning rules, first slice.** The multi-rule engine is
+in and tested: `packages/shared/src/points/purchase.ts` (`calculatePurchase`)
+evaluates a basket of item lines against a set of `per_euro`,
+`fixed_per_purchase` and `threshold_bonus` rules, adds matching rules, applies
+the per-sale ceiling, and returns a per-rule breakdown. A store with one
+per-euro rule produces exactly the same points, award status, cap and reason as
+the old `calculatePoints` (proven over a range of amounts in the tests).
+
+Still to do in WP2 (next session): the `earning_rules` table and a generated
+migration that converts today's `points_rules` rows into per-euro rules, a
+store-level per-sale ceiling, wiring `recordEarn` and the award preview to the
+engine (recording the breakdown), the owner endpoints (list, create, edit,
+pause, simulate) with a `rules.manage` capability, and the admin template.
+Nothing is wired to the engine yet, so the API's behaviour is unchanged.
 
 ## Blocked
 

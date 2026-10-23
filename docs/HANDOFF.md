@@ -57,10 +57,12 @@ recorded before the next starts.
    (D-120, D-127). Live data checked.
 2. **WP1 — decisions and documents.** Done (this session): PRD, FRD, DECISIONS
    (D-115 to D-128), this file and `handoff/STATUS.md`.
-3. **WP2 — store-owned earning rules (backend).** Engine evaluates a set of rules over
-   an item-line basket; earning-rules table (converting today's `points_rules` rows to
-   per-euro rules); owner endpoints with audit; a capability for managing rules;
-   per-sale ceiling; admin creation makes the first rule an optional template.
+3. **WP2 — store-owned earning rules (backend).** *In progress:* the engine half is
+   done (`calculatePurchase` in `packages/shared/src/points/purchase.ts`, with tests).
+   Next: earning-rules table + migration converting today's `points_rules` rows to
+   per-euro rules, wiring award and preview to the engine, owner endpoints with audit, a
+   capability for managing rules, per-sale ceiling, admin creation makes the first rule an
+   optional template.
 4. **WP3 — sale record and quote-then-confirm**, with the single basket threshold
    discount. 5. **WP4 — cashier screen** (quote, payment, confirm, sound and visual on
    read). 6. **WP5 — owner screen** (rules with simulator, plus adjustments and the
