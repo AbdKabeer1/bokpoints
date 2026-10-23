@@ -40,7 +40,12 @@ const RULE_LABELS: Record<string, string> = {
 };
 
 /**
- * The till itself: scan → customer → amount → confirm → recorded.
+ * The till itself: scan → customer → amount → payment taken → recorded.
+ *
+ * The payment step is its own beat (WP3): the cashier takes the money in
+ * the store's own till or card terminal, presses "Payment taken", checks
+ * the amount actually paid, and only then records — points follow the paid
+ * amount (D-129).
  *
  * The scanner types the code and presses Enter, so the scan field is a
  * normal form input and stays focused whenever the till waits for a scan.
@@ -50,6 +55,9 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
   const [scanValue, setScanValue] = useState('');
   const [customer, setCustomer] = useState<Identified | null>(null);
   const [amount, setAmount] = useState('');
+  // WP3: null until the cashier says the payment was taken; then the
+  // editable amount actually paid, which is what the points follow (D-129).
+  const [paid, setPaid] = useState<string | null>(null);
   const [branchId, setBranchId] = useState<string | null>(
     membership.locationId ?? membership.branches[0]?.id ?? null,
   );
@@ -75,9 +83,10 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
   /** The branch this award lands on: the member's own limit, else the picked one. */
   const effectiveLocationId = membership.locationId ?? branchId;
 
-  const bodyFor = (target: Identified, cents: number): AwardBody => ({
+  const bodyFor = (target: Identified, cents: number, paidCents?: number): AwardBody => ({
     customerId: target.customerId,
     amountCents: cents,
+    ...(paidCents === undefined ? {} : { amountPaidCents: paidCents }),
     ...(effectiveLocationId === null ? {} : { locationId: effectiveLocationId }),
   });
 
@@ -97,13 +106,21 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
 
     const cents = parseAmountToCents(amount);
     if (cents === null) return;
+    // In the payment step the quote follows what will be paid (D-129); a
+    // half-typed paid amount just waits, like a half-typed charge does.
+    const paidCents = paid === null ? cents : parseAmountToCents(paid);
+    if (paidCents === null) return;
 
     let cancelled = false;
     setPreviewLoading(true);
     const timer = window.setTimeout(() => {
       void (async () => {
         try {
-          const result = await previewAward(token, membership.storeId, bodyFor(customer, cents));
+          const result = await previewAward(
+            token,
+            membership.storeId,
+            bodyFor(customer, cents, paid === null ? undefined : paidCents),
+          );
           if (!cancelled) setPreview(result);
         } catch (caught) {
           if (!cancelled) {
@@ -121,7 +138,7 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [amount, customer, token, membership.storeId, effectiveLocationId]);
+  }, [amount, paid, customer, token, membership.storeId, effectiveLocationId]);
 
   /** What this till last recorded (FR-STO-9). A failure just shows nothing. */
   const loadRecent = useCallback(async () => {
@@ -201,11 +218,17 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
     if (customer === null) return;
     const cents = parseAmountToCents(amount);
     if (cents === null) return;
+    const paidCents = paid === null ? cents : parseAmountToCents(paid);
+    if (paidCents === null) return;
 
     setBusy(true);
     setError(null);
     try {
-      const result = await award(token, membership.storeId, bodyFor(customer, cents));
+      const result = await award(
+        token,
+        membership.storeId,
+        bodyFor(customer, cents, paid === null ? undefined : paidCents),
+      );
       const balance = await getBalance(token, membership.storeId, customer.customerId);
       setRecorded({
         points: result.points,
@@ -255,6 +278,7 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
   const reset = () => {
     setCustomer(null);
     setAmount('');
+    setPaid(null);
     setPreview(null);
     setPreviewError(null);
     setRecorded(null);
@@ -263,11 +287,16 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
   };
 
   const cents = parseAmountToCents(amount);
-  const stageIndex = recorded !== null ? 4 : customer !== null ? 2 : 1;
+  const stageIndex = recorded !== null ? 4 : paid !== null ? 3 : customer !== null ? 2 : 1;
 
   const previewLine = () => {
     if (amount.trim() === '') return 'Type what the register charged.';
     if (cents === null) return 'That does not look like an amount.';
+    if (paid !== null) {
+      const paidCents = parseAmountToCents(paid);
+      if (paidCents === null) return 'That does not look like an amount.';
+      if (paidCents > cents) return 'The amount paid cannot be above the charged amount.';
+    }
     if (previewLoading) return 'Checking…';
     if (previewError !== null) return previewError;
     if (preview === null) return '';
@@ -470,21 +499,49 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
               </>
             )}
 
-            <label htmlFor="amount">Purchase amount</label>
-            <div className="money">
-              <span className="money-euro" aria-hidden="true">€</span>
-              <input
-                id="amount"
-                ref={amountRef}
-                value={amount}
-                onChange={(event) => setAmount(event.target.value)}
-                placeholder="12,50"
-                inputMode="decimal"
-                autoComplete="off"
-                autoFocus
-                aria-label="Purchase amount in euros"
-              />
-            </div>
+            {paid === null ? (
+              <>
+                <label htmlFor="amount">Purchase amount</label>
+                <div className="money">
+                  <span className="money-euro" aria-hidden="true">€</span>
+                  <input
+                    id="amount"
+                    ref={amountRef}
+                    value={amount}
+                    onChange={(event) => {
+                      setAmount(event.target.value);
+                      // Editing the charge restarts the payment step: the
+                      // confirmed paid amount would no longer belong to it.
+                      if (paid !== null) setPaid(null);
+                    }}
+                    placeholder="12,50"
+                    inputMode="decimal"
+                    autoComplete="off"
+                    autoFocus
+                    aria-label="Purchase amount in euros"
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="muted">Charged: €{amount.trim()}</p>
+                <label htmlFor="paid">Amount paid</label>
+                <div className="money">
+                  <span className="money-euro" aria-hidden="true">€</span>
+                  <input
+                    id="paid"
+                    value={paid}
+                    onChange={(event) => setPaid(event.target.value)}
+                    placeholder="12,50"
+                    inputMode="decimal"
+                    autoComplete="off"
+                    autoFocus
+                    disabled={busy}
+                    aria-label="Amount paid in euros"
+                  />
+                </div>
+              </>
+            )}
             {preview !== null && preview.awarded ? (
               <div className="earn">
                 <p className="big">
@@ -492,7 +549,7 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
                   <span className="earnunit"> pts</span>
                 </p>
                 <p className="earnsub">
-                  on €{amount.trim()}
+                  on €{(paid ?? amount).trim()}
                   {preview.locationName === null ? '' : ` · at ${preview.locationName}`}
                   {preview.expiresAt === null ? '' : ` · expires ${formatDate(preview.expiresAt)}`}
                 </p>
@@ -513,17 +570,39 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
             )}
 
             <div className="actions">
-              <button
-                className="primary"
-                type="button"
-                onClick={() => void handleConfirm()}
-                disabled={busy || preview === null || !preview.awarded}
-              >
-                {busy ? 'Recording…' : preview !== null && preview.awarded ? `Confirm +${preview.points}` : 'Confirm'}
-              </button>
-              <button className="ghost" type="button" onClick={reset} disabled={busy}>
-                Wrong customer
-              </button>
+              {paid === null ? (
+                <>
+                  <button
+                    className="primary"
+                    type="button"
+                    onClick={() => setPaid(amount)}
+                    disabled={busy || preview === null || !preview.awarded}
+                  >
+                    Payment taken
+                  </button>
+                  <button className="ghost" type="button" onClick={reset} disabled={busy}>
+                    Wrong customer
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    className="primary"
+                    type="button"
+                    onClick={() => void handleConfirm()}
+                    disabled={busy || preview === null || !preview.awarded}
+                  >
+                    {busy
+                      ? 'Recording…'
+                      : preview !== null && preview.awarded
+                        ? `Record +${preview.points} points`
+                        : 'Record points'}
+                  </button>
+                  <button className="ghost" type="button" onClick={() => setPaid(null)} disabled={busy}>
+                    Back
+                  </button>
+                </>
+              )}
             </div>
           </div>
         )}

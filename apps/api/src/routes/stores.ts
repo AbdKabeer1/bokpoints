@@ -19,6 +19,9 @@ import {
   identifyResponseSchema,
   recentAwardsQuerySchema,
   recentAwardsResponseSchema,
+  reversalRequestSchema,
+  reversalResponseSchema,
+  saleIdParamsSchema,
   idempotencyKeyHeaderSchema,
   ruleSimulateRequestSchema,
   ruleSimulateResponseSchema,
@@ -30,7 +33,7 @@ import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { authorizeStoreRequest } from '../auth/authorize.js';
 import type { SessionResolver } from '../auth/session.js';
 import type { Database } from '../db/client.js';
-import { getBalance, LedgerError, previewEarn, recordEarn } from '../db/ledger.js';
+import { getBalance, LedgerError, previewEarn, recordEarn, reverseSale } from '../db/ledger.js';
 import {
   auditLogEntries,
   credentials,
@@ -73,6 +76,8 @@ export const LEDGER_ERROR_STATUS = {
   IDEMPOTENCY_KEY_REUSED: 409,
   LOCATION_REQUIRED: 400,
   LOCATION_INVALID: 400,
+  SALE_NOT_FOUND: 404,
+  SALE_ALREADY_REVERSED: 409,
 } as const satisfies Record<LedgerErrorCode, number>;
 
 /**
@@ -239,6 +244,10 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
           customerId: request.body.customerId,
           storeId,
           amountCents: request.body.amountCents,
+          ...(request.body.amountPaidCents === undefined
+            ? {}
+            : { amountPaidCents: request.body.amountPaidCents }),
+          ...(request.body.posReference === undefined ? {} : { posReference: request.body.posReference }),
           program,
           idempotencyKey,
           staffId: auth.staffUserId,
@@ -259,6 +268,7 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
       const status = result.awarded && !result.replayed ? 201 : 200;
       return reply.code(status).send({
         entryId: result.entryId,
+        saleId: result.saleId,
         points: result.points,
         awarded: result.awarded,
         ...(result.reason === undefined ? {} : { reason: result.reason }),
@@ -331,6 +341,9 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
           customerId: request.body.customerId,
           storeId,
           amountCents: request.body.amountCents,
+          ...(request.body.amountPaidCents === undefined
+            ? {}
+            : { amountPaidCents: request.body.amountPaidCents }),
           program,
           locationId,
         });
@@ -421,6 +434,66 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
           createdAt: row.createdAt.toISOString(),
         })),
       });
+    },
+  );
+
+  /**
+   * Reverses one confirmed sale (WP3, D-131): the sale's points come back
+   * off, the reversal entry names the entry it reverses, and the sale is
+   * marked reversed so the same one cannot be undone twice. Cashier-level
+   * capability — the same hands that may award may undo (D-132's device
+   * scope for reversals points the same way); every reversal is audited.
+   */
+  app.post(
+    '/v1/stores/:storeId/sales/:saleId/reversal',
+    {
+      config: {
+        rateLimit: rateLimit ?? { max: 30, timeWindow: '1 minute' },
+      },
+      schema: {
+        params: saleIdParamsSchema,
+        body: reversalRequestSchema,
+        response: {
+          200: reversalResponseSchema,
+          400: apiErrorSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+          404: apiErrorSchema,
+          409: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { storeId, saleId } = request.params;
+      const auth = await authorizeStoreRequest(db, sessionResolver, {
+        token: bearer(request.headers.authorization),
+        storeId,
+        anyOf: ['points.award'],
+      });
+      if (!auth.ok) {
+        return reply.code(auth.status).send({ error: auth.error });
+      }
+
+      try {
+        const result = await reverseSale(db, {
+          saleId,
+          storeId,
+          staffId: auth.staffUserId,
+          ...(request.body.reason === undefined ? {} : { reason: request.body.reason }),
+        });
+        return reply.code(200).send({
+          reversalEntryId: result.reversalEntryId,
+          reversedPoints: result.reversedPoints,
+          balance: result.balance,
+        });
+      } catch (error) {
+        if (error instanceof LedgerError) {
+          return reply
+            .code(LEDGER_ERROR_STATUS[error.code] ?? 400)
+            .send({ error: { code: error.code, message: error.message } });
+        }
+        throw error;
+      }
     },
   );
 

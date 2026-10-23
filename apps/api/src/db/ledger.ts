@@ -18,6 +18,7 @@ import {
   customers,
   pointsBalances,
   pointsLedgerEntries,
+  sales,
   storeLocations,
   stores,
 } from './schema.js';
@@ -32,7 +33,9 @@ export type LedgerErrorCode =
   | 'CUSTOMER_NOT_FOUND'
   | 'IDEMPOTENCY_KEY_REUSED'
   | 'LOCATION_REQUIRED'
-  | 'LOCATION_INVALID';
+  | 'LOCATION_INVALID'
+  | 'SALE_NOT_FOUND'
+  | 'SALE_ALREADY_REVERSED';
 
 /**
  * The store states in which awarding is allowed. A paused store still
@@ -120,7 +123,12 @@ async function nextVisitNumber(
 export interface RecordEarnInput {
   customerId: string;
   storeId: string;
+  /** What the register charged, before any discount. */
   amountCents: number;
+  /** What the customer actually paid (D-129); points follow this. */
+  amountPaidCents?: number;
+  /** The store's own till receipt reference, when it has one. */
+  posReference?: string;
   /** The legacy single per-euro rule; WP3 removes it once every caller uses a program. */
   rule?: PointsRule;
   ruleVersion?: number;
@@ -143,6 +151,9 @@ export interface RecordEarnInput {
 export interface RecordEarnResult {
   /** null when nothing was awarded, for example below the minimum purchase. */
   entryId: string | null;
+  /** The sale recorded by this confirm (WP3). Null only on a replay of a
+   * pre-WP3 entry that has no sale. */
+  saleId: string | null;
   points: number;
   awarded: boolean;
   reason?: PointsRejectionReason | undefined;
@@ -203,6 +214,17 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
   if (input.idempotencyKey.trim().length === 0) {
     throw new LedgerError('INVALID_AMOUNT', 'An award requires an idempotency key');
   }
+  // WP3, D-129: points follow the amount actually paid. Overpaying is not
+  // a thing at a till, so the paid amount never exceeds the charge; that
+  // invariant also keeps `before - discount = paid` true when the basket
+  // discount arrives (D-115).
+  const paidCents = input.amountPaidCents ?? input.amountCents;
+  if (!Number.isInteger(paidCents) || paidCents < 0 || paidCents > input.amountCents) {
+    throw new LedgerError(
+      'INVALID_AMOUNT',
+      'The amount paid must be between zero and the charged amount',
+    );
+  }
 
   try {
     return await db.transaction(async (tx) => {
@@ -233,6 +255,7 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
           id: pointsLedgerEntries.id,
           points: pointsLedgerEntries.points,
           amountCents: pointsLedgerEntries.amountCents,
+          saleId: pointsLedgerEntries.saleId,
         })
         .from(pointsLedgerEntries)
         .where(
@@ -256,6 +279,7 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
         }
         return {
           entryId: found.id,
+          saleId: found.saleId,
           points: found.points,
           awarded: found.points > 0,
           replayed: true,
@@ -286,6 +310,8 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
 
       const calculation = calculateAward({
         ...input,
+        // D-129: the engine prices what was paid, not what was charged.
+        amountCents: paidCents,
         ...(programCountsVisits(input.program)
           ? { visitNumber: await nextVisitNumber(tx, input.customerId, input.storeId) }
           : {}),
@@ -293,6 +319,28 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
       const ruleVersion = ruleVersionFor(input);
 
       const scannedAt = input.scannedAt ?? new Date();
+
+      // WP3: every confirm records the sale, even one that awarded nothing —
+      // the payment happened, and the sale history is the store's record of
+      // trade. The discount stays zero until the basket discount ships
+      // behind the rotating-QR gate (D-115, D-133).
+      const saleRows = await tx
+        .insert(sales)
+        .values({
+          storeId: input.storeId,
+          locationId,
+          customerId: input.customerId,
+          staffId: input.staffId,
+          deviceId: input.deviceId,
+          amountBeforeDiscountCents: input.amountCents,
+          discountCents: 0,
+          amountPaidCents: paidCents,
+          rulesApplied: calculation.breakdown ?? null,
+          posReference: input.posReference ?? null,
+          idempotencyKey: input.idempotencyKey,
+        })
+        .returning({ id: sales.id });
+      const saleId = saleRows[0]?.id ?? null;
 
       // FR-PTS-2: below the minimum purchase, award zero points and tell the
       // cashier why. A zero-value purchase is the same: nothing is written
@@ -312,6 +360,7 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
               type: 'earn',
               points: 0,
               amountCents: input.amountCents,
+              saleId,
               ruleVersion,
               rulesApplied: calculation.breakdown ?? null,
               reason: calculation.reason,
@@ -341,6 +390,7 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
 
           return {
             entryId: visitRow.id,
+            saleId,
             points: 0,
             awarded: false,
             reason: calculation.reason,
@@ -350,6 +400,7 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
 
         return {
           entryId: null,
+          saleId,
           points: 0,
           awarded: false,
           reason: calculation.reason,
@@ -367,6 +418,7 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
           type: 'earn',
           points: calculation.points,
           amountCents: input.amountCents,
+          saleId,
           expiresAt,
           ruleVersion,
           rulesApplied: calculation.breakdown ?? null,
@@ -402,11 +454,17 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
         storeId: input.storeId,
         targetType: 'customer',
         targetId: input.customerId,
-        after: { points: calculation.points, amountCents: input.amountCents },
+        after: {
+          points: calculation.points,
+          amountCents: input.amountCents,
+          amountPaidCents: paidCents,
+          saleId,
+        },
       });
 
       return {
         entryId: inserted[0]?.id ?? null,
+        saleId,
         points: calculation.points,
         awarded: true,
         replayed: false,
@@ -425,6 +483,7 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
         id: pointsLedgerEntries.id,
         points: pointsLedgerEntries.points,
         amountCents: pointsLedgerEntries.amountCents,
+        saleId: pointsLedgerEntries.saleId,
       })
       .from(pointsLedgerEntries)
       .where(
@@ -449,7 +508,13 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
       );
     }
 
-    return { entryId: found.id, points: found.points, awarded: true, replayed: true };
+    return {
+      entryId: found.id,
+      saleId: found.saleId,
+      points: found.points,
+      awarded: true,
+      replayed: true,
+    };
   }
 }
 
@@ -458,6 +523,8 @@ export interface PreviewEarnInput {
   customerId: string;
   storeId: string;
   amountCents: number;
+  /** What the customer will actually pay (D-129); the quote prices this. */
+  amountPaidCents?: number;
   /** The legacy single per-euro rule. */
   rule?: PointsRule;
   /** The store's earning program (WP2). */
@@ -493,6 +560,15 @@ export async function previewEarn(
 ): Promise<PreviewEarnResult> {
   if (!Number.isInteger(input.amountCents) || input.amountCents < 0) {
     throw new LedgerError('INVALID_AMOUNT', 'The purchase amount must be a non-negative integer');
+  }
+  // The quote prices what will be paid (D-129), under the same invariant as
+  // the confirm: paid never exceeds the charge.
+  const paidCents = input.amountPaidCents ?? input.amountCents;
+  if (!Number.isInteger(paidCents) || paidCents < 0 || paidCents > input.amountCents) {
+    throw new LedgerError(
+      'INVALID_AMOUNT',
+      'The amount paid must be between zero and the charged amount',
+    );
   }
 
   const store = await db
@@ -539,6 +615,7 @@ export async function previewEarn(
 
   const calculation = calculateAward({
     ...input,
+    amountCents: paidCents,
     ...(programCountsVisits(input.program)
       ? { visitNumber: await nextVisitNumber(db, input.customerId, input.storeId) }
       : {}),
@@ -689,6 +766,125 @@ export async function recordFraudClawback(
     });
 
     return { entryId: inserted[0]?.id ?? null, balance: newBalance };
+  });
+}
+
+export interface ReverseSaleInput {
+  saleId: string;
+  storeId: string;
+  staffId: string;
+  reason?: string;
+}
+
+export interface ReverseSaleResult {
+  /** null when the sale had awarded nothing, so there was nothing to undo. */
+  reversalEntryId: string | null;
+  reversedPoints: number;
+  balance: number;
+}
+
+/**
+ * Reverses one confirmed sale (WP3, D-131): the points of the sale's earn
+ * entry come back off, the reversal entry names the entry it reverses, and
+ * the sale is marked reversed so it cannot happen twice.
+ *
+ * Like an adjustment, a reversal may never take the balance below zero —
+ * if the customer already spent the points, only an admin's fraud
+ * clawback may go under. Everything happens in one transaction: either
+ * the reversal entry, the balance, the batch draw-down and the sale
+ * status all land, or none of them do.
+ */
+export async function reverseSale(db: Database, input: ReverseSaleInput): Promise<ReverseSaleResult> {
+  return db.transaction(async (tx) => {
+    const saleRows = await tx
+      .select({
+        id: sales.id,
+        customerId: sales.customerId,
+        status: sales.status,
+      })
+      .from(sales)
+      .where(and(eq(sales.id, input.saleId), eq(sales.storeId, input.storeId)))
+      .limit(1);
+    const sale = saleRows[0];
+    if (!sale) {
+      throw new LedgerError('SALE_NOT_FOUND', 'That sale does not exist at this store');
+    }
+    if (sale.status === 'reversed') {
+      throw new LedgerError('SALE_ALREADY_REVERSED', 'That sale was already reversed');
+    }
+
+    const earnRows = await tx
+      .select({ id: pointsLedgerEntries.id, points: pointsLedgerEntries.points })
+      .from(pointsLedgerEntries)
+      .where(
+        and(
+          eq(pointsLedgerEntries.saleId, input.saleId),
+          eq(pointsLedgerEntries.type, 'earn'),
+          sql`${pointsLedgerEntries.points} > 0`,
+        ),
+      )
+      .limit(1);
+    const earn = earnRows[0];
+    const reason = input.reason?.trim() || 'Sale reversed at the till';
+
+    // A sale that awarded nothing (below every minimum) reverses to
+    // nothing: the status flip and the audit entry are the whole action.
+    if (!earn) {
+      await tx.update(sales).set({ status: 'reversed' }).where(eq(sales.id, input.saleId));
+      const balance = await readBalance(tx, sale.customerId, input.storeId);
+      await tx.insert(auditLogEntries).values({
+        actorId: input.staffId,
+        action: 'sale.reversal',
+        storeId: input.storeId,
+        targetType: 'sale',
+        targetId: input.saleId,
+        before: { status: 'completed', balance },
+        after: { status: 'reversed', points: 0 },
+        reason,
+      });
+      return { reversalEntryId: null, reversedPoints: 0, balance };
+    }
+
+    const points = -earn.points;
+    const balanceBefore = await readBalance(tx, sale.customerId, input.storeId);
+
+    // Removing points takes them off the batches too, so the expiry job
+    // cannot expire them later.
+    await drawDownBatches(tx, sale.customerId, input.storeId, earn.points);
+
+    const inserted = await tx
+      .insert(pointsLedgerEntries)
+      .values({
+        customerId: sale.customerId,
+        storeId: input.storeId,
+        type: 'reversal',
+        points,
+        reversalOf: earn.id,
+        saleId: input.saleId,
+        staffId: input.staffId,
+        reason,
+      })
+      .returning({ id: pointsLedgerEntries.id });
+
+    // The guarded delta refuses a reversal that would take the balance
+    // below zero; the whole transaction then rolls back and the sale
+    // stays completed.
+    const newBalance = await applyGuardedBalanceDelta(tx, sale.customerId, input.storeId, points);
+
+    await tx.update(sales).set({ status: 'reversed' }).where(eq(sales.id, input.saleId));
+
+    await tx.insert(auditLogEntries).values({
+      actorId: input.staffId,
+      action: 'sale.reversal',
+      storeId: input.storeId,
+      targetType: 'sale',
+      targetId: input.saleId,
+      before: { balance: balanceBefore },
+      after: { balance: newBalance, points },
+      reason,
+    });
+
+    return { reversalEntryId: inserted[0]?.id ?? null, reversedPoints: points, balance: newBalance };
   });
 }
 

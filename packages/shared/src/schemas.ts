@@ -28,6 +28,11 @@ export const MAX_AMOUNT_CENTS = 100_000_000;
 export const awardRequestSchema = z.object({
   customerId: z.string().uuid(),
   amountCents: z.number().int().min(0).max(MAX_AMOUNT_CENTS),
+  // WP3, D-129: what the customer actually paid. Points are calculated on
+  // this; it may never exceed the charged amount. Defaults to the charge.
+  amountPaidCents: z.number().int().min(0).max(MAX_AMOUNT_CENTS).optional(),
+  // The store's own till or POS receipt reference, when it has one (WP3).
+  posReference: z.string().trim().max(120).optional(),
   // D-103: which branch the purchase was at. Optional, because many stores
   // have none, and a member limited to one branch does not need to send it.
   locationId: z.string().uuid().optional(),
@@ -56,6 +61,8 @@ export const pointsBreakdownEntrySchema = z.object({
 
 export const awardResponseSchema = z.object({
   entryId: z.string().uuid().nullable(),
+  /** The sale this confirm recorded (WP3, D-118). */
+  saleId: z.string().uuid().nullable(),
   points: z.number().int(),
   awarded: z.boolean(),
   reason: z.string().optional(),
@@ -83,6 +90,22 @@ export const recentAwardEntrySchema = z.object({
 
 export const recentAwardsResponseSchema = z.object({
   entries: z.array(recentAwardEntrySchema),
+});
+
+/** Reversing a sale (WP3, D-131): the till undoes one confirmed award. */
+export const saleIdParamsSchema = storeIdParamsSchema.extend({
+  saleId: z.string().uuid(),
+});
+
+export const reversalRequestSchema = z.object({
+  reason: z.string().trim().max(500).optional(),
+});
+
+export const reversalResponseSchema = z.object({
+  /** null when the sale had awarded nothing, so there was nothing to undo. */
+  reversalEntryId: z.string().uuid().nullable(),
+  reversedPoints: z.number().int().max(0),
+  balance: z.number().int(),
 });
 
 export const identifyResponseSchema = z.object({

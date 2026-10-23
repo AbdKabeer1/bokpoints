@@ -325,6 +325,53 @@ export const earningRules = pgTable(
   ],
 ).enableRLS();
 
+/**
+ * The sale record (WP3, D-118): one confirmed payment at the till.
+ *
+ * Points are calculated on `amountPaidCents` — what the customer actually
+ * paid (D-129). `amountBeforeDiscountCents` keeps what the register
+ * charged, and `discountCents` is the store-granted reduction, which stays
+ * zero until the basket discount ships behind the rotating-QR gate
+ * (D-115, D-133). Every award links to its sale; a reversal links to the
+ * same one through the ledger entry's `reversal_of` (D-131).
+ */
+export const sales = pgTable(
+  'sales',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    storeId: uuid('store_id')
+      .notNull()
+      .references(() => stores.id),
+    locationId: uuid('location_id').references(() => storeLocations.id),
+    customerId: uuid('customer_id')
+      .notNull()
+      .references(() => customers.id),
+    staffId: uuid('staff_id').references(() => staffUsers.id),
+    deviceId: uuid('device_id').references(() => cashierDevices.id),
+    amountBeforeDiscountCents: integer('amount_before_discount_cents').notNull(),
+    discountCents: integer('discount_cents').notNull().default(0),
+    amountPaidCents: integer('amount_paid_cents').notNull(),
+    /** The rules that produced the points, frozen at confirm time. */
+    rulesApplied: jsonb('rules_applied'),
+    /** The store's own till or POS receipt reference, when it has one. */
+    posReference: text('pos_reference'),
+    // completed | reversed.
+    status: text('status').notNull().default('completed'),
+    /** Ties the sale to the award's idempotency key, so a replay is one sale. */
+    idempotencyKey: text('idempotency_key'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    // Same scope as the ledger's key (store, customer, request): the same
+    // key under another customer is a different request, not a duplicate.
+    uniqueIndex('sales_store_idempotency_unique')
+      .on(t.storeId, t.customerId, t.idempotencyKey)
+      .where(sql`${t.idempotencyKey} is not null`),
+    index('sales_customer_store_idx').on(t.customerId, t.storeId),
+    index('sales_created_idx').on(t.createdAt),
+  ],
+).enableRLS();
+
 export const pointsLedgerEntries = pgTable(
   'points_ledger_entries',
   {
@@ -351,6 +398,12 @@ export const pointsLedgerEntries = pgTable(
     // Which branch an award happened at (D-103). Null for a store with no
     // branches, and for entries that are not tied to a place.
     locationId: uuid('location_id'),
+    // WP3: every award belongs to a sale record (D-118). A visit-only
+    // entry links to its sale too, so the sale history stays complete.
+    saleId: uuid('sale_id').references(() => sales.id),
+    // D-131: a POS reversal points at the entry it reverses. Reversals
+    // happen once per sale; the sale's status says whether it happened.
+    reversalOf: uuid('reversal_of'),
     // FR-PTS-4: every award request carries an idempotency key.
     idempotencyKey: text('idempotency_key'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -363,8 +416,13 @@ export const pointsLedgerEntries = pgTable(
     // (FR-PTS-8, FRD 4.5).
     check(
       'points_ledger_entries_points_sign',
-      sql`(${t.type} = 'earn' and ${t.points} >= 0) or ${t.type} = 'adjust' or (${t.type} in ('redeem', 'expire', 'fraud_clawback') and ${t.points} <= 0)`,
+      sql`(${t.type} = 'earn' and ${t.points} >= 0) or ${t.type} = 'adjust' or (${t.type} in ('redeem', 'expire', 'fraud_clawback', 'reversal') and ${t.points} <= 0)`,
     ),
+    foreignKey({
+      columns: [t.reversalOf],
+      foreignColumns: [t.id],
+      name: 'points_ledger_entries_reversal_of_fk',
+    }),
     foreignKey({
       columns: [t.locationId, t.storeId],
       foreignColumns: [storeLocations.id, storeLocations.storeId],
@@ -372,7 +430,7 @@ export const pointsLedgerEntries = pgTable(
     }),
     check(
       'points_ledger_entries_type_check',
-      sql`${t.type} in ('earn', 'redeem', 'adjust', 'expire', 'fraud_clawback')`,
+      sql`${t.type} in ('earn', 'redeem', 'adjust', 'expire', 'fraud_clawback', 'reversal')`,
     ),
     // Scoped per store and per customer: a key identifies one award request.
     // A key reused for a different customer, or at a different store, is a
@@ -380,6 +438,7 @@ export const pointsLedgerEntries = pgTable(
     uniqueIndex('points_ledger_entries_idempotency_unique')
       .on(t.storeId, t.customerId, t.idempotencyKey)
       .where(sql`${t.idempotencyKey} is not null`),
+    index('points_ledger_entries_sale_idx').on(t.saleId),
     index('points_ledger_entries_customer_store_idx').on(t.customerId, t.storeId),
     index('points_ledger_entries_created_idx').on(t.createdAt),
   ],

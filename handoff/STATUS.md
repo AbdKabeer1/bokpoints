@@ -1,10 +1,22 @@
 # STATUS
 
 **Project:** BOKPOINTS, a B2B2C loyalty platform for SMEs in Finland / EU.
-**Phase:** MVP, worked through `BOKPOINTS The Way Forward.md` one work package at a time. WP0, WP1 and WP2 (store-owned rules) are done. A brought the three surfaces forward before WP3: the till restyle and the owner portal are in, the customer app's first impression is in. **Next up: WP3 — sale record (D-129/131), then the rotating QR (D-133).**
-**Last updated:** 23 Oct 2026, after Build 14 (owner portal). Build 13 closed WP2: versioned store-owned rules with supersede-on-edit, pause/resume that really stops awarding, an `every_nth_visit` rule type counted in the ledger, and a simulate endpoint. Build 14 put the first owner UI on top of it (`apps/owner`, D-137). 87 unit and 211 integration tests green. Migrations 0007-0010 are applied locally and still waiting on your word for the hosted database.
+**Phase:** MVP, worked through `BOKPOINTS The Way Forward.md` one work package at a time. WP0, WP1 and WP2 (store-owned rules) are done, and the WP3 sale record is in. A brought the three surfaces forward before WP3: the till restyle and the owner portal are in, the customer app's first impression is in. **Next up: Build 17 — rewards catalog and redemption (D-138), then Build 18 — basket discount behind the rotating QR (D-133).**
+**Last updated:** 23 Oct 2026, after Build 16 (WP3 sale record + payment confirmation). Every till confirm now records a sale (charged, paid, frozen rules), points follow the amount actually paid (D-129), and `POST /v1/stores/:storeId/sales/:saleId/reversal` reverses once with a `reversal_of`-linked entry that cannot drive a balance negative (D-131). The till asks "Payment taken?" before recording. 87 unit and 223 integration tests green. Migration 0011 is local only; 0007-0010 still wait on your word for the hosted database.
 
 ## Done
+
+- **Build 16 — WP3 sale record and payment confirmation (D-141).** A `sales` table
+  (migration 0011, local only) records every confirm: charged amount, discount (zero
+  until discounts ship), **amount actually paid**, frozen rule breakdown, branch, staff,
+  POS reference, status; the ledger entry links it through `sale_id`, idempotency scoped
+  like the ledger's so one replay is one sale. **Points follow the amount paid** (D-129),
+  paid-above-charge refused. New endpoint `POST /v1/stores/:storeId/sales/:saleId/reversal`
+  (`points.award`, audited): a `reversal` entry with `reversal_of`, batches drawn down,
+  sale marked `reversed`, once per sale, never below zero. The till's confirm is now two
+  beats: **Payment taken → editable Amount paid → Record +N points**, quote following the
+  paid amount. 87 unit and 223 integration tests green (8 new). Build 17 next: rewards
+  catalog and redemption (D-138).
 
 - **Build 15 — till hardening.** The preview shows which rules gave the points; the
   camera can scan the customer's code with beep-and-flash feedback; a "latest at this
@@ -212,7 +224,7 @@
   read the audit log. Live: register → award 25 → adjust +5 → list → audit line →
   clawback 40 → −35.
 
-**Tests: 85 unit, 200 integration, all passing.**
+**Tests: 87 unit, 223 integration, all passing.**
 
 ## In progress
 

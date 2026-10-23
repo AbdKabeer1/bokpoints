@@ -93,6 +93,8 @@ export async function identify(token: string, storeId: string, code: string) {
 export interface AwardBody {
   customerId: string;
   amountCents: number;
+  /** What the customer actually paid (D-129); points follow this. */
+  amountPaidCents?: number;
   locationId?: string;
 }
 
