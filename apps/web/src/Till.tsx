@@ -191,6 +191,7 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
   };
 
   const cents = parseAmountToCents(amount);
+  const stageIndex = recorded !== null ? 4 : customer !== null ? 2 : 1;
 
   const previewLine = () => {
     if (amount.trim() === '') return 'Type what the register charged.';
@@ -225,9 +226,23 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
         </div>
       </header>
 
+      <nav className="steps" aria-label="Sale steps">
+        {['Find the customer', 'Add the amount', 'Confirm the sale'].map((label, index) => {
+          const position = index + 1;
+          const state = position < stageIndex ? 'done' : position === stageIndex ? 'active' : 'idle';
+          return (
+            <span key={label} className={`step ${state}`}>
+              <span className="stepnum">{state === 'done' ? '✓' : position}</span>
+              {label}
+            </span>
+          );
+        })}
+      </nav>
+
       <section className="card tillcard">
         {recorded !== null ? (
           <div className="result">
+            <div className="resultmark" aria-hidden="true">✓</div>
             <p className="eyebrow">Recorded</p>
             <p className="big">+{recorded.points} points</p>
             <p className="muted">
@@ -343,19 +358,36 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
               </>
             )}
 
-            <label htmlFor="amount">Purchase (€)</label>
-            <input
-              id="amount"
-              ref={amountRef}
-              value={amount}
-              onChange={(event) => setAmount(event.target.value)}
-              placeholder="12,50"
-              inputMode="decimal"
-              autoComplete="off"
-              autoFocus
-              aria-label="Purchase amount in euros"
-            />
-            <p className={previewError !== null ? 'preview error' : 'preview'}>{previewLine()}</p>
+            <label htmlFor="amount">Purchase amount</label>
+            <div className="money">
+              <span className="money-euro" aria-hidden="true">€</span>
+              <input
+                id="amount"
+                ref={amountRef}
+                value={amount}
+                onChange={(event) => setAmount(event.target.value)}
+                placeholder="12,50"
+                inputMode="decimal"
+                autoComplete="off"
+                autoFocus
+                aria-label="Purchase amount in euros"
+              />
+            </div>
+            {preview !== null && preview.awarded ? (
+              <div className="earn">
+                <p className="big">
+                  +{preview.points}
+                  <span className="earnunit"> pts</span>
+                </p>
+                <p className="earnsub">
+                  on €{amount.trim()}
+                  {preview.locationName === null ? '' : ` · at ${preview.locationName}`}
+                  {preview.expiresAt === null ? '' : ` · expires ${formatDate(preview.expiresAt)}`}
+                </p>
+              </div>
+            ) : (
+              <p className={previewError !== null ? 'preview error' : 'preview'}>{previewLine()}</p>
+            )}
 
             <div className="actions">
               <button

@@ -22,6 +22,13 @@
   The till identifies as **Poket · STORE PORTAL** (wordmark + small tag on every
   screen, tab title, and the sign-in headline), keeping "Merchant Platform" free
   for the owner console; the customer app stays plain Poket.
+- **Till depth pass.** To answer "white and green feels incomplete": the top bar
+  became the near-black anchor (white wordmark + mint tag, white store name), a
+  three-chip step rail (Find the customer → Add the amount → Confirm the sale)
+  tracks the sale state, the amount sits in a money field with a € prefix and
+  1.7rem bold figure, earned points render as a mint receipt panel (+N pts / on
+  €X · branch · expiry), and the recorded screen is a mint panel with a green
+  check badge.
 - **Discount, reversal, QR and device decisions (D-129 to D-135).** Recorded in
   `docs/DECISIONS.md` and applied to the PRD and FRD: points on the amount actually paid
   (D-129), the store funds its own discounts and the platform never settles (D-130), one
