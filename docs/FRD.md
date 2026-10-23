@@ -50,13 +50,13 @@ A person can hold different roles in different stores. Admin accounts are separa
 | Credential | A way to identify a customer at the till | id, customer id, type (app QR, NFC card, wallet pass), identifier, device public key, valid until, status (active, lost, revoked), created date |
 | Store | A participating business | id, name, business ID, address, contact, VAT details, status, plan, created date |
 | Store member | A staff account at a store | user id, store id, role (owner, manager, cashier), status |
-| Cashier device | A till device registered to a store | id, store id, name, status (active, revoked), last sync, registered by |
+| Cashier device | A till device registered to a store, with its own credentials (D-135) | id, store id, optional branch, name, secret hash, scopes (identify, quote, confirm, reversal), status (active, revoked), last seen, last sync, registered by |
 | Customer-store link | Connects a customer to a store | customer id, store id, joined date, marketing consent for this store, status (active, under fraud review) |
 | Earning rule | The store's own rules for earning points | store id, rule type (points per euro, fixed points per purchase, threshold bonus, every-Nth-visit bonus), parameters, conditions (minimum spend, active dates, branch), effective date, status (active, paused), version |
 | Discount rule (MVP: basket threshold) | The store's own discount, applied at the till | store id, threshold amount, value (fixed amount or percent), conditions, effective date, status, version |
 | Sale | One purchase that points came from | id, store id, branch, customer id, staff or device, amount before discount, amount paid after discount, rules applied with their versions, discount applied, optional POS reference, status |
 | Sale item line [unused in the MVP] | Optional item detail of a sale | sale id, product id or description, quantity, unit price, line total |
-| Points ledger entry | One change to a balance (append-only) | id, customer id, store id, type (earn, redeem, adjust, expire, fraud clawback), points (positive or negative), remaining points and expiry date (earn entries), sale id, amount in cents, rule versions, reason, staff id, device id, scan time, idempotency key, created date |
+| Points ledger entry | One change to a balance (append-only) | id, customer id, store id, type (earn, redeem, adjust, expire, fraud clawback, reversal), points (positive or negative), remaining points and expiry date (earn entries), sale id, amount in cents, rule versions, reversal of entry (reversal entries), reason, staff id, device id, scan time, idempotency key, created date |
 | Points balance | Current total per customer and store | derived from the ledger; cached for speed |
 | Rejected offline award | An offline award the server did not accept at sync | id, store id, device id, customer id, amount, scan time, reason, reviewed by |
 | Product [v1.1] | Item in the store shop | id, store id, name, description, price, image, stock note, active |
@@ -68,7 +68,7 @@ A person can hold different roles in different stores. Admin accounts are separa
 
 Rules that hold across the model:
 
-- The ledger is append-only. Entries are never edited or deleted. There are no reversals: a manual adjustment (see 4.5) corrects a mistake, and only an admin can apply a fraud clawback (see 4.6).
+- The ledger is append-only. Entries are never edited or deleted. Manual adjustments (see 4.5) correct a mistake and only an admin can apply a fraud clawback (see 4.6). A POS-initiated refund or void is the one reversal: a `reversal` entry tied to the original sale, bounded by the original award and reversing only unspent points (D-132).
 - Money is stored as whole cents in euros. Points are whole numbers.
 - A customer's balance at a store is the sum of that customer's ledger entries for that store, expiry entries included.
 - Points belong to the store that issued them and cannot be used elsewhere.
@@ -423,13 +423,17 @@ Worked example: the store rule is 1 point per euro, rounded down. The cashier en
 
 **FR-CHK-3** (MUST): Points are awarded when the cashier confirms payment and enters the amount paid. The call is idempotent.
 
-**FR-CHK-4** (SHOULD): Whether a discounted amount earns points is a per-rule store setting (default: points on the amount paid, to confirm with pilot stores).
+**FR-CHK-4** (MUST): Points are earned on the amount actually paid, after discounts (D-129). The confirm recomputes from that amount on the server.
 
 **FR-CHK-5** (MUST): Every award shows and stores a breakdown of the rules that produced it.
 
 **FR-CHK-6** (MUST): The cashier screen gives a short sound and visual confirmation on a successful read.
 
-**FR-CHK-7** (MUST): Discount (MVP-lite): one basket threshold type, automatic, shown in the quote and applied by the cashier in the store's own till.
+**FR-CHK-7** (MUST): Discount (MVP-lite): one basket threshold type, automatic, shown in the quote and applied by the cashier in the store's own till. One discount per sale: the single best applicable one, no stacking (D-131). The store funds it; the platform never reimburses or settles it (D-130).
+
+**FR-CHK-8** (MUST): A discount requires a signed, short-lived (about 60 seconds), one-time-per-store rotating QR proof, verified online and bound to the customer. A static `CUS-` code may earn points but never unlocks a discount, and no discount is awarded offline (D-133).
+
+**FR-CHK-9** (MUST): A terminal or camera can identify, quote and confirm through a device credential with exactly those scopes; it cannot adjust points, read customer lists, or reach staff or admin endpoints (FR-DEV, D-135).
 
 ### 5.15 SAL: sales
 
@@ -437,7 +441,19 @@ Worked example: the store rule is 1 point per euro, rounded down. The cashier en
 
 **FR-SAL-2** (MAY): A sale may carry optional item lines. They are unused in the MVP, and a store without item data sends one line carrying the purchase total.
 
-**FR-SAL-3** (MUST): Corrections remain manual adjustments (see 4.5) until POS integration brings refunds and voids.
+**FR-SAL-3** (MUST): Manual staff corrections remain manual adjustments (see 4.5). Refunds and voids arrive with POS integration as reversals tied to the sale (FR-SAL-4).
+
+**FR-SAL-4** (MUST): A POS refund or void writes a `reversal` entry tied to the original sale and earn entry. It is bounded by the original award, idempotent per original entry, and reverses only the unspent part of the batch: points already redeemed or expired are not clawed back by the refund (D-132). It is accepted only from a POS device credential or an admin.
+
+**FR-SAL-5** (MUST): A sale records the amount before discount, the discount applied with its rule version, and the amount actually paid. Points are computed from the amount actually paid (D-129).
+
+### 5.16 DEV: device credentials
+
+**FR-DEV-1** (MUST): Each terminal or camera gets its own credential: a random secret shown once, stored only as a hash, bound to a store and optionally one branch.
+
+**FR-DEV-2** (MUST): A device credential carries fixed scopes — identify a customer, quote a purchase, confirm a sale, and (later) post a reversal. It grants no human capability: no adjustments, no customer list, no staff or admin endpoints.
+
+**FR-DEV-3** (MUST): A device credential can be revoked immediately by an owner or admin and is rate-limited per device. Every use is attributed to the device in the audit log, with a last-seen time.
 
 ## 6. Screen inventory (MVP)
 
@@ -627,6 +643,30 @@ Given a purchase that crosses the store's basket threshold,
 when the quote is shown,  
 then the discount to apply is stated, and the points follow the store's per-rule setting for discounted amounts (FR-CHK-4).
 
+### AC-19 Points on the amount actually paid
+
+Given a purchase with a discount,  
+when the cashier confirms the amount actually paid,  
+then the points are computed from that amount, not from the pre-discount total.
+
+### AC-20 A discount needs a rotating proof
+
+Given a static member code, or a device with no connection,  
+when a discount would apply,  
+then the discount is refused and only points may be awarded, with the reason shown to the cashier.
+
+### AC-21 A POS reversal is bounded and idempotent
+
+Given an award whose points were partly redeemed,  
+when the POS posts a refund for the sale,  
+then only the unspent points are reversed, the balance does not go below zero, and posting the same refund twice changes nothing the second time.
+
+### AC-22 A device credential does what the till does
+
+Given a valid device credential,  
+when it calls adjust, the customer list, or a staff endpoint,  
+then the API answers 403; when it identifies, quotes or confirms, it succeeds and the audit log names the device.
+
 ## 10. Later phases (outline)
 
 ### v1.1
@@ -640,9 +680,9 @@ then the discount to apply is stated, and the points follow the store's per-rule
 ### Parked until its trigger is met (documented, not scheduled)
 
 - **FR-CMP** campaigns with opt-in and per-product scope — builds when several stores want them.
-- **FR-POS** quote-and-commit for terminals, with device credentials and refunds and voids — builds when a pilot store names its POS.
-- Signed, short-lived rotating QR codes — before any automatic discount, or sooner if QR sharing is seen.
-- NFC card reading and wallet passes — when pilot stores ask for tap-to-identify.
+- **FR-POS** quote-and-commit for terminals and the POS adapter — builds when a pilot store names its POS. Refunds and voids (D-132) and device credentials (D-135) are decided and land with the sale record and the adapter.
+- Signed, short-lived rotating QR codes — promoted to the MVP by D-133, and required before any discount is enabled.
+- NFC card reading and wallet passes — when pilot stores ask for tap-to-identify. Plain-ID cards are identification-only and never discount-eligible (D-134); secure cards need a per-card key.
 - Spend accumulated over time (a monthly total, for example) — when a store asks and the single-purchase version is not enough.
 - Card-linked payments — much later: it needs a payment partner and heavy compliance work.
 
@@ -690,6 +730,11 @@ Open points
 | Staff invitations | Never modify an existing account (D-119) |
 | Customer sign-in | Requires a verified email before create or claim (D-120) |
 | Pilot | Two or three stores, about four weeks, before any parked item builds (D-125) |
+| Points and discounts | Points on the amount actually paid (D-129); the store funds its own discounts (D-130); one automatic discount, no stacking (D-131) |
+| POS reversals | Refunds and voids write a bounded, idempotent reversal tied to the sale (D-132) |
+| Discount identity | A discount requires a rotating, signed, one-time QR proof, online (D-133) |
+| Cards | Plain-ID cards are identification-only, never discount-eligible (D-134) |
+| Devices | Per-device credentials with fixed till scopes, revocable, rate-limited, audited (D-135) |
 
 ## 12. Traceability to the PRD
 

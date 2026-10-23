@@ -92,7 +92,7 @@ Everything outside this table sits in the parking lot until its trigger is met (
 
 | Phase | Scope |
 | --- | --- |
-| MVP | Admin onboards stores. Stores add staff and create their own earning rules: points per euro, a fixed number of points per purchase, a threshold bonus (spend at least X, earn Y bonus points) and optionally a bonus for every Nth visit (D-115, D-116). The rule the admin creates at onboarding is only a starting template the owner edits. Cashier scans the customer's QR code from the customer app and enters the purchase amount, online or offline, with offline awards synced later. Any countertop 2D scanner that types like a keyboard works: it types the member code and presses Enter, with no integration needed. Checkout is quote then confirm: the quote shows the points to earn and any basket threshold discount to apply, the customer pays, and points are awarded when the cashier confirms payment and enters the amount actually paid (D-123). The one MVP discount is a basket threshold discount, applied by the store's own till (D-116). Points are awarded per store and expire 3 months after they are earned. Customer apps on the Apple App Store, Google Play and web, with per-store balances. Cashiers can register customers by email. Basic store customer list with manual point adjustments (never below zero; no reversals). Email verification and in-app notices. Monthly subscription billing for stores. Built on a credential model and an API so later features need no rewrite. |
+| MVP | Admin onboards stores. Stores add staff and create their own earning rules: points per euro, a fixed number of points per purchase, a threshold bonus (spend at least X, earn Y bonus points) and optionally a bonus for every Nth visit (D-115, D-116). The rule the admin creates at onboarding is only a starting template the owner edits. Cashier scans the customer's QR code from the customer app and enters the purchase amount, online or offline, with offline awards synced later. Any countertop 2D scanner that types like a keyboard works: it types the member code and presses Enter, with no integration needed. Checkout is quote then confirm: the quote shows the points to earn and any basket threshold discount to apply, the customer pays, and points are awarded when the cashier confirms payment and enters the amount actually paid (D-123). The one MVP discount is a basket threshold discount, applied by the store's own till (D-116). Points are earned on the amount actually paid, after discounts (D-129), and a discount requires a rotating QR proof (D-133). Points are awarded per store and expire 3 months after they are earned. Customer apps on the Apple App Store, Google Play and web, with per-store balances. Cashiers can register customers by email. Basic store customer list with manual point adjustments (never below zero; no reversals). Email verification and in-app notices. Monthly subscription billing for stores. Built on a credential model and an API so later features need no rewrite. |
 | v1.1 | Redemption and rewards catalog. Discounted products in the store shop, product and category rules, buy-X-get-Y. Store-to-customer alerts and campaigns, with push notifications. Physical NFC loyalty card (tap or scan). |
 | v2 | Gifting or transferring points. Gift cards. Restock, last-stock and seasonal sale alerts (such as Black Friday). Apple and Google Wallet passes, including NFC tap where approved. First POS integrations. SMS as an extra channel. Store-level expiry settings. Possible universal points (needs separate review). |
 
@@ -142,6 +142,9 @@ This section states what each surface must do. Detailed flows, rules and data ar
 - Points lifecycle: points expire 3 months after they are earned. There are no reversals, and a balance never goes below zero except through an admin fraud clawback.
 - Audit log: every points change records who, when, which store and why.
 - Fraud controls: only staff can award points, awards use the entered purchase amount, offline awards are limited and checked at sync, and unusual activity can be limited or flagged.
+- Device access: a terminal or camera gets its own revocable credential with fixed till scopes; it cannot adjust points, read customer lists or reach staff and admin endpoints (D-135).
+- Discount identity: a discount needs a rotating, short-lived, one-time QR proof verified online; points-only awards may still use the static code (D-133).
+- Refunds: a POS refund or void reverses only the unspent points of that sale, through a reversal entry tied to it; staff corrections stay manual adjustments (D-132).
 - Localization: Finnish and English at launch (proposed), euro currency, Finnish VAT on invoices. Other EU languages later.
 - Security: secure authentication, role-based permissions, encrypted data in transit and at rest, and encrypted offline data on cashier devices.
 - Accessibility and mobile-first: cashier and customer screens work well on phones and tablets.
@@ -173,6 +176,13 @@ This section states what each surface must do. Detailed flows, rules and data ar
 | Customer sign-in | A verified email is required before an account is created or claimed (D-120) |
 | Pilot | Two or three stores, about four weeks, before any parked item is built (D-125) |
 | Pricing | Tiers by active customers, definition proposed (D-126) |
+| Points base | The amount actually paid, after discounts (D-129) |
+| Who funds discounts | The store; the platform never reimburses or settles (D-130) |
+| Discount stacking | One automatic discount per sale, the best applicable; no stacking (D-131) |
+| POS reversals | Refunds and voids reverse unspent points through a bounded, idempotent reversal tied to the sale (D-132) |
+| Discount identity | A discount needs a rotating, one-time QR proof, online; static codes earn points only (D-133) |
+| NFC cards | Plain-ID cards are identification-only, never discount-eligible (D-134) |
+| Device access | Terminals get their own revocable, scoped credentials (D-135) |
 | Team | One person covers product, design, frontend, backend and testing |
 
 ## 11. Identification and POS strategy
@@ -220,6 +230,8 @@ Pending customers: unclaimed pending-customer records, including the email addre
 | QR codes shared between people | Signed, short-lived rotating codes before any automatic discount, sooner if sharing is seen |
 | Store typos in rules and discounts | Simulator before activation, platform technical ceilings that are not business limits, audit on every change |
 | Cost of NFC cards and scanners | Delayed to their trigger; the MVP needs no special hardware (keyboard-style scanners are cheap) |
+| Cloned NFC card IDs | Plain-ID cards are identification-only and never discount-eligible; secure cards with a per-card key for anything more (D-134) |
+| A shared screenshot unlocks real money | Rotating, short-lived, one-time QR proofs before any discount; static codes earn points only (D-133) |
 
 ## 14. Assumptions and constraints
 
@@ -239,7 +251,7 @@ Pending customers: unclaimed pending-customer records, including the email addre
 7. Brand, name checks and domain for the Finnish and EU market.
 8. Who handles tax and legal review for terms of service and privacy policy, including how SMS costs are handled later.
 9. Does "buy goods worth 100" mean a single purchase, or spend accumulated over time? The MVP assumes a single purchase.
-10. Do discounted items earn points? Proposed: a per-rule store setting defaulting to points on the amount paid, to confirm with pilot stores.
+10. ~~Do discounted items earn points?~~ Decided: points are earned on the amount actually paid, after discounts (D-129).
 11. Is a customer for pricing "someone who earned points in the last 12 months"? (Proposed, D-126.)
 12. Which domain name, and who owns the email sender account? Staff invitations by email depend on it.
 13. Which two or three stores are the pilot?

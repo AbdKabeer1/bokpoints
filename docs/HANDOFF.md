@@ -45,7 +45,7 @@ FR-CHK, FR-SAL, `AC-12` to `AC-18`), so the repo copy is now the newer one.
 
 Admin onboards stores. Stores add staff and **create their own earning rules** (points per euro, fixed points per purchase, threshold bonus, optionally every-Nth-visit) with a simulator before activation, plus **one basket threshold discount** applied at the till (D-115, D-116). Checkout is **quote then confirm after payment**: the quote shows the points and any discount, and points are awarded when the cashier confirms payment and enters the amount paid (D-123); every award belongs to a sale record (D-118). Cashier scans the customer's QR code (camera or a countertop scanner that types like a keyboard), online or offline, with offline awards synced later. Points are per store and expire after 3 months. Customer apps show per-store balances and history. Cashiers can register customers by email. Manual adjustments (never below zero), admin fraud clawback, audit log. Monthly subscription billing with the failed-payment schedule. Email verification and in-app notices.
 
-**Parked until its trigger is met** (Way Forward, section 3): POS integration and terminal APIs, product catalog and product-level rules and discounts, automatic terminal discounts, opt-in campaigns, signed rotating QR codes, device credentials for terminals, refunds and voids, NFC card reading and wallet passes, accumulated spend thresholds, and card-linked payments. Outside the parking lot but still MVP and not yet scheduled by the WP list: offline awarding, and the rest of FR-CUS (consents, export and deletion, lost card / new QR).
+**Parked until its trigger is met** (Way Forward, section 3): POS integration and terminal APIs, product catalog and product-level rules and discounts, automatic terminal discounts, opt-in campaigns, NFC card reading and wallet passes, accumulated spend thresholds, and card-linked payments. Promoted out of the parking lot by D-132–D-135: POS refunds and voids (reversal tied to the sale), device credentials, and signed rotating QR codes (required before any discount). Outside the parking lot but still MVP and not yet scheduled by the WP list: offline awarding, and the rest of FR-CUS (consents, export and deletion, lost card / new QR).
 
 ## 5. Next steps (in order)
 
@@ -63,15 +63,28 @@ recorded before the next starts.
    per-euro rules, wiring award and preview to the engine, owner endpoints with audit, a
    capability for managing rules, per-sale ceiling, admin creation makes the first rule an
    optional template.
-4. **WP3 — sale record and quote-then-confirm**, with the single basket threshold
-   discount. 5. **WP4 — cashier screen** (quote, payment, confirm, sound and visual on
-   read). 6. **WP5 — owner screen** (rules with simulator, plus adjustments and the
-   store audit log: Build 6B lands here, D-128). 7. **WP6 — customer app** shows each
-   store's rules in plain language.
+4. **WP3 — sale record and quote-then-confirm.** The sale carries the amount before
+   discount, the discount and the amount actually paid, and points are earned on the
+   amount actually paid (D-129). One automatic basket threshold discount, no stacking
+   (D-131), funded by the store (D-130). The ledger gains `sale_id` and a `reversal_of`
+   hook for POS refunds (D-132).
+5. **Rotating QR, before any discount is enabled.** Signed, short-lived (about 60 s),
+   one-time-per-store, verified online (D-133). Static `CUS-` codes keep earning points
+   in the meantime; no discount is awarded offline.
+6. **WP4 — cashier screen** (quote, payment, confirm, sound and visual on read, and a
+   clear "discount needs a fresh scan" path). **WP5 — owner screen** (rules with
+   simulator, plus adjustments and the store audit log: Build 6B lands here, D-128).
+   **WP6 — customer app** shows each store's rules in plain language.
 8. **WP7 — pilot readiness:** domain and email sender, email invitations (retires the
    Supabase-id field), subscription billing and the pricing meter, terms and privacy,
    signage and a scanner list. 9. **WP8 — pilot:** two or three stores, about four
    weeks, recording what they ask for.
+
+Decided but built with the POS adapter (when a pilot store names its POS): POS refunds
+and voids as bounded, idempotent reversals tied to the sale (D-132), and per-device
+credentials for terminals and cameras in `cashier_devices` — hashed secret, store/branch
+bound, scopes identify/quote/confirm/reversal, revocable, rate-limited, audited (D-135).
+The sale record in WP3 lays the hooks so neither needs a rewrite.
 
 Not scheduled by the plan of record, still MVP — raise with A before it slips:
 **offline awarding** (build step 8, highest technical risk) and the **rest of FR-CUS**
