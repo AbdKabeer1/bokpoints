@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq } from 'drizzle-orm';
 import type { z } from 'zod';
 import type { earningRuleDefinitionSchema } from '@bokpoints/shared';
 import {
@@ -22,6 +22,13 @@ import {
   reversalRequestSchema,
   reversalResponseSchema,
   saleIdParamsSchema,
+  rewardCreateRequestSchema,
+  rewardEditRequestSchema,
+  rewardParamsSchema,
+  storeRewardRowSchema,
+  storeRewardsResponseSchema,
+  tillRewardsQuerySchema,
+  tillRewardsResponseSchema,
   idempotencyKeyHeaderSchema,
   ruleSimulateRequestSchema,
   ruleSimulateResponseSchema,
@@ -33,13 +40,21 @@ import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { authorizeStoreRequest } from '../auth/authorize.js';
 import type { SessionResolver } from '../auth/session.js';
 import type { Database } from '../db/client.js';
-import { getBalance, LedgerError, previewEarn, recordEarn, reverseSale } from '../db/ledger.js';
+import {
+  getBalance,
+  LedgerError,
+  previewEarn,
+  recordEarn,
+  reverseSale,
+  rewardTakesToday,
+} from '../db/ledger.js';
 import {
   auditLogEntries,
   credentials,
   customers,
   earningRules,
   pointsLedgerEntries,
+  storeRewards,
   stores,
 } from '../db/schema.js';
 import {
@@ -78,6 +93,10 @@ export const LEDGER_ERROR_STATUS = {
   LOCATION_INVALID: 400,
   SALE_NOT_FOUND: 404,
   SALE_ALREADY_REVERSED: 409,
+  REWARD_NOT_FOUND: 404,
+  REWARD_NOT_ACTIVE: 409,
+  REWARD_NOT_AFFORDABLE: 409,
+  REWARD_LIMIT_REACHED: 409,
 } as const satisfies Record<LedgerErrorCode, number>;
 
 /**
@@ -248,6 +267,9 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
             ? {}
             : { amountPaidCents: request.body.amountPaidCents }),
           ...(request.body.posReference === undefined ? {} : { posReference: request.body.posReference }),
+          ...(request.body.redeemRewardId === undefined
+            ? {}
+            : { redeemRewardId: request.body.redeemRewardId }),
           program,
           idempotencyKey,
           staffId: auth.staffUserId,
@@ -269,6 +291,7 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
       return reply.code(status).send({
         entryId: result.entryId,
         saleId: result.saleId,
+        redeemed: result.redeemed,
         points: result.points,
         awarded: result.awarded,
         ...(result.reason === undefined ? {} : { reason: result.reason }),
@@ -344,6 +367,9 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
           ...(request.body.amountPaidCents === undefined
             ? {}
             : { amountPaidCents: request.body.amountPaidCents }),
+          ...(request.body.redeemRewardId === undefined
+            ? {}
+            : { redeemRewardId: request.body.redeemRewardId }),
           program,
           locationId,
         });
@@ -357,6 +383,7 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
           locationId: result.locationId,
           locationName: result.locationName,
           breakdown: result.breakdown ?? [],
+          redeemed: result.redeemed,
         });
       } catch (error) {
         if (error instanceof LedgerError) {
@@ -366,6 +393,271 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
         }
         throw error;
       }
+    },
+  );
+
+  /* ── Rewards catalog and redemption (D-138) ───────────────────────────── */
+
+  const rewardRow = (reward: {
+    id: string;
+    name: string;
+    pointsCost: number;
+    perCustomerPerDayLimit: number | null;
+    active: boolean;
+    createdAt: Date;
+  }) => ({
+    rewardId: reward.id,
+    name: reward.name,
+    pointsCost: reward.pointsCost,
+    perCustomerPerDayLimit: reward.perCustomerPerDayLimit,
+    active: reward.active,
+    createdAt: reward.createdAt.toISOString(),
+  });
+
+  /**
+   * The store's catalog (D-138). Owners and managers shape it; cashiers
+   * never edit it. The till reads what a customer can afford through
+   * `rewards/available`, and the customer app sees the plain list.
+   */
+  app.get(
+    '/v1/stores/:storeId/rewards',
+    {
+      config: {
+        rateLimit: rateLimit ?? { max: 60, timeWindow: '1 minute' },
+      },
+      schema: {
+        params: storeIdParamsSchema,
+        response: {
+          200: storeRewardsResponseSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { storeId } = request.params;
+      const auth = await authorizeStoreRequest(db, sessionResolver, {
+        token: bearer(request.headers.authorization),
+        storeId,
+        anyOf: ['rewards.manage'],
+      });
+      if (!auth.ok) {
+        return reply.code(auth.status).send({ error: auth.error });
+      }
+
+      const rows = await db
+        .select()
+        .from(storeRewards)
+        .where(eq(storeRewards.storeId, storeId))
+        .orderBy(desc(storeRewards.createdAt));
+      return reply.send({ rewards: rows.map(rewardRow) });
+    },
+  );
+
+  app.post(
+    '/v1/stores/:storeId/rewards',
+    {
+      config: {
+        rateLimit: rateLimit ?? { max: 30, timeWindow: '1 minute' },
+      },
+      schema: {
+        params: storeIdParamsSchema,
+        body: rewardCreateRequestSchema,
+        response: {
+          201: storeRewardRowSchema,
+          400: apiErrorSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { storeId } = request.params;
+      const auth = await authorizeStoreRequest(db, sessionResolver, {
+        token: bearer(request.headers.authorization),
+        storeId,
+        anyOf: ['rewards.manage'],
+      });
+      if (!auth.ok) {
+        return reply.code(auth.status).send({ error: auth.error });
+      }
+
+      const inserted = await db
+        .insert(storeRewards)
+        .values({
+          storeId,
+          name: request.body.name,
+          pointsCost: request.body.pointsCost,
+          perCustomerPerDayLimit: request.body.perCustomerPerDayLimit ?? null,
+        })
+        .returning();
+      const reward = inserted[0];
+      if (!reward) {
+        throw new Error('Could not create the reward');
+      }
+
+      await db.insert(auditLogEntries).values({
+        actorId: auth.staffUserId,
+        action: 'reward.create',
+        storeId,
+        targetType: 'reward',
+        targetId: reward.id,
+        after: {
+          name: reward.name,
+          pointsCost: reward.pointsCost,
+          perCustomerPerDayLimit: reward.perCustomerPerDayLimit,
+        },
+      });
+
+      return reply.code(201).send(rewardRow(reward));
+    },
+  );
+
+  /**
+   * Editing a reward changes it in place — unlike earning rules, which
+   * version (D-116): a reward's past is already frozen into the ledger
+   * entries that took it, so the row only speaks for future takes.
+   */
+  app.post(
+    '/v1/stores/:storeId/rewards/:rewardId',
+    {
+      config: {
+        rateLimit: rateLimit ?? { max: 30, timeWindow: '1 minute' },
+      },
+      schema: {
+        params: rewardParamsSchema,
+        body: rewardEditRequestSchema,
+        response: {
+          200: storeRewardRowSchema,
+          400: apiErrorSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+          404: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { storeId, rewardId } = request.params;
+      const auth = await authorizeStoreRequest(db, sessionResolver, {
+        token: bearer(request.headers.authorization),
+        storeId,
+        anyOf: ['rewards.manage'],
+      });
+      if (!auth.ok) {
+        return reply.code(auth.status).send({ error: auth.error });
+      }
+
+      const current = await db
+        .select()
+        .from(storeRewards)
+        .where(and(eq(storeRewards.id, rewardId), eq(storeRewards.storeId, storeId)))
+        .limit(1);
+      const reward = current[0];
+      if (!reward) {
+        return reply.code(404).send({
+          error: { code: 'REWARD_NOT_FOUND', message: 'That reward does not exist at this store' },
+        });
+      }
+
+      const updatedRows = await db
+        .update(storeRewards)
+        .set({
+          ...(request.body.name === undefined ? {} : { name: request.body.name }),
+          ...(request.body.pointsCost === undefined ? {} : { pointsCost: request.body.pointsCost }),
+          ...(request.body.perCustomerPerDayLimit === undefined
+            ? {}
+            : { perCustomerPerDayLimit: request.body.perCustomerPerDayLimit ?? null }),
+          ...(request.body.active === undefined ? {} : { active: request.body.active }),
+        })
+        .where(eq(storeRewards.id, rewardId))
+        .returning();
+      const updated = updatedRows[0] ?? reward;
+
+      await db.insert(auditLogEntries).values({
+        actorId: auth.staffUserId,
+        action: 'reward.edit',
+        storeId,
+        targetType: 'reward',
+        targetId: rewardId,
+        before: {
+          name: reward.name,
+          pointsCost: reward.pointsCost,
+          perCustomerPerDayLimit: reward.perCustomerPerDayLimit,
+          active: reward.active,
+        },
+        after: {
+          name: updated.name,
+          pointsCost: updated.pointsCost,
+          perCustomerPerDayLimit: updated.perCustomerPerDayLimit,
+          active: updated.active,
+        },
+      });
+
+      return reply.send(rewardRow(updated));
+    },
+  );
+
+  /**
+   * The till's picker (D-138): every active reward, with what this
+   * customer can take right now — their balance against the cost, and
+   * whether the per-customer daily limit is already used up today.
+   */
+  app.get(
+    '/v1/stores/:storeId/rewards/available',
+    {
+      config: {
+        rateLimit: rateLimit ?? { max: 120, timeWindow: '1 minute' },
+      },
+      schema: {
+        params: storeIdParamsSchema,
+        querystring: tillRewardsQuerySchema,
+        response: {
+          200: tillRewardsResponseSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { storeId } = request.params;
+      const { customerId } = request.query;
+      const auth = await authorizeStoreRequest(db, sessionResolver, {
+        token: bearer(request.headers.authorization),
+        storeId,
+        anyOf: ['points.award', 'points.redeem'],
+      });
+      if (!auth.ok) {
+        return reply.code(auth.status).send({ error: auth.error });
+      }
+
+      const balance = await getBalance(db, customerId, storeId);
+      const rows = await db
+        .select({
+          id: storeRewards.id,
+          name: storeRewards.name,
+          pointsCost: storeRewards.pointsCost,
+          perCustomerPerDayLimit: storeRewards.perCustomerPerDayLimit,
+        })
+        .from(storeRewards)
+        .where(and(eq(storeRewards.storeId, storeId), eq(storeRewards.active, true)))
+        .orderBy(asc(storeRewards.pointsCost));
+
+      const rewards = [];
+      for (const row of rows) {
+        const redeemedToday = await rewardTakesToday(db, customerId, storeId, row.id);
+        const limitReached =
+          row.perCustomerPerDayLimit !== null && redeemedToday >= row.perCustomerPerDayLimit;
+        rewards.push({
+          rewardId: row.id,
+          name: row.name,
+          pointsCost: row.pointsCost,
+          affordable: !limitReached && balance >= row.pointsCost,
+          redeemedToday,
+          limitReached,
+        });
+      }
+
+      return reply.send({ balance, rewards });
     },
   );
 

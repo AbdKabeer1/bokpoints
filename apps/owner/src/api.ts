@@ -12,7 +12,11 @@ import {
   registeredCustomerSchema,
   ruleSimulateRequestSchema,
   ruleSimulateResponseSchema,
+  rewardCreateRequestSchema,
+  rewardEditRequestSchema,
   storeCustomersResponseSchema,
+  storeRewardsResponseSchema,
+  storeRewardRowSchema,
   storeStaffResponseSchema,
 } from '@bokpoints/shared';
 
@@ -36,7 +40,7 @@ interface ResponseSchema<T> {
 const base = (import.meta.env.VITE_API_BASE ?? '').replace(/\/+$/, '');
 
 interface RequestOptions {
-  method: 'GET' | 'POST';
+  method: 'GET' | 'POST' | 'PATCH';
   path: string;
   token: string;
   body?: unknown;
@@ -174,6 +178,40 @@ export const listStaff = (token: string, storeId: string) =>
     token,
   });
 
+/* ── Rewards (D-138): the catalog a customer spends points on ──────────── */
+
+export const listRewards = (token: string, storeId: string) =>
+  request(storeRewardsResponseSchema, {
+    method: 'GET',
+    path: `/v1/stores/${storeId}/rewards`,
+    token,
+  });
+
+export const createReward = (
+  token: string,
+  storeId: string,
+  body: { name: string; pointsCost: number; perCustomerPerDayLimit?: number | null },
+) =>
+  request(storeRewardRowSchema, {
+    method: 'POST',
+    path: `/v1/stores/${storeId}/rewards`,
+    token,
+    body: rewardCreateRequestSchema.parse(body),
+  });
+
+export const editReward = (
+  token: string,
+  storeId: string,
+  rewardId: string,
+  body: { name?: string; pointsCost?: number; perCustomerPerDayLimit?: number | null; active?: boolean },
+) =>
+  request(storeRewardRowSchema, {
+    method: 'PATCH',
+    path: `/v1/stores/${storeId}/rewards/${rewardId}`,
+    token,
+    body: rewardEditRequestSchema.parse(body),
+  });
+
 /* ── Audit ─────────────────────────────────────────────────────────────── */
 
 export const listAudit = (token: string, storeId: string, limit = '50', action?: string) =>
@@ -190,4 +228,5 @@ export type RuleRow = Awaited<ReturnType<typeof listRules>>['rules'][number];
 export type RuleCustomer = Awaited<ReturnType<typeof listCustomers>>['customers'][number];
 export type StaffMember = Awaited<ReturnType<typeof listStaff>>['members'][number];
 export type AuditEntry = Awaited<ReturnType<typeof listAudit>>['entries'][number];
+export type Reward = Awaited<ReturnType<typeof listRewards>>['rewards'][number];
 export type Simulation = Awaited<ReturnType<typeof simulateRules>>;

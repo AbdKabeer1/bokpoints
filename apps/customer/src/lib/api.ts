@@ -99,5 +99,15 @@ export const getStores = (token: string) =>
 export const getHistory = (token: string, storeId: string) =>
   request<History>(`/v1/customer/me/stores/${storeId}/history`, token);
 
+export interface StoreReward {
+  rewardId: string;
+  name: string;
+  pointsCost: number;
+}
+
+/** The store's active rewards, cheapest first (D-138). */
+export const getStoreRewards = (token: string, storeId: string) =>
+  request<{ rewards: StoreReward[] }>(`/v1/customer/stores/${storeId}/rewards`, token);
+
 export const getExpiring = (token: string) =>
   request<{ windowDays: number; items: ExpiringItem[] }>('/v1/customer/me/expiring', token);

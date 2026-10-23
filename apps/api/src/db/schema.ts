@@ -335,6 +335,33 @@ export const earningRules = pgTable(
  * (D-115, D-133). Every award links to its sale; a reversal links to the
  * same one through the ledger entry's `reversal_of` (D-131).
  */
+/**
+ * The rewards catalog (D-138, moved into the MVP): what a customer can
+ * spend points on, in the store's own words. The reward's name is what
+ * the cashier hands over — a free coffee, a discount on the next visit —
+ * and the points cost is what the ledger takes off, oldest-first.
+ */
+export const storeRewards = pgTable(
+  'store_rewards',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    storeId: uuid('store_id')
+      .notNull()
+      .references(() => stores.id),
+    name: text('name').notNull(),
+    pointsCost: integer('points_cost').notNull(),
+    /** null means no per-day cap; a customer cannot take the same reward twice in one day when set. */
+    perCustomerPerDayLimit: integer('per_customer_per_day_limit'),
+    active: boolean('active').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [index('store_rewards_store_idx').on(t.storeId)],
+).enableRLS();
+
 export const sales = pgTable(
   'sales',
   {
@@ -404,6 +431,9 @@ export const pointsLedgerEntries = pgTable(
     // D-131: a POS reversal points at the entry it reverses. Reversals
     // happen once per sale; the sale's status says whether it happened.
     reversalOf: uuid('reversal_of'),
+    // D-138: a redeem entry names the reward it paid for, so the per-day
+    // limit can be counted and the receipt can be rebuilt on a replay.
+    rewardId: uuid('reward_id').references(() => storeRewards.id),
     // FR-PTS-4: every award request carries an idempotency key.
     idempotencyKey: text('idempotency_key'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -439,6 +469,7 @@ export const pointsLedgerEntries = pgTable(
       .on(t.storeId, t.customerId, t.idempotencyKey)
       .where(sql`${t.idempotencyKey} is not null`),
     index('points_ledger_entries_sale_idx').on(t.saleId),
+    index('points_ledger_entries_reward_idx').on(t.rewardId, t.customerId, t.storeId),
     index('points_ledger_entries_customer_store_idx').on(t.customerId, t.storeId),
     index('points_ledger_entries_created_idx').on(t.createdAt),
   ],

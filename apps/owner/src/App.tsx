@@ -8,6 +8,7 @@ import { RulesScreen } from './screens/Rules';
 import { CustomersScreen } from './screens/Customers';
 import { PeopleScreen } from './screens/People';
 import { AuditScreen } from './screens/AuditScreen';
+import { RewardsScreen } from './screens/Rewards';
 
 type Phase =
   | { kind: 'loading' }
@@ -16,11 +17,12 @@ type Phase =
   | { kind: 'ready'; token: string; me: Me }
   | { kind: 'unreachable'; message: string };
 
-type Tab = 'rules' | 'customers' | 'people' | 'audit';
+type Tab = 'rules' | 'customers' | 'rewards' | 'people' | 'audit';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'rules', label: 'Rules' },
   { id: 'customers', label: 'Customers' },
+  { id: 'rewards', label: 'Rewards' },
   { id: 'people', label: 'People' },
   { id: 'audit', label: 'Audit' },
 ];
@@ -159,6 +161,9 @@ export function App() {
             )}
             {tab === 'customers' && (
               <CustomersScreen token={phase.token} storeId={membership.storeId} />
+            )}
+            {tab === 'rewards' && (
+              <RewardsScreen token={phase.token} storeId={membership.storeId} />
             )}
             {tab === 'people' && <PeopleScreen token={phase.token} storeId={membership.storeId} />}
             {tab === 'audit' && <AuditScreen token={phase.token} storeId={membership.storeId} />}

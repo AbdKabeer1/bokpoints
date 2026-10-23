@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, gte, sql } from 'drizzle-orm';
 import {
   adjustPoints,
   applyFraudClawback,
@@ -20,6 +20,7 @@ import {
   pointsLedgerEntries,
   sales,
   storeLocations,
+  storeRewards,
   stores,
 } from './schema.js';
 import { isUniqueViolation } from './errors.js';
@@ -35,7 +36,11 @@ export type LedgerErrorCode =
   | 'LOCATION_REQUIRED'
   | 'LOCATION_INVALID'
   | 'SALE_NOT_FOUND'
-  | 'SALE_ALREADY_REVERSED';
+  | 'SALE_ALREADY_REVERSED'
+  | 'REWARD_NOT_FOUND'
+  | 'REWARD_NOT_ACTIVE'
+  | 'REWARD_NOT_AFFORDABLE'
+  | 'REWARD_LIMIT_REACHED';
 
 /**
  * The store states in which awarding is allowed. A paused store still
@@ -129,6 +134,8 @@ export interface RecordEarnInput {
   amountPaidCents?: number;
   /** The store's own till receipt reference, when it has one. */
   posReference?: string;
+  /** Pay for a catalog reward inside this same confirm (D-138). */
+  redeemRewardId?: string;
   /** The legacy single per-euro rule; WP3 removes it once every caller uses a program. */
   rule?: PointsRule;
   ruleVersion?: number;
@@ -148,6 +155,43 @@ export interface RecordEarnInput {
   locationId?: string | null;
 }
 
+/** What a redemption took: the reward and the (negative) points it cost. */
+export interface RedeemedReward {
+  rewardId: string;
+  name: string;
+  pointsCost: number;
+}
+
+/** A ledger type or a transaction: both answer the same read queries. */
+type Queryable = Database | Parameters<Parameters<Database['transaction']>[0]>[0];
+
+/**
+ * How many times a customer took one reward today (UTC day), for the
+ * per-customer-per-day limit (D-138). Read-only.
+ */
+export async function rewardTakesToday(
+  db: Queryable,
+  customerId: string,
+  storeId: string,
+  rewardId: string,
+): Promise<number> {
+  const since = new Date();
+  since.setUTCHours(0, 0, 0, 0);
+  const rows = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(pointsLedgerEntries)
+    .where(
+      and(
+        eq(pointsLedgerEntries.type, 'redeem'),
+        eq(pointsLedgerEntries.rewardId, rewardId),
+        eq(pointsLedgerEntries.customerId, customerId),
+        eq(pointsLedgerEntries.storeId, storeId),
+        gte(pointsLedgerEntries.createdAt, since),
+      ),
+    );
+  return rows[0]?.n ?? 0;
+}
+
 export interface RecordEarnResult {
   /** null when nothing was awarded, for example below the minimum purchase. */
   entryId: string | null;
@@ -160,6 +204,8 @@ export interface RecordEarnResult {
   /** True when this request had already been awarded and was replayed. */
   replayed: boolean;
   breakdown?: RuleBreakdownEntry[];
+  /** The reward paid for in this confirm (D-138), or none. */
+  redeemed: RedeemedReward | null;
 }
 
 export interface RecordAdjustInput {
@@ -250,6 +296,29 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
         throw new LedgerError('CUSTOMER_NOT_FOUND', 'That customer does not exist');
       }
 
+      /**
+       * The receipt a replayed confirm still owes its caller (D-138): the
+       * reward the sale's redeem entry paid for, rebuilt from the ledger.
+       */
+      const redeemedForSale = async (saleId: string | null): Promise<RedeemedReward | null> => {
+        if (saleId === null) return null;
+        const rows = await tx
+          .select({
+            rewardId: pointsLedgerEntries.rewardId,
+            points: pointsLedgerEntries.points,
+            name: storeRewards.name,
+          })
+          .from(pointsLedgerEntries)
+          .innerJoin(storeRewards, eq(storeRewards.id, pointsLedgerEntries.rewardId))
+          .where(
+            and(eq(pointsLedgerEntries.saleId, saleId), eq(pointsLedgerEntries.type, 'redeem')),
+          )
+          .limit(1);
+        const row = rows[0];
+        if (!row || row.rewardId === null) return null;
+        return { rewardId: row.rewardId, name: row.name, pointsCost: row.points };
+      };
+
       const existing = await tx
         .select({
           id: pointsLedgerEntries.id,
@@ -283,6 +352,7 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
           points: found.points,
           awarded: found.points > 0,
           replayed: true,
+          redeemed: await redeemedForSale(found.saleId),
         };
       }
 
@@ -307,6 +377,103 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
           'This store has branches, so the award needs to say which one',
         );
       }
+
+      // D-138: the reward is checked before anything is written, under the
+      // same store scope as everything else here.
+      let reward: { id: string; name: string; pointsCost: number } | null = null;
+      if (input.redeemRewardId !== undefined) {
+        const rewardRows = await tx
+          .select({
+            id: storeRewards.id,
+            name: storeRewards.name,
+            pointsCost: storeRewards.pointsCost,
+            active: storeRewards.active,
+            perCustomerPerDayLimit: storeRewards.perCustomerPerDayLimit,
+          })
+          .from(storeRewards)
+          .where(
+            and(eq(storeRewards.id, input.redeemRewardId), eq(storeRewards.storeId, input.storeId)),
+          )
+          .limit(1);
+        const foundReward = rewardRows[0];
+        if (!foundReward) {
+          throw new LedgerError('REWARD_NOT_FOUND', 'That reward does not exist at this store');
+        }
+        if (!foundReward.active) {
+          throw new LedgerError('REWARD_NOT_ACTIVE', 'That reward is not offered any more');
+        }
+        if (
+          foundReward.perCustomerPerDayLimit !== null &&
+          (await rewardTakesToday(tx, input.customerId, input.storeId, foundReward.id)) >=
+            foundReward.perCustomerPerDayLimit
+        ) {
+          throw new LedgerError(
+            'REWARD_LIMIT_REACHED',
+            'This customer has already taken that reward today',
+          );
+        }
+        reward = foundReward;
+      }
+
+      /**
+       * D-138: paying for a reward inside the same confirm as the award.
+       * One transaction: both ledger entries, the balance and the sale all
+       * land together, or none of them do. The redeem entry carries no
+       * idempotency key — the earn entry owns this confirm's key.
+       */
+      const redeemWith = async (saleId: string | null) => {
+        if (reward === null) return { redeemed: null as RedeemedReward | null };
+        // The award has already landed (when there was one), so this read
+        // is the balance the redemption must fit inside.
+        const balanceBefore = await readBalance(tx, input.customerId, input.storeId);
+        if (balanceBefore < reward.pointsCost) {
+          throw new LedgerError(
+            'REWARD_NOT_AFFORDABLE',
+            'This customer has not enough points for that reward',
+          );
+        }
+        // Points leave the batches too, so the expiry job cannot expire
+        // points the customer has already spent.
+        await drawDownBatches(tx, input.customerId, input.storeId, reward.pointsCost);
+        await tx.insert(pointsLedgerEntries).values({
+          customerId: input.customerId,
+          storeId: input.storeId,
+          type: 'redeem',
+          points: -reward.pointsCost,
+          rewardId: reward.id,
+          saleId,
+          staffId: input.staffId,
+          locationId,
+          reason: `Reward: ${reward.name}`,
+        });
+        const balance = await applyGuardedBalanceDelta(
+          tx,
+          input.customerId,
+          input.storeId,
+          -reward.pointsCost,
+        );
+        await tx.insert(auditLogEntries).values({
+          actorId: input.staffId,
+          action: 'points.redeem',
+          storeId: input.storeId,
+          targetType: 'customer',
+          targetId: input.customerId,
+          after: {
+            rewardId: reward.id,
+            rewardName: reward.name,
+            pointsCost: -reward.pointsCost,
+            balance,
+          },
+        });
+        return {
+          redeemed: {
+            rewardId: reward.id,
+            name: reward.name,
+            pointsCost: -reward.pointsCost,
+          } satisfies RedeemedReward,
+          balance,
+        };
+      };
 
       const calculation = calculateAward({
         ...input,
@@ -388,6 +555,8 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
             after: { points: 0, amountCents: input.amountCents, visitOnly: true },
           });
 
+          const visitRedemption = await redeemWith(saleId);
+
           return {
             entryId: visitRow.id,
             saleId,
@@ -395,8 +564,13 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
             awarded: false,
             reason: calculation.reason,
             replayed: false,
+            redeemed: visitRedemption.redeemed,
           };
         }
+
+        // A below-minimum purchase can still pay for a reward: the coffee
+        // is bought with points saved earlier, not with this sale's points.
+        const redemption = await redeemWith(saleId);
 
         return {
           entryId: null,
@@ -405,6 +579,7 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
           awarded: false,
           reason: calculation.reason,
           replayed: false,
+          redeemed: redemption.redeemed,
         };
       }
 
@@ -462,6 +637,8 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
         },
       });
 
+      const redemption = await redeemWith(saleId);
+
       return {
         entryId: inserted[0]?.id ?? null,
         saleId,
@@ -469,6 +646,7 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
         awarded: true,
         replayed: false,
         breakdown: calculation.breakdown ?? [],
+        redeemed: redemption.redeemed,
       };
     });
   } catch (error) {
@@ -508,12 +686,38 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
       );
     }
 
+    // The receipt a replay still owes its caller (D-138), rebuilt from
+    // the ledger outside any transaction.
+    const redeemRows =
+      found.saleId === null
+        ? []
+        : await db
+            .select({
+              rewardId: pointsLedgerEntries.rewardId,
+              points: pointsLedgerEntries.points,
+              name: storeRewards.name,
+            })
+            .from(pointsLedgerEntries)
+            .innerJoin(storeRewards, eq(storeRewards.id, pointsLedgerEntries.rewardId))
+            .where(
+              and(
+                eq(pointsLedgerEntries.saleId, found.saleId),
+                eq(pointsLedgerEntries.type, 'redeem'),
+              ),
+            )
+            .limit(1);
+    const redeemRow = redeemRows[0];
+
     return {
       entryId: found.id,
       saleId: found.saleId,
       points: found.points,
       awarded: true,
       replayed: true,
+      redeemed:
+        redeemRow === undefined || redeemRow.rewardId === null
+          ? null
+          : { rewardId: redeemRow.rewardId, name: redeemRow.name, pointsCost: redeemRow.points },
     };
   }
 }
@@ -525,6 +729,8 @@ export interface PreviewEarnInput {
   amountCents: number;
   /** What the customer will actually pay (D-129); the quote prices this. */
   amountPaidCents?: number;
+  /** The reward the till offers with this quote (D-138). */
+  redeemRewardId?: string;
   /** The legacy single per-euro rule. */
   rule?: PointsRule;
   /** The store's earning program (WP2). */
@@ -532,6 +738,15 @@ export interface PreviewEarnInput {
   /** Set internally when a rule counts visits; callers never pass it. */
   visitNumber?: number;
   locationId: string | null;
+}
+
+/** The reward quote the till shows next to the points (D-138). */
+export interface PreviewRedeemed {
+  rewardId: string;
+  name: string;
+  pointsCost: number;
+  affordable: boolean;
+  limitReached: boolean;
 }
 
 export interface PreviewEarnResult {
@@ -543,6 +758,8 @@ export interface PreviewEarnResult {
   locationId: string | null;
   locationName: string | null;
   breakdown?: RuleBreakdownEntry[];
+  /** The reward offered with this quote, or none. */
+  redeemed: PreviewRedeemed | null;
 }
 
 /**
@@ -620,6 +837,45 @@ export async function previewEarn(
       ? { visitNumber: await nextVisitNumber(db, input.customerId, input.storeId) }
       : {}),
   });
+
+  // D-138: the reward quote. The confirm enforces the rules; the quote only
+  // says what will happen, so affordability is projected onto the balance
+  // the award will leave behind.
+  let redeemed: PreviewRedeemed | null = null;
+  if (input.redeemRewardId !== undefined) {
+    const rewardRows = await db
+      .select({
+        id: storeRewards.id,
+        name: storeRewards.name,
+        pointsCost: storeRewards.pointsCost,
+        active: storeRewards.active,
+        perCustomerPerDayLimit: storeRewards.perCustomerPerDayLimit,
+      })
+      .from(storeRewards)
+      .where(and(eq(storeRewards.id, input.redeemRewardId), eq(storeRewards.storeId, input.storeId)))
+      .limit(1);
+    const reward = rewardRows[0];
+    if (!reward) {
+      throw new LedgerError('REWARD_NOT_FOUND', 'That reward does not exist at this store');
+    }
+    if (!reward.active) {
+      throw new LedgerError('REWARD_NOT_ACTIVE', 'That reward is not offered any more');
+    }
+    const limitReached =
+      reward.perCustomerPerDayLimit !== null &&
+      (await rewardTakesToday(db, input.customerId, input.storeId, reward.id)) >=
+        reward.perCustomerPerDayLimit;
+    const balance = await getBalance(db, input.customerId, input.storeId);
+    const projected = balance + (calculation.awarded ? calculation.points : 0);
+    redeemed = {
+      rewardId: reward.id,
+      name: reward.name,
+      pointsCost: reward.pointsCost,
+      affordable: !limitReached && projected >= reward.pointsCost,
+      limitReached,
+    };
+  }
+
   if (!calculation.awarded) {
     return {
       points: 0,
@@ -629,6 +885,7 @@ export async function previewEarn(
       locationId,
       locationName,
       breakdown: calculation.breakdown ?? [],
+      redeemed,
     };
   }
 
@@ -639,6 +896,7 @@ export async function previewEarn(
     locationId,
     locationName,
     breakdown: calculation.breakdown ?? [],
+    redeemed,
   };
 }
 

@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { and, desc, eq, gt, isNull, lte, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, isNull, lte, sql } from 'drizzle-orm';
 import type { EmailVerifier } from '../auth/supabase-admin.js';
 import type { CustomerPrincipal } from '../auth/session.js';
 import type { Database } from './client.js';
@@ -11,6 +11,7 @@ import {
   pointsBalances,
   pointsBatches,
   pointsLedgerEntries,
+  storeRewards,
   stores,
 } from './schema.js';
 
@@ -567,4 +568,23 @@ export async function listStoreCustomers(
     )
     .orderBy(desc(customerStoreLinks.joinedAt))
     .limit(50);
+}
+
+/**
+ * A store's active rewards, cheapest first — the customer app's read-only
+ * view of the catalog (D-138). No balances, no limits: just what is on offer.
+ */
+export async function customerStoreRewards(
+  db: Database,
+  storeId: string,
+): Promise<{ rewardId: string; name: string; pointsCost: number }[]> {
+  return db
+    .select({
+      rewardId: storeRewards.id,
+      name: storeRewards.name,
+      pointsCost: storeRewards.pointsCost,
+    })
+    .from(storeRewards)
+    .where(and(eq(storeRewards.storeId, storeId), eq(storeRewards.active, true)))
+    .orderBy(asc(storeRewards.pointsCost));
 }

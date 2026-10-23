@@ -5,6 +5,7 @@ import {
   customerExpiringResponseSchema,
   customerHistoryResponseSchema,
   customerMeResponseSchema,
+  customerStoreRewardsResponseSchema,
   customerStoresResponseSchema,
   storeIdParamsSchema,
   updateCustomerRequestSchema,
@@ -15,6 +16,7 @@ import {
   CustomerError,
   customerExpiring,
   customerStoreHistory,
+  customerStoreRewards,
   customerStores,
   provisionCustomer,
   updateCustomerProfile,
@@ -274,6 +276,45 @@ export const customerRoutes: FastifyPluginAsyncZod<CustomerRouteOptions> = async
           expiresAt: new Date(item.expiresAt).toISOString(),
         })),
       });
+    },
+  );
+
+  /**
+   * The store's rewards catalog, read-only (D-138): what the customer's
+   * points are worth at this store. No balance and no limits — the till
+   * decides those, where the spending happens.
+   */
+  app.get(
+    '/v1/customer/stores/:storeId/rewards',
+    {
+      config: { rateLimit: rateLimit ?? { max: 120, timeWindow: '1 minute' } },
+      schema: {
+        params: storeIdParamsSchema,
+        response: {
+          200: customerStoreRewardsResponseSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+          409: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const principal = await resolve(request.headers.authorization);
+      if (principal === null) {
+        return reply
+          .code(401)
+          .send({ error: { code: 'INVALID_TOKEN', message: 'That access token is not valid' } });
+      }
+
+      const customer = await provision(principal);
+      if (customer instanceof CustomerError) {
+        return reply
+          .code(customerErrorStatus(customer.code))
+          .send({ error: { code: customer.code, message: customer.message } });
+      }
+
+      const rewards = await customerStoreRewards(db, request.params.storeId);
+      return reply.send({ rewards });
     },
   );
 };

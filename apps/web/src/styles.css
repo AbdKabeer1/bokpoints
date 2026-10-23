@@ -634,3 +634,38 @@ select:focus {
   margin-top: 14px;
   text-align: center;
 }
+
+/* The reward picker (D-138): plain buttons until chosen, green when taken. */
+.rewards {
+  margin-top: 14px;
+  text-align: left;
+}
+
+.rewardrow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.rewardbtn {
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+.rewardbtn.on {
+  border-color: var(--green);
+  background: var(--green-soft);
+  color: var(--green-dark);
+}
+
+.rewardbtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

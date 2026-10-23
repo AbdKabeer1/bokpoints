@@ -173,6 +173,7 @@ describe('POST /v1/stores/:storeId/awards/preview', () => {
       expiresAt: expectedExpiry,
       locationId: kamppiId,
       locationName: 'Kamppi',
+      redeemed: null,
       breakdown: [
         {
           ruleId: expect.any(String),

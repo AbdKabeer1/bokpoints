@@ -1,10 +1,20 @@
 # STATUS
 
 **Project:** BOKPOINTS, a B2B2C loyalty platform for SMEs in Finland / EU.
-**Phase:** MVP, worked through `BOKPOINTS The Way Forward.md` one work package at a time. WP0, WP1 and WP2 (store-owned rules) are done, and the WP3 sale record is in. A brought the three surfaces forward before WP3: the till restyle and the owner portal are in, the customer app's first impression is in. **Next up: Build 17 — rewards catalog and redemption (D-138), then Build 18 — basket discount behind the rotating QR (D-133).**
-**Last updated:** 23 Oct 2026, after Build 16 (WP3 sale record + payment confirmation). Every till confirm now records a sale (charged, paid, frozen rules), points follow the amount actually paid (D-129), and `POST /v1/stores/:storeId/sales/:saleId/reversal` reverses once with a `reversal_of`-linked entry that cannot drive a balance negative (D-131). The till asks "Payment taken?" before recording. 87 unit and 223 integration tests green. Migration 0011 is local only; 0007-0010 still wait on your word for the hosted database.
+**Phase:** MVP, worked through `BOKPOINTS The Way Forward.md` one work package at a time. WP0-WP3 are done, and the rewards catalog (D-138) is in across all three surfaces. **Next up: Build 18 — the basket discount behind the rotating QR (D-133): signed, about 60 seconds, one-time per store, verified online.**
+**Last updated:** 23 Oct 2026, after Build 17 (rewards catalog + redemption). A store's rewards are owner-managed and audited; the till picks from what the customer can afford and the confirm spends the points atomically with the earn — one sale, one key, never below zero. The customer app shows each store's catalog. 87 unit and 232 integration tests green. Migrations 0011-0012 are local only; 0007-0010 still wait on your word for the hosted database.
 
 ## Done
+
+- **Build 17 — rewards catalog and redemption (D-142).** `store_rewards` (migration 0012,
+  local only): name, points cost, optional per-customer-per-day limit, active flag; owners
+  and managers edit it with an audit trail. The till's payment step gained a reward picker
+  (affordable rewards only, daily limits shown), and redemption rides **inside the confirm**:
+  earn + redeem entries under one idempotency key, FIFO draw-down, guarded balance, both
+  linked to the same sale. Refusals roll everything back; a replay returns the same receipt;
+  reversing a sale returns the earned points but keeps the reward. The owner portal has a
+  Rewards tab; the customer app lists each store's catalog. 87 unit and 232 integration
+  tests green (9 new). Build 18 next: the basket discount behind the rotating QR (D-133).
 
 - **Build 16 — WP3 sale record and payment confirmation (D-141).** A `sales` table
   (migration 0011, local only) records every confirm: charged amount, discount (zero
@@ -224,7 +234,7 @@
   read the audit log. Live: register → award 25 → adjust +5 → list → audit line →
   clawback 40 → −35.
 
-**Tests: 87 unit, 223 integration, all passing.**
+**Tests: 87 unit, 232 integration, all passing.**
 
 ## In progress
 

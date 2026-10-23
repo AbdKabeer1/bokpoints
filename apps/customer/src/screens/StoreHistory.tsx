@@ -7,7 +7,13 @@ import {
   Text,
   View,
 } from 'react-native';
-import { getHistory, type History, type StoreSummary } from '../lib/api';
+import {
+  getHistory,
+  getStoreRewards,
+  type History,
+  type StoreReward,
+  type StoreSummary,
+} from '../lib/api';
 import { formatDate, typeLabel } from '../lib/format';
 import { colors, layout } from '../lib/theme';
 
@@ -20,6 +26,7 @@ interface StoreHistoryProps {
 /** One store's entries, newest first, with the balance after each (FR-CUS-3). */
 export function StoreHistory({ token, store, onBack }: StoreHistoryProps) {
   const [history, setHistory] = useState<History | null>(null);
+  const [rewards, setRewards] = useState<StoreReward[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -30,6 +37,15 @@ export function StoreHistory({ token, store, onBack }: StoreHistoryProps) {
         if (!cancelled) setHistory(loaded);
       } catch {
         if (!cancelled) setError('We could not load this history. Try again in a moment.');
+      }
+    })();
+    // The catalog is a nice-to-have on this screen: a failure just hides it.
+    void (async () => {
+      try {
+        const loaded = await getStoreRewards(token, store.storeId);
+        if (!cancelled) setRewards(loaded.rewards);
+      } catch {
+        if (!cancelled) setRewards(null);
       }
     })();
     return () => {
@@ -45,6 +61,18 @@ export function StoreHistory({ token, store, onBack }: StoreHistoryProps) {
 
       <Text style={styles.title}>{store.name}</Text>
       <Text style={styles.balance}>{history?.balance ?? store.balance} points</Text>
+
+      {rewards !== null && rewards.length > 0 && (
+        <View style={styles.rewards}>
+          <Text style={styles.rewardsTitle}>Your points here are worth</Text>
+          {rewards.map((reward) => (
+            <View key={reward.rewardId} style={styles.rewardRow}>
+              <Text style={styles.rewardName}>{reward.name}</Text>
+              <Text style={styles.rewardCost}>{reward.pointsCost} pts</Text>
+            </View>
+          ))}
+        </View>
+      )}
 
       {error !== null && <Text style={styles.error}>{error}</Text>}
 
@@ -101,6 +129,33 @@ const styles = StyleSheet.create({
   },
   spinner: {
     marginTop: 16,
+  },
+  rewards: {
+    marginBottom: 20,
+  },
+  rewardsTitle: {
+    color: colors.muted,
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  rewardRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderColor: colors.line,
+  },
+  rewardName: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  rewardCost: {
+    color: colors.gold,
+    fontSize: 14,
+    fontWeight: '700',
   },
   empty: {
     color: colors.muted,

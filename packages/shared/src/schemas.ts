@@ -33,6 +33,9 @@ export const awardRequestSchema = z.object({
   amountPaidCents: z.number().int().min(0).max(MAX_AMOUNT_CENTS).optional(),
   // The store's own till or POS receipt reference, when it has one (WP3).
   posReference: z.string().trim().max(120).optional(),
+  // D-138: spend a catalog reward's points in the same confirm. The whole
+  // confirm is one atomic action under one idempotency key.
+  redeemRewardId: z.string().uuid().optional(),
   // D-103: which branch the purchase was at. Optional, because many stores
   // have none, and a member limited to one branch does not need to send it.
   locationId: z.string().uuid().optional(),
@@ -63,6 +66,14 @@ export const awardResponseSchema = z.object({
   entryId: z.string().uuid().nullable(),
   /** The sale this confirm recorded (WP3, D-118). */
   saleId: z.string().uuid().nullable(),
+  /** The reward paid for in this confirm, or none (D-138). */
+  redeemed: z
+    .object({
+      rewardId: z.string().uuid(),
+      name: z.string(),
+      pointsCost: z.number().int().max(0),
+    })
+    .nullable(),
   points: z.number().int(),
   awarded: z.boolean(),
   reason: z.string().optional(),
@@ -106,6 +117,76 @@ export const reversalResponseSchema = z.object({
   reversalEntryId: z.string().uuid().nullable(),
   reversedPoints: z.number().int().max(0),
   balance: z.number().int(),
+});
+
+/* ── Rewards catalog and redemption (D-138) ────────────────────────────── */
+
+/** A points cost in points; a reward may not be free, and not absurd. */
+export const MAX_REWARD_POINTS_COST = 1_000_000;
+
+export const storeRewardRowSchema = z.object({
+  rewardId: z.string().uuid(),
+  name: z.string(),
+  pointsCost: z.number().int().min(1).max(MAX_REWARD_POINTS_COST),
+  /** null means no per-customer daily cap. */
+  perCustomerPerDayLimit: z.number().int().min(1).max(1000).nullable(),
+  active: z.boolean(),
+  createdAt: z.string(),
+});
+
+export const storeRewardsResponseSchema = z.object({
+  rewards: z.array(storeRewardRowSchema),
+});
+
+export const rewardCreateRequestSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  pointsCost: z.number().int().min(1).max(MAX_REWARD_POINTS_COST),
+  perCustomerPerDayLimit: z.number().int().min(1).max(1000).nullish(),
+});
+
+export const rewardEditRequestSchema = z
+  .object({
+    name: z.string().trim().min(1).max(80).optional(),
+    pointsCost: z.number().int().min(1).max(MAX_REWARD_POINTS_COST).optional(),
+    perCustomerPerDayLimit: z.number().int().min(1).max(1000).nullish(),
+    active: z.boolean().optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0, {
+    message: 'Change at least one field',
+  });
+
+export const rewardParamsSchema = storeIdParamsSchema.extend({
+  rewardId: z.string().uuid(),
+});
+
+/** The till's picker: what this customer can take right now (D-138). */
+export const tillRewardsQuerySchema = z.object({
+  customerId: z.string().uuid(),
+});
+
+export const tillRewardSchema = z.object({
+  rewardId: z.string().uuid(),
+  name: z.string(),
+  pointsCost: z.number().int().min(1).max(MAX_REWARD_POINTS_COST),
+  affordable: z.boolean(),
+  redeemedToday: z.number().int().min(0),
+  limitReached: z.boolean(),
+});
+
+export const tillRewardsResponseSchema = z.object({
+  balance: z.number().int(),
+  rewards: z.array(tillRewardSchema),
+});
+
+/** The customer app's read-only view of a store's catalog. */
+export const customerStoreRewardsResponseSchema = z.object({
+  rewards: z.array(
+    z.object({
+      rewardId: z.string().uuid(),
+      name: z.string(),
+      pointsCost: z.number().int().min(1).max(MAX_REWARD_POINTS_COST),
+    }),
+  ),
 });
 
 export const identifyResponseSchema = z.object({
@@ -279,6 +360,18 @@ export const awardPreviewResponseSchema = z.object({
   locationName: z.string().nullable(),
   /** Which rules produced the quoted points (FR-CHK-5). */
   breakdown: z.array(pointsBreakdownEntrySchema).optional(),
+  /** The reward the till offered with this quote, and whether the confirm will accept it (D-138). */
+  redeemed: z
+    .object({
+      rewardId: z.string().uuid(),
+      name: z.string(),
+      /** What the reward costs, in points — positive here; the award response reports what was taken. */
+      pointsCost: z.number().int().min(1).max(MAX_REWARD_POINTS_COST),
+      affordable: z.boolean(),
+      limitReached: z.boolean(),
+    })
+    .nullable()
+    .optional(),
 });
 
 export const healthResponseSchema = z.object({

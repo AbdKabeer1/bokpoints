@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   ApiError,
   award,
+  availableRewards,
   getBalance,
   identify,
   previewAward,
@@ -12,6 +13,7 @@ import {
   type Identified,
   type Membership,
   type RecentAwards,
+  type TillReward,
 } from './api';
 import { cashierMessage, HELP_LINE } from './errors';
 import { formatDate, isEmail, normalizeScan, parseAmountToCents } from './format';
@@ -29,6 +31,8 @@ interface AwardRecorded {
   points: number;
   balance: number;
   expiresAt: string | null;
+  /** The reward this confirm paid for, if any (D-138). */
+  redeemed: { name: string; pointsCost: number } | null;
 }
 
 /** Plain names for the breakdown rows a cashier reads at a glance. */
@@ -58,6 +62,12 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
   // WP3: null until the cashier says the payment was taken; then the
   // editable amount actually paid, which is what the points follow (D-129).
   const [paid, setPaid] = useState<string | null>(null);
+  // D-138: the catalog the picker offers once payment is being taken, and
+  // the reward the customer chose. Nothing is spent until the confirm.
+  const [rewards, setRewards] = useState<TillReward[] | null>(null);
+  const [selectedReward, setSelectedReward] = useState<
+    { rewardId: string; name: string; pointsCost: number } | null
+  >(null);
   const [branchId, setBranchId] = useState<string | null>(
     membership.locationId ?? membership.branches[0]?.id ?? null,
   );
@@ -87,6 +97,7 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
     customerId: target.customerId,
     amountCents: cents,
     ...(paidCents === undefined ? {} : { amountPaidCents: paidCents }),
+    ...(selectedReward === null ? {} : { redeemRewardId: selectedReward.rewardId }),
     ...(effectiveLocationId === null ? {} : { locationId: effectiveLocationId }),
   });
 
@@ -138,7 +149,26 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [amount, paid, customer, token, membership.storeId, effectiveLocationId]);
+  }, [amount, paid, selectedReward, customer, token, membership.storeId, effectiveLocationId]);
+
+  // The picker's catalog, loaded once when the payment step opens: a
+  // failed load just hides the picker — awarding never depends on it.
+  const inPayStep = paid !== null;
+  useEffect(() => {
+    if (!inPayStep || customer === null) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const result = await availableRewards(token, membership.storeId, customer.customerId);
+        if (!cancelled) setRewards(result.rewards);
+      } catch {
+        if (!cancelled) setRewards(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [inPayStep, customer, token, membership.storeId]);
 
   /** What this till last recorded (FR-STO-9). A failure just shows nothing. */
   const loadRecent = useCallback(async () => {
@@ -234,6 +264,7 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
         points: result.points,
         balance: balance.balance,
         expiresAt: preview?.expiresAt ?? null,
+        redeemed: result.redeemed,
       });
       void loadRecent();
     } catch (caught) {
@@ -279,6 +310,8 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
     setCustomer(null);
     setAmount('');
     setPaid(null);
+    setRewards(null);
+    setSelectedReward(null);
     setPreview(null);
     setPreviewError(null);
     setRecorded(null);
@@ -355,6 +388,11 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
               New balance: {recorded.balance} points
               {recorded.expiresAt === null ? '' : ` · expires ${formatDate(recorded.expiresAt)}`}
             </p>
+            {recorded.redeemed !== null && (
+              <p className="muted">
+                Redeemed: {recorded.redeemed.name} (−{Math.abs(recorded.redeemed.pointsCost)} pts)
+              </p>
+            )}
             <button className="primary" type="button" onClick={reset}>
               Next customer
             </button>
@@ -540,6 +578,49 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
                     aria-label="Amount paid in euros"
                   />
                 </div>
+                {rewards !== null && rewards.length > 0 && (
+                  <div className="rewards">
+                    <p className="eyebrow">Use points for a reward</p>
+                    <div className="rewardrow">
+                      <button
+                        type="button"
+                        className={selectedReward === null ? 'rewardbtn on' : 'rewardbtn'}
+                        onClick={() => setSelectedReward(null)}
+                        disabled={busy}
+                      >
+                        No reward
+                      </button>
+                      {rewards.map((reward) => (
+                        <button
+                          key={reward.rewardId}
+                          type="button"
+                          className={
+                            selectedReward?.rewardId === reward.rewardId
+                              ? 'rewardbtn on'
+                              : 'rewardbtn'
+                          }
+                          disabled={busy || !reward.affordable}
+                          onClick={() =>
+                            setSelectedReward({
+                              rewardId: reward.rewardId,
+                              name: reward.name,
+                              pointsCost: reward.pointsCost,
+                            })
+                          }
+                          title={
+                            reward.limitReached
+                              ? 'Limit reached for today'
+                              : reward.affordable
+                                ? undefined
+                                : 'Not enough points yet'
+                          }
+                        >
+                          {reward.name} · {reward.pointsCost}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </>
             )}
             {preview !== null && preview.awarded ? (
@@ -553,6 +634,13 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
                   {preview.locationName === null ? '' : ` · at ${preview.locationName}`}
                   {preview.expiresAt === null ? '' : ` · expires ${formatDate(preview.expiresAt)}`}
                 </p>
+                {selectedReward !== null && preview.redeemed != null && (
+                  <p className="earnsub">
+                    {preview.redeemed.affordable && !preview.redeemed.limitReached
+                      ? `with ${preview.redeemed.name} — ${preview.redeemed.pointsCost} pts`
+                      : `${preview.redeemed.name} is not available right now`}
+                  </p>
+                )}
                 {preview.breakdown !== undefined && preview.breakdown.length > 0 && (
                   <ul className="breakdown" aria-label="Which rules gave the points">
                     {preview.breakdown.map((entry, index) => (
@@ -590,7 +678,14 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
                     className="primary"
                     type="button"
                     onClick={() => void handleConfirm()}
-                    disabled={busy || preview === null || !preview.awarded}
+                    disabled={
+                      busy ||
+                      preview === null ||
+                      !preview.awarded ||
+                      (selectedReward !== null &&
+                        preview.redeemed != null &&
+                        (!preview.redeemed.affordable || preview.redeemed.limitReached))
+                    }
                   >
                     {busy
                       ? 'Recording…'
