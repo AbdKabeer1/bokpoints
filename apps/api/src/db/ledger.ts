@@ -4,6 +4,8 @@ import {
   applyFraudClawback,
   calculatePoints,
   calculatePurchase,
+  discountFor,
+  type DiscountKind,
   expiryDateForEarn,
   type EarningRule,
   type PointsRejectionReason,
@@ -18,12 +20,15 @@ import {
   customers,
   pointsBalances,
   pointsLedgerEntries,
+  consumedDiscountProofs,
+  discountRules,
   sales,
   storeLocations,
   storeRewards,
   stores,
 } from './schema.js';
 import { isUniqueViolation } from './errors.js';
+import { checkDiscountProof } from './discount-proof.js';
 
 export type LedgerErrorCode =
   | 'BELOW_MINIMUM'
@@ -40,7 +45,13 @@ export type LedgerErrorCode =
   | 'REWARD_NOT_FOUND'
   | 'REWARD_NOT_ACTIVE'
   | 'REWARD_NOT_AFFORDABLE'
-  | 'REWARD_LIMIT_REACHED';
+  | 'REWARD_LIMIT_REACHED'
+  | 'PROOF_INVALID'
+  | 'PROOF_EXPIRED'
+  | 'PROOF_ALREADY_USED'
+  | 'PROOF_CUSTOMER_MISMATCH'
+  | 'PROOF_STORE_MISMATCH'
+  | 'PROOF_BELOW_THRESHOLD';
 
 /**
  * The store states in which awarding is allowed. A paused store still
@@ -136,6 +147,8 @@ export interface RecordEarnInput {
   posReference?: string;
   /** Pay for a catalog reward inside this same confirm (D-138). */
   redeemRewardId?: string;
+  /** The customer's rotating discount code, consumed by this confirm (D-133). */
+  discountProof?: string;
   /** The legacy single per-euro rule; WP3 removes it once every caller uses a program. */
   rule?: PointsRule;
   ruleVersion?: number;
@@ -224,6 +237,20 @@ async function lockCustomerBalance(tx: Queryable, customerId: string, storeId: s
   `);
 }
 
+/** Turns a failed proof check into the ledger error the till can quote. */
+function proofError(reason: 'invalid' | 'expired' | 'customer_mismatch' | 'store_mismatch'): LedgerError {
+  switch (reason) {
+    case 'expired':
+      return new LedgerError('PROOF_EXPIRED', 'That discount code has expired');
+    case 'customer_mismatch':
+      return new LedgerError('PROOF_CUSTOMER_MISMATCH', 'That discount code belongs to a different customer');
+    case 'store_mismatch':
+      return new LedgerError('PROOF_STORE_MISMATCH', 'That discount code is not for this store');
+    default:
+      return new LedgerError('PROOF_INVALID', 'That discount code is not recognised');
+  }
+}
+
 export interface RecordEarnResult {
   /** null when nothing was awarded, for example below the minimum purchase. */
   entryId: string | null;
@@ -238,6 +265,8 @@ export interface RecordEarnResult {
   breakdown?: RuleBreakdownEntry[];
   /** The reward paid for in this confirm (D-138), or none. */
   redeemed: RedeemedReward | null;
+  /** What the basket discount took off this sale (D-133), zero when none. */
+  discountCents: number;
 }
 
 export interface RecordAdjustInput {
@@ -357,8 +386,10 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
           points: pointsLedgerEntries.points,
           amountCents: pointsLedgerEntries.amountCents,
           saleId: pointsLedgerEntries.saleId,
+          saleDiscountCents: sales.discountCents,
         })
         .from(pointsLedgerEntries)
+        .leftJoin(sales, eq(sales.id, pointsLedgerEntries.saleId))
         .where(
           and(
             eq(pointsLedgerEntries.storeId, input.storeId),
@@ -385,6 +416,7 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
           awarded: found.points > 0,
           replayed: true,
           redeemed: await redeemedForSale(found.saleId),
+          discountCents: found.saleDiscountCents ?? 0,
         };
       }
 
@@ -442,6 +474,63 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
         // The per-day limit is checked inside `redeemWith`, behind the
         // balance lock, so two tills cannot both pass it.
         reward = foundReward;
+      }
+
+      // D-133: the basket discount, gated behind the rotating proof. The
+      // code is checked and consumed inside this transaction — one code,
+      // one sale — and the discount is the store's to fund (D-130).
+      let discountCents = 0;
+      if (input.discountProof !== undefined) {
+        const check = checkDiscountProof(input.discountProof, {
+          customerId: input.customerId,
+          storeId: input.storeId,
+        });
+        if (!check.ok) throw proofError(check.reason);
+
+        const ruleRows = await tx
+          .select({
+            thresholdCents: discountRules.thresholdCents,
+            kind: discountRules.kind,
+            value: discountRules.value,
+          })
+          .from(discountRules)
+          .where(and(eq(discountRules.storeId, input.storeId), eq(discountRules.active, true)))
+          .limit(1);
+        const rule = ruleRows[0];
+        if (!rule) {
+          throw new LedgerError('PROOF_INVALID', 'This store has no discount running');
+        }
+        // The threshold reads the whole basket, before any discount. The
+        // column is text; the CHECK keeps it to the two kinds.
+        const kind: DiscountKind = rule.kind === 'percent' ? 'percent' : 'fixed_cents';
+        const computed = discountFor(
+          { thresholdCents: rule.thresholdCents, kind, value: rule.value },
+          input.amountCents,
+        );
+        if (computed <= 0) {
+          throw new LedgerError('PROOF_BELOW_THRESHOLD', 'This purchase is below the discount threshold');
+        }
+
+        // The insert is the consumption: the jti is the primary key, so a
+        // second confirm with the same code fails here and rolls back.
+        try {
+          await tx
+            .insert(consumedDiscountProofs)
+            .values({ jti: check.payload.jti, storeId: input.storeId });
+        } catch (error) {
+          if (isUniqueViolation(error)) {
+            throw new LedgerError('PROOF_ALREADY_USED', 'That discount code was already used');
+          }
+          throw error;
+        }
+        discountCents = computed;
+
+        // The discount is the store's own money (D-130): it must come off
+        // what the customer pays, so paid can never sit above the
+        // discounted total.
+        if (paidCents > input.amountCents - discountCents) {
+          throw new LedgerError('INVALID_AMOUNT', 'The amount paid is above the discounted total');
+        }
       }
 
       /**
@@ -545,7 +634,7 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
           staffId: input.staffId,
           deviceId: input.deviceId,
           amountBeforeDiscountCents: input.amountCents,
-          discountCents: 0,
+          discountCents,
           amountPaidCents: paidCents,
           rulesApplied: calculation.breakdown ?? null,
           posReference: input.posReference ?? null,
@@ -610,6 +699,7 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
             reason: calculation.reason,
             replayed: false,
             redeemed: visitRedemption.redeemed,
+            discountCents,
           };
         }
 
@@ -625,6 +715,7 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
           reason: calculation.reason,
           replayed: false,
           redeemed: redemption.redeemed,
+          discountCents,
         };
       }
 
@@ -692,6 +783,7 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
         replayed: false,
         breakdown: calculation.breakdown ?? [],
         redeemed: redemption.redeemed,
+        discountCents,
       };
     });
   } catch (error) {
@@ -707,8 +799,10 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
         points: pointsLedgerEntries.points,
         amountCents: pointsLedgerEntries.amountCents,
         saleId: pointsLedgerEntries.saleId,
+        saleDiscountCents: sales.discountCents,
       })
       .from(pointsLedgerEntries)
+      .leftJoin(sales, eq(sales.id, pointsLedgerEntries.saleId))
       .where(
         and(
           eq(pointsLedgerEntries.storeId, input.storeId),
@@ -759,6 +853,7 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
       points: found.points,
       awarded: true,
       replayed: true,
+      discountCents: found.saleDiscountCents ?? 0,
       redeemed:
         redeemRow === undefined || redeemRow.rewardId === null
           ? null
@@ -776,6 +871,8 @@ export interface PreviewEarnInput {
   amountPaidCents?: number;
   /** The reward the till offers with this quote (D-138). */
   redeemRewardId?: string;
+  /** The rotating code to quote the discount against (D-133); a dry run. */
+  discountProof?: string;
   /** The legacy single per-euro rule. */
   rule?: PointsRule;
   /** The store's earning program (WP2). */
@@ -795,6 +892,8 @@ export interface PreviewRedeemed {
 }
 
 export interface PreviewEarnResult {
+  /** What the basket discount would take off (D-133), zero when none. */
+  discountCents: number;
   points: number;
   awarded: boolean;
   reason?: PointsRejectionReason | undefined;
@@ -921,6 +1020,38 @@ export async function previewEarn(
     };
   }
 
+  // D-133: quote the discount against the proof — a dry run, the code is
+  // consumed only by the confirm.
+  let discountCents = 0;
+  if (input.discountProof !== undefined) {
+    const check = checkDiscountProof(input.discountProof, {
+      customerId: input.customerId,
+      storeId: input.storeId,
+    });
+    if (!check.ok) throw proofError(check.reason);
+    const ruleRows = await db
+      .select({
+        thresholdCents: discountRules.thresholdCents,
+        kind: discountRules.kind,
+        value: discountRules.value,
+      })
+      .from(discountRules)
+      .where(and(eq(discountRules.storeId, input.storeId), eq(discountRules.active, true)))
+      .limit(1);
+    const rule = ruleRows[0];
+    if (!rule) {
+      throw new LedgerError('PROOF_INVALID', 'This store has no discount running');
+    }
+    const kind: DiscountKind = rule.kind === 'percent' ? 'percent' : 'fixed_cents';
+    discountCents = discountFor(
+      { thresholdCents: rule.thresholdCents, kind, value: rule.value },
+      input.amountCents,
+    );
+    if (discountCents <= 0) {
+      throw new LedgerError('PROOF_BELOW_THRESHOLD', 'This purchase is below the discount threshold');
+    }
+  }
+
   if (!calculation.awarded) {
     return {
       points: 0,
@@ -931,6 +1062,7 @@ export async function previewEarn(
       locationName,
       breakdown: calculation.breakdown ?? [],
       redeemed,
+      discountCents,
     };
   }
 
@@ -942,6 +1074,7 @@ export async function previewEarn(
     locationName,
     breakdown: calculation.breakdown ?? [],
     redeemed,
+    discountCents,
   };
 }
 

@@ -174,6 +174,7 @@ describe('POST /v1/stores/:storeId/awards/preview', () => {
       locationId: kamppiId,
       locationName: 'Kamppi',
       redeemed: null,
+      discountCents: 0,
       breakdown: [
         {
           ruleId: expect.any(String),

@@ -62,7 +62,7 @@ const apiBase = (process.env.EXPO_PUBLIC_API_BASE ?? 'http://127.0.0.1:3000').re
 async function request<T>(
   path: string,
   token: string,
-  method: 'GET' | 'PATCH' = 'GET',
+  method: 'GET' | 'POST' | 'PATCH' = 'GET',
   body?: unknown,
 ): Promise<T> {
   const headers: Record<string, string> = { authorization: `Bearer ${token}` };
@@ -108,6 +108,18 @@ export interface StoreReward {
 /** The store's active rewards, cheapest first (D-138). */
 export const getStoreRewards = (token: string, storeId: string) =>
   request<{ rewards: StoreReward[] }>(`/v1/customer/stores/${storeId}/rewards`, token);
+
+export interface DiscountProof {
+  proof: string;
+  /** UTC instant after which the till refuses the code. */
+  expiresAt: string;
+  /** False when the store has no discount running — hide the code. */
+  active: boolean;
+}
+
+/** A fresh rotating discount code for this store (D-133). Online only. */
+export const getDiscountProof = (token: string, storeId: string) =>
+  request<DiscountProof>(`/v1/customer/stores/${storeId}/discount-proof`, token, 'POST');
 
 export const getExpiring = (token: string) =>
   request<{ windowDays: number; items: ExpiringItem[] }>('/v1/customer/me/expiring', token);

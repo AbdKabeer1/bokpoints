@@ -14,6 +14,9 @@ import {
   ruleSimulateResponseSchema,
   rewardCreateRequestSchema,
   rewardEditRequestSchema,
+  discountRuleResponseSchema,
+  discountRuleRowSchema,
+  discountRuleSetRequestSchema,
   storeCustomersResponseSchema,
   storeRewardsResponseSchema,
   storeRewardRowSchema,
@@ -212,6 +215,27 @@ export const editReward = (
     body: rewardEditRequestSchema.parse(body),
   });
 
+/* ── Discount (D-115, D-133): the one basket discount behind the QR ────── */
+
+export const getDiscountRule = (token: string, storeId: string) =>
+  request(discountRuleResponseSchema, {
+    method: 'GET',
+    path: `/v1/stores/${storeId}/discount-rule`,
+    token,
+  });
+
+export const setDiscountRule = (
+  token: string,
+  storeId: string,
+  body: { thresholdCents: number; kind: 'fixed_cents' | 'percent'; value: number; active: boolean },
+) =>
+  request(discountRuleRowSchema, {
+    method: 'POST',
+    path: `/v1/stores/${storeId}/discount-rule`,
+    token,
+    body: discountRuleSetRequestSchema.parse(body),
+  });
+
 /* ── Audit ─────────────────────────────────────────────────────────────── */
 
 export const listAudit = (token: string, storeId: string, limit = '50', action?: string) =>
@@ -229,4 +253,5 @@ export type RuleCustomer = Awaited<ReturnType<typeof listCustomers>>['customers'
 export type StaffMember = Awaited<ReturnType<typeof listStaff>>['members'][number];
 export type AuditEntry = Awaited<ReturnType<typeof listAudit>>['entries'][number];
 export type Reward = Awaited<ReturnType<typeof listRewards>>['rewards'][number];
+export type DiscountRule = NonNullable<Awaited<ReturnType<typeof getDiscountRule>>['rule']>;
 export type Simulation = Awaited<ReturnType<typeof simulateRules>>;

@@ -36,6 +36,9 @@ export const awardRequestSchema = z.object({
   // D-138: spend a catalog reward's points in the same confirm. The whole
   // confirm is one atomic action under one idempotency key.
   redeemRewardId: z.string().uuid().optional(),
+  // D-133: the customer's rotating discount code. The confirm consumes it —
+  // one code, one sale — and records the discount on the sale.
+  discountProof: z.string().trim().min(1).max(400).optional(),
   // D-103: which branch the purchase was at. Optional, because many stores
   // have none, and a member limited to one branch does not need to send it.
   locationId: z.string().uuid().optional(),
@@ -74,6 +77,8 @@ export const awardResponseSchema = z.object({
       pointsCost: z.number().int().max(0),
     })
     .nullable(),
+  /** What the basket discount took off this sale (D-133), or zero. */
+  discountCents: z.number().int().min(0).nullable(),
   points: z.number().int(),
   awarded: z.boolean(),
   reason: z.string().optional(),
@@ -195,6 +200,53 @@ export const customerStoreRewardsResponseSchema = z.object({
       pointsCost: z.number().int().min(1).max(MAX_REWARD_POINTS_COST),
     }),
   ),
+});
+
+/* ── The basket discount behind the rotating QR (D-115, D-133) ─────────── */
+
+export const discountRuleRowSchema = z.object({
+  discountRuleId: z.string().uuid(),
+  thresholdCents: z.number().int().min(0).max(MAX_AMOUNT_CENTS),
+  kind: z.enum(['fixed_cents', 'percent']),
+  /** fixed_cents: cents off. percent: thousandths of a percent, 100_000 = 100%. */
+  value: z.number().int().min(1).max(100_000_000),
+  active: z.boolean(),
+  createdAt: z.string(),
+});
+
+export const discountRuleResponseSchema = z.object({
+  rule: discountRuleRowSchema.nullable(),
+});
+
+export const discountRuleSetRequestSchema = z.object({
+  thresholdCents: z.number().int().min(0).max(MAX_AMOUNT_CENTS),
+  kind: z.enum(['fixed_cents', 'percent']),
+  value: z.number().int().min(1).max(100_000_000),
+  active: z.boolean().default(true),
+});
+
+/** The customer's rotating code, fresh from the API (D-133). */
+export const discountProofIssueResponseSchema = z.object({
+  proof: z.string().min(1),
+  /** UTC instant after which the till will refuse the code. */
+  expiresAt: z.string(),
+  /** False when the store has no discount running — the app hides the code. */
+  active: z.boolean(),
+});
+
+export const discountProofVerifyRequestSchema = z.object({
+  proof: z.string().trim().min(1).max(400),
+  amountCents: z.number().int().min(0).max(MAX_AMOUNT_CENTS),
+  /** The customer the till is serving; the code must be theirs. */
+  customerId: z.string().uuid().optional(),
+});
+
+export const discountProofVerifyResponseSchema = z.object({
+  valid: z.boolean(),
+  /** When not valid: 'invalid' | 'expired' | 'used' | 'below_threshold' | 'no_rule'. */
+  reason: z.string().optional(),
+  /** What the discount would take off — zero when not valid. */
+  discountCents: z.number().int().min(0),
 });
 
 export const identifyResponseSchema = z.object({
@@ -368,6 +420,8 @@ export const awardPreviewResponseSchema = z.object({
   locationName: z.string().nullable(),
   /** Which rules produced the quoted points (FR-CHK-5). */
   breakdown: z.array(pointsBreakdownEntrySchema).optional(),
+  /** What the basket discount would take off (D-133), when a proof was quoted. */
+  discountCents: z.number().int().min(0).nullable().optional(),
   /** The reward the till offered with this quote, and whether the confirm will accept it (D-138). */
   redeemed: z
     .object({

@@ -362,6 +362,58 @@ export const storeRewards = pgTable(
   (t) => [index('store_rewards_store_idx').on(t.storeId)],
 ).enableRLS();
 
+/**
+ * The store's basket discount (D-115, D-131): one per store — a basket
+ * threshold with a fixed amount or a percent off. The store funds it in
+ * its own till (D-130); Poket only quotes it, gated behind the customer's
+ * rotating code (D-133). Editing changes the row in place; a paused rule
+ * quotes nothing.
+ */
+export const discountRules = pgTable(
+  'discount_rules',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    storeId: uuid('store_id')
+      .notNull()
+      .references(() => stores.id),
+    /** The basket (before discount) must reach this to unlock the discount. */
+    thresholdCents: integer('threshold_cents').notNull(),
+    // fixed_cents | percent
+    kind: text('kind').notNull(),
+    /** For fixed_cents: the cents off. For percent: thousandths of a percent. */
+    value: integer('value').notNull(),
+    active: boolean('active').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    // One discount per store (D-131): no stacking, ever.
+    uniqueIndex('discount_rules_store_unique').on(t.storeId),
+  ],
+).enableRLS();
+
+/**
+ * A rotating discount proof, consumed (D-133): the code works once, and
+ * this row is the receipt — which store's till took it, and for which
+ * sale. The proof itself is signed and short-lived; this table only ever
+ * grows by one row per used code.
+ */
+export const consumedDiscountProofs = pgTable(
+  'consumed_discount_proofs',
+  {
+    /** The proof's jti — unique, so a replay of the same code is refused. */
+    jti: uuid('jti').primaryKey(),
+    storeId: uuid('store_id')
+      .notNull()
+      .references(() => stores.id),
+    saleId: uuid('sale_id').references((): typeof sales.id => sales.id),
+    consumedAt: timestamp('consumed_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+).enableRLS();
+
 export const sales = pgTable(
   'sales',
   {

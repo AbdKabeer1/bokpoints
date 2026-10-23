@@ -4,6 +4,7 @@ import {
   award,
   availableRewards,
   getBalance,
+  verifyDiscountProof,
   identify,
   previewAward,
   recentAwards,
@@ -16,7 +17,7 @@ import {
   type TillReward,
 } from './api';
 import { cashierMessage, HELP_LINE } from './errors';
-import { formatDate, isEmail, normalizeScan, parseAmountToCents } from './format';
+import { formatCents, formatDate, isEmail, normalizeScan, parseAmountToCents } from './format';
 import { ScanCamera } from './ScanCamera';
 import { playScanOk } from './sound';
 
@@ -36,6 +37,15 @@ interface AwardRecorded {
 }
 
 /** Plain names for the breakdown rows a cashier reads at a glance. */
+/** Why a rotating code did not verify, in words a cashier can say out loud. */
+const DISCOUNT_HINTS: Record<string, string> = {
+  invalid: 'That code is not recognised. Ask them to show it again.',
+  expired: 'That code has expired. Ask them to show the fresh one.',
+  used: 'That code has already been used.',
+  below_threshold: 'This purchase is below the discount threshold.',
+  no_rule: 'No discount is running here right now.',
+};
+
 const RULE_LABELS: Record<string, string> = {
   per_euro: 'per euro',
   fixed_per_purchase: 'per purchase',
@@ -68,6 +78,11 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
   const [selectedReward, setSelectedReward] = useState<
     { rewardId: string; name: string; pointsCost: number } | null
   >(null);
+  // D-133: the customer's rotating discount code, once the till has checked
+  // it. The confirm consumes it; the paid step starts from the discounted sum.
+  const [discount, setDiscount] = useState<{ proof: string; discountCents: number } | null>(null);
+  const [discountInput, setDiscountInput] = useState('');
+  const [discountMsg, setDiscountMsg] = useState<string | null>(null);
   const [branchId, setBranchId] = useState<string | null>(
     membership.locationId ?? membership.branches[0]?.id ?? null,
   );
@@ -255,6 +270,40 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
     if (ok) setCameraOpen(false);
   };
 
+  /** The dry run for a rotating code: fresh, theirs, and worth something here. */
+  const handleDiscountVerify = async (event: FormEvent) => {
+    event.preventDefault();
+    if (customer === null || cents === null) return;
+    const proof = normalizeScan(discountInput);
+    if (proof === '') return;
+
+    setBusy(true);
+    setError(null);
+    setDiscountMsg(null);
+    try {
+      const result = await verifyDiscountProof(token, membership.storeId, {
+        proof,
+        amountCents: cents,
+        customerId: customer.customerId,
+      });
+      if (result.valid) {
+        setDiscount({ proof, discountCents: result.discountCents });
+        setDiscountInput('');
+      } else {
+        setDiscount(null);
+        setDiscountMsg(
+          DISCOUNT_HINTS[result.reason ?? 'invalid'] ?? 'That code is not recognised.',
+        );
+      }
+    } catch (caught) {
+      setDiscountMsg(
+        caught instanceof ApiError ? cashierMessage(caught.code) : 'Could not check the code.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleConfirm = async () => {
     if (customer === null) return;
     const cents = parseAmountToCents(amount);
@@ -323,6 +372,9 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
     setPaid(null);
     setRewards(null);
     setSelectedReward(null);
+    setDiscount(null);
+    setDiscountInput('');
+    setDiscountMsg(null);
     setPreview(null);
     setPreviewError(null);
     setRecorded(null);
@@ -562,6 +614,9 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
                       // Editing the charge restarts the payment step: the
                       // confirmed paid amount would no longer belong to it.
                       if (paid !== null) setPaid(null);
+                      // And the checked discount belonged to the old basket.
+                      setDiscount(null);
+                      setDiscountMsg(null);
                     }}
                     placeholder="12,50"
                     inputMode="decimal"
@@ -668,13 +723,55 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
               <p className={previewError !== null ? 'preview error' : 'preview'}>{previewLine()}</p>
             )}
 
+            {paid === null && preview !== null && preview.awarded && (
+              <div className="discount">
+                {discount !== null && cents !== null ? (
+                  <p className="muted">
+                    Their code takes {formatCents(discount.discountCents)} off — they pay{' '}
+                    {formatCents(cents - discount.discountCents)}.
+                  </p>
+                ) : (
+                  <form
+                    className="discountcheck"
+                    onSubmit={(event) => void handleDiscountVerify(event)}
+                  >
+                    <label htmlFor="discount-code">Their discount code (optional)</label>
+                    <div className="discountrow">
+                      <input
+                        id="discount-code"
+                        value={discountInput}
+                        onChange={(event) => setDiscountInput(event.target.value)}
+                        placeholder="Scan the rotating code"
+                        autoComplete="off"
+                        disabled={busy || cents === null}
+                      />
+                      <button
+                        className="ghost"
+                        type="submit"
+                        disabled={busy || discountInput.trim() === '' || cents === null}
+                      >
+                        {busy ? 'Checking…' : 'Check'}
+                      </button>
+                    </div>
+                    {discountMsg !== null && <p className="muted">{discountMsg}</p>}
+                  </form>
+                )}
+              </div>
+            )}
+
             <div className="actions">
               {paid === null ? (
                 <>
                   <button
                     className="primary"
                     type="button"
-                    onClick={() => setPaid(amount)}
+                    onClick={() =>
+                      setPaid(
+                        discount !== null && cents !== null
+                          ? formatCents(cents - discount.discountCents)
+                          : amount,
+                      )
+                    }
                     disabled={busy || preview === null || !preview.awarded}
                   >
                     Payment taken

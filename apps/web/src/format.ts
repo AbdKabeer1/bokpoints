@@ -41,3 +41,8 @@ export function formatDate(iso: string): string {
 export function isEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
+
+/** Cents to what the cashier types: 2300 → "23,00" (the Finnish comma). */
+export function formatCents(cents: number): string {
+  return (cents / 100).toFixed(2).replace('.', ',');
+}

@@ -8,6 +8,8 @@ import {
   recentAwardsResponseSchema,
   registeredCustomerSchema,
   tillRewardsResponseSchema,
+  discountProofVerifyRequestSchema,
+  discountProofVerifyResponseSchema,
 } from '@bokpoints/shared';
 
 export class ApiError extends Error {
@@ -180,6 +182,23 @@ export type Membership = Me['memberships'][number];
 export type Identified = Awaited<ReturnType<typeof identify>>;
 export type AwardPreview = Awaited<ReturnType<typeof previewAward>>;
 export type RecentAwards = Awaited<ReturnType<typeof recentAwards>>;
+/**
+ * The dry run for the customer's rotating code (D-133): fresh, theirs, and
+ * what it would take off this basket. Writes nothing — the confirm consumes.
+ */
+export const verifyDiscountProof = (
+  token: string,
+  storeId: string,
+  body: { proof: string; amountCents: number; customerId: string },
+) =>
+  request(discountProofVerifyResponseSchema, {
+    method: 'POST',
+    path: `/v1/stores/${storeId}/discount-proof/verify`,
+    token,
+    body: discountProofVerifyRequestSchema.parse(body),
+  });
+
+export type DiscountVerify = Awaited<ReturnType<typeof verifyDiscountProof>>;
 export type TillRewards = Awaited<ReturnType<typeof availableRewards>>;
 export type TillReward = TillRewards['rewards'][number];
 export type RecentAwardEntry = RecentAwards['entries'][number];

@@ -7,6 +7,7 @@ import {
   customerMeResponseSchema,
   customerStoreRewardsResponseSchema,
   customerStoresResponseSchema,
+  discountProofIssueResponseSchema,
   storeIdParamsSchema,
   updateCustomerRequestSchema,
 } from '@bokpoints/shared';
@@ -22,6 +23,9 @@ import {
   updateCustomerProfile,
 } from '../db/customers.js';
 import type { CustomerProfile } from '../db/customers.js';
+import { issueDiscountProof, proofExpiresAt } from '../db/discount-proof.js';
+import { discountRules } from '../db/schema.js';
+import { and, eq } from 'drizzle-orm';
 
 export interface CustomerRouteOptions {
   db: Database;
@@ -315,6 +319,61 @@ export const customerRoutes: FastifyPluginAsyncZod<CustomerRouteOptions> = async
 
       const rewards = await customerStoreRewards(db, request.params.storeId);
       return reply.send({ rewards });
+    },
+  );
+
+  /**
+   * A fresh rotating discount code (D-133), bound to this customer and
+   * this store. Issued only online — there are no offline discounts — and
+   * good for about a minute, once. `active` says whether the store has a
+   * discount running, so the app can hide the code when there is none.
+   */
+  app.post(
+    '/v1/customer/stores/:storeId/discount-proof',
+    {
+      config: { rateLimit: rateLimit ?? { max: 30, timeWindow: '1 minute' } },
+      schema: {
+        params: storeIdParamsSchema,
+        response: {
+          200: discountProofIssueResponseSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+          409: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const principal = await resolve(request.headers.authorization);
+      if (principal === null) {
+        return reply
+          .code(401)
+          .send({ error: { code: 'INVALID_TOKEN', message: 'That access token is not valid' } });
+      }
+
+      const customer = await provision(principal);
+      if (customer instanceof CustomerError) {
+        return reply
+          .code(customerErrorStatus(customer.code))
+          .send({ error: { code: customer.code, message: customer.message } });
+      }
+
+      const rule = await db
+        .select({ id: discountRules.id })
+        .from(discountRules)
+        .where(
+          and(
+            eq(discountRules.storeId, request.params.storeId),
+            eq(discountRules.active, true),
+          ),
+        )
+        .limit(1);
+
+      const issued = issueDiscountProof(customer.id, request.params.storeId);
+      return reply.send({
+        proof: issued.proof,
+        expiresAt: proofExpiresAt(issued.payload).toISOString(),
+        active: rule.length > 0,
+      });
     },
   );
 };

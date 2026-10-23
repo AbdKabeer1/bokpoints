@@ -669,3 +669,18 @@ select:focus {
   opacity: 0.45;
   cursor: not-allowed;
 }
+
+/* The rotating discount code's beat (D-133). */
+.discount {
+  margin-top: 14px;
+  text-align: left;
+}
+
+.discountrow {
+  display: flex;
+  gap: 8px;
+}
+
+.discountrow input {
+  flex: 1;
+}

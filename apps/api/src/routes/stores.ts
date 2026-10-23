@@ -29,6 +29,11 @@ import {
   storeRewardsResponseSchema,
   tillRewardsQuerySchema,
   tillRewardsResponseSchema,
+  discountRuleResponseSchema,
+  discountRuleRowSchema,
+  discountRuleSetRequestSchema,
+  discountProofVerifyRequestSchema,
+  discountProofVerifyResponseSchema,
   idempotencyKeyHeaderSchema,
   ruleSimulateRequestSchema,
   ruleSimulateResponseSchema,
@@ -48,11 +53,15 @@ import {
   reverseSale,
   rewardTakesToday,
 } from '../db/ledger.js';
+import { checkDiscountProof } from '../db/discount-proof.js';
+import { discountFor, type DiscountKind } from '@bokpoints/shared';
 import {
   auditLogEntries,
   credentials,
   customers,
   earningRules,
+  consumedDiscountProofs,
+  discountRules,
   pointsLedgerEntries,
   sales,
   storeRewards,
@@ -98,6 +107,12 @@ export const LEDGER_ERROR_STATUS = {
   REWARD_NOT_ACTIVE: 409,
   REWARD_NOT_AFFORDABLE: 409,
   REWARD_LIMIT_REACHED: 409,
+  PROOF_INVALID: 400,
+  PROOF_EXPIRED: 400,
+  PROOF_ALREADY_USED: 409,
+  PROOF_CUSTOMER_MISMATCH: 403,
+  PROOF_STORE_MISMATCH: 403,
+  PROOF_BELOW_THRESHOLD: 400,
 } as const satisfies Record<LedgerErrorCode, number>;
 
 /**
@@ -271,6 +286,9 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
           ...(request.body.redeemRewardId === undefined
             ? {}
             : { redeemRewardId: request.body.redeemRewardId }),
+          ...(request.body.discountProof === undefined
+            ? {}
+            : { discountProof: request.body.discountProof }),
           program,
           idempotencyKey,
           staffId: auth.staffUserId,
@@ -293,6 +311,7 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
         entryId: result.entryId,
         saleId: result.saleId,
         redeemed: result.redeemed,
+        discountCents: result.discountCents,
         points: result.points,
         awarded: result.awarded,
         ...(result.reason === undefined ? {} : { reason: result.reason }),
@@ -371,6 +390,9 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
           ...(request.body.redeemRewardId === undefined
             ? {}
             : { redeemRewardId: request.body.redeemRewardId }),
+          ...(request.body.discountProof === undefined
+            ? {}
+            : { discountProof: request.body.discountProof }),
           program,
           locationId,
         });
@@ -385,6 +407,7 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
           locationName: result.locationName,
           breakdown: result.breakdown ?? [],
           redeemed: result.redeemed,
+          discountCents: result.discountCents,
         });
       } catch (error) {
         if (error instanceof LedgerError) {
@@ -685,6 +708,228 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
       }
 
       return reply.send({ balance, rewards });
+    },
+  );
+
+  /* ── The basket discount behind the rotating QR (D-115, D-133) ────────── */
+
+  /**
+   * The store's one discount rule (D-131): read it, or set it. Setting is
+   * an upsert — a store has at most one — and lands in the audit log with
+   * what it replaced.
+   */
+  app.get(
+    '/v1/stores/:storeId/discount-rule',
+    {
+      config: {
+        rateLimit: rateLimit ?? { max: 60, timeWindow: '1 minute' },
+      },
+      schema: {
+        params: storeIdParamsSchema,
+        response: {
+          200: discountRuleResponseSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { storeId } = request.params;
+      const auth = await authorizeStoreRequest(db, sessionResolver, {
+        token: bearer(request.headers.authorization),
+        storeId,
+        anyOf: ['discount.manage'],
+      });
+      if (!auth.ok) {
+        return reply.code(auth.status).send({ error: auth.error });
+      }
+
+      const rows = await db
+        .select()
+        .from(discountRules)
+        .where(eq(discountRules.storeId, storeId))
+        .limit(1);
+      const rule = rows[0];
+      return reply.send({
+        rule: rule
+          ? {
+              discountRuleId: rule.id,
+              thresholdCents: rule.thresholdCents,
+              kind: rule.kind as 'fixed_cents' | 'percent',
+              value: rule.value,
+              active: rule.active,
+              createdAt: rule.createdAt.toISOString(),
+            }
+          : null,
+      });
+    },
+  );
+
+  app.post(
+    '/v1/stores/:storeId/discount-rule',
+    {
+      config: {
+        rateLimit: rateLimit ?? { max: 30, timeWindow: '1 minute' },
+      },
+      schema: {
+        params: storeIdParamsSchema,
+        body: discountRuleSetRequestSchema,
+        response: {
+          200: discountRuleRowSchema,
+          400: apiErrorSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { storeId } = request.params;
+      const auth = await authorizeStoreRequest(db, sessionResolver, {
+        token: bearer(request.headers.authorization),
+        storeId,
+        anyOf: ['discount.manage'],
+      });
+      if (!auth.ok) {
+        return reply.code(auth.status).send({ error: auth.error });
+      }
+
+      const before = (
+        await db.select().from(discountRules).where(eq(discountRules.storeId, storeId)).limit(1)
+      )[0];
+
+      const upserted = await db
+        .insert(discountRules)
+        .values({
+          storeId,
+          thresholdCents: request.body.thresholdCents,
+          kind: request.body.kind,
+          value: request.body.value,
+          active: request.body.active,
+        })
+        .onConflictDoUpdate({
+          target: discountRules.storeId,
+          set: {
+            thresholdCents: request.body.thresholdCents,
+            kind: request.body.kind,
+            value: request.body.value,
+            active: request.body.active,
+          },
+        })
+        .returning();
+      const rule = upserted[0];
+      if (!rule) {
+        throw new Error('Could not save the discount rule');
+      }
+
+      await db.insert(auditLogEntries).values({
+        actorId: auth.staffUserId,
+        action: 'discount.set',
+        storeId,
+        targetType: 'discount_rule',
+        targetId: rule.id,
+        before: before
+          ? {
+              thresholdCents: before.thresholdCents,
+              kind: before.kind,
+              value: before.value,
+              active: before.active,
+            }
+          : null,
+        after: {
+          thresholdCents: rule.thresholdCents,
+          kind: rule.kind,
+          value: rule.value,
+          active: rule.active,
+        },
+      });
+
+      return reply.send({
+        discountRuleId: rule.id,
+        thresholdCents: rule.thresholdCents,
+        kind: rule.kind as 'fixed_cents' | 'percent',
+        value: rule.value,
+        active: rule.active,
+        createdAt: rule.createdAt.toISOString(),
+      });
+    },
+  );
+
+  /**
+   * The till's dry run (D-133): is this code fresh, one-time, and the
+   * serving customer's — and what would it take off this basket? Writes
+   * nothing; the confirm consumes the code.
+   */
+  app.post(
+    '/v1/stores/:storeId/discount-proof/verify',
+    {
+      config: {
+        rateLimit: rateLimit ?? { max: 120, timeWindow: '1 minute' },
+      },
+      schema: {
+        params: storeIdParamsSchema,
+        body: discountProofVerifyRequestSchema,
+        response: {
+          200: discountProofVerifyResponseSchema,
+          400: apiErrorSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { storeId } = request.params;
+      const auth = await authorizeStoreRequest(db, sessionResolver, {
+        token: bearer(request.headers.authorization),
+        storeId,
+        anyOf: ['points.award', 'points.redeem'],
+      });
+      if (!auth.ok) {
+        return reply.code(auth.status).send({ error: auth.error });
+      }
+
+      const notValid = (reason: string) =>
+        reply.send({ valid: false, reason, discountCents: 0 });
+
+      const check = checkDiscountProof(request.body.proof, {
+        storeId,
+        ...(request.body.customerId === undefined ? {} : { customerId: request.body.customerId }),
+      });
+      if (!check.ok) {
+        return notValid(check.reason === 'expired' ? 'expired' : 'invalid');
+      }
+
+      const used = await db
+        .select({ jti: consumedDiscountProofs.jti })
+        .from(consumedDiscountProofs)
+        .where(eq(consumedDiscountProofs.jti, check.payload.jti))
+        .limit(1);
+      if (used.length > 0) {
+        return notValid('used');
+      }
+
+      const ruleRows = await db
+        .select({
+          thresholdCents: discountRules.thresholdCents,
+          kind: discountRules.kind,
+          value: discountRules.value,
+        })
+        .from(discountRules)
+        .where(and(eq(discountRules.storeId, storeId), eq(discountRules.active, true)))
+        .limit(1);
+      const rule = ruleRows[0];
+      if (!rule) {
+        return notValid('no_rule');
+      }
+      const kind: DiscountKind = rule.kind === 'percent' ? 'percent' : 'fixed_cents';
+      const discountCents = discountFor(
+        { thresholdCents: rule.thresholdCents, kind, value: rule.value },
+        request.body.amountCents,
+      );
+      if (discountCents <= 0) {
+        return notValid('below_threshold');
+      }
+
+      return reply.send({ valid: true, discountCents });
     },
   );
 

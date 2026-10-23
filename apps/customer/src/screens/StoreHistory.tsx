@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -7,9 +7,12 @@ import {
   Text,
   View,
 } from 'react-native';
+import QRCode from 'react-native-qrcode-svg';
 import {
+  getDiscountProof,
   getHistory,
   getStoreRewards,
+  type DiscountProof,
   type History,
   type StoreReward,
   type StoreSummary,
@@ -27,7 +30,35 @@ interface StoreHistoryProps {
 export function StoreHistory({ token, store, onBack }: StoreHistoryProps) {
   const [history, setHistory] = useState<History | null>(null);
   const [rewards, setRewards] = useState<StoreReward[] | null>(null);
+  const [proof, setProof] = useState<DiscountProof | null>(null);
+  const [proofError, setProofError] = useState<string | null>(null);
+  const [secondsLeft, setSecondsLeft] = useState(0);
   const [error, setError] = useState<string | null>(null);
+
+  const refreshProof = useCallback(async () => {
+    try {
+      const loaded = await getDiscountProof(token, store.storeId);
+      setProof(loaded);
+      setSecondsLeft(Math.max(0, Math.round((new Date(loaded.expiresAt).getTime() - Date.now()) / 1000)));
+      setProofError(null);
+    } catch {
+      setProof(null);
+      setProofError('The discount code needs a connection.');
+    }
+  }, [token, store.storeId]);
+
+  useEffect(() => {
+    void refreshProof();
+  }, [refreshProof]);
+
+  // The code is good for about a minute: count down, then fetch a fresh
+  // one. A countdown that sits at zero means "tap refresh".
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setSecondsLeft((left) => (left > 0 ? left - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -61,6 +92,24 @@ export function StoreHistory({ token, store, onBack }: StoreHistoryProps) {
 
       <Text style={styles.title}>{store.name}</Text>
       <Text style={styles.balance}>{history?.balance ?? store.balance} points</Text>
+
+      {proof !== null && proof.active && (
+        <View style={styles.proofCard}>
+          <Text style={styles.proofTitle}>Discount code</Text>
+          <View style={styles.proofQr}>
+            <QRCode value={proof.proof} size={148} color={colors.text} backgroundColor={colors.card} />
+          </View>
+          <Text style={styles.proofHint}>
+            Show it at the till — works once, for {secondsLeft > 0 ? `${secondsLeft} s` : 'a moment'} longer
+          </Text>
+          <Pressable onPress={() => void refreshProof()} hitSlop={8}>
+            <Text style={styles.proofRefresh}>Get a fresh code</Text>
+          </Pressable>
+        </View>
+      )}
+      {proof === null && proofError !== null && (
+        <Text style={styles.proofError}>{proofError}</Text>
+      )}
 
       {rewards !== null && rewards.length > 0 && (
         <View style={styles.rewards}>
@@ -129,6 +178,43 @@ const styles = StyleSheet.create({
   },
   spinner: {
     marginTop: 16,
+  },
+  proofCard: {
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.line,
+    alignItems: 'center',
+    padding: 18,
+    marginBottom: 20,
+  },
+  proofTitle: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 10,
+  },
+  proofQr: {
+    padding: 10,
+    borderRadius: 12,
+    backgroundColor: colors.card,
+  },
+  proofHint: {
+    color: colors.muted,
+    fontSize: 13,
+    marginTop: 10,
+    textAlign: 'center',
+  },
+  proofRefresh: {
+    color: colors.gold,
+    fontSize: 14,
+    fontWeight: '700',
+    marginTop: 8,
+  },
+  proofError: {
+    color: colors.muted,
+    fontSize: 13,
+    marginBottom: 16,
   },
   rewards: {
     marginBottom: 20,

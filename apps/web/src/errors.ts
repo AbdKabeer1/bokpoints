@@ -23,6 +23,12 @@ const MESSAGES: Record<string, string> = {
   below_minimum: 'Purchase is below the minimum, so it earns no points.',
   condition_not_met: 'A rule condition was not met, so it earns no points.',
   BALANCE_WOULD_GO_NEGATIVE: 'That would take the balance below zero.',
+  PROOF_INVALID: 'That code is not recognised. Ask them to show the fresh one.',
+  PROOF_EXPIRED: 'That code has expired. Ask them to show the fresh one.',
+  PROOF_ALREADY_USED: 'That code has already been used.',
+  PROOF_CUSTOMER_MISMATCH: 'That code belongs to a different customer.',
+  PROOF_STORE_MISMATCH: 'That code is not for this store.',
+  PROOF_BELOW_THRESHOLD: 'This purchase is below the discount threshold.',
   REVERSAL_NOT_ALLOWED:
     'Only the cashier who recorded the sale can reverse it in the first 15 minutes — ask the owner or a manager.',
   REASON_REQUIRED: 'That action needs a reason.',

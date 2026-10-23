@@ -17,6 +17,7 @@ export type Capability =
   | 'points.fraud_clawback'
   | 'points.redeem'
   | 'rewards.manage'
+  | 'discount.manage'
   | 'devices.manage'
   | 'customers.list'
   | 'customers.register'
@@ -61,6 +62,7 @@ const MATRIX: Record<Role, Partial<Record<Capability, PermissionDecision>>> = {
     'staff.manage_cashier': grant('platform'),
     'points_rule.manage': grant('platform'),
     'rewards.manage': grant('platform'),
+    'discount.manage': grant('platform'),
     // FRD section 2: an admin does not award points.
     'points.adjust': grant('platform'),
     'points.fraud_clawback': grant('platform'),
@@ -79,6 +81,7 @@ const MATRIX: Record<Role, Partial<Record<Capability, PermissionDecision>>> = {
     'points.adjust': grant('store'),
     'points.redeem': grant('store'),
     'rewards.manage': grant('store'),
+    'discount.manage': grant('store'),
     'devices.manage': grant('store'),
     'customers.list': grant('store'),
     'customers.register': grant('store'),
@@ -95,6 +98,7 @@ const MATRIX: Record<Role, Partial<Record<Capability, PermissionDecision>>> = {
     'points.adjust': grant('store'),
     'points.redeem': grant('store'),
     'rewards.manage': grant('store'),
+    'discount.manage': grant('store'),
     'devices.manage': grant('store'),
     'customers.list': grant('store'),
     'customers.register': grant('store'),

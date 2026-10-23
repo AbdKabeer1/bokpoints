@@ -1,10 +1,18 @@
 # STATUS
 
 **Project:** BOKPOINTS, a B2B2C loyalty platform for SMEs in Finland / EU.
-**Phase:** MVP, worked through `BOKPOINTS The Way Forward.md` one work package at a time. WP0-WP3, the rewards catalog, and A's review hardening are done. **Next up: the basket discount behind the rotating QR (D-133): signed, about 60 seconds, one-time per store, verified online.**
-**Last updated:** 23 Oct 2026, after the review-hardening build (D-143 to D-145). Reversals are recorder-only for 15 minutes (owners and managers after), reason required, branch-limited — and a full void restores the reward's points. The reward limit counts Helsinki days and is race-proof. The hosted Supabase database is fully migrated (0007-0013, applied through the session pooler because the direct host is IPv6-only). The owner portal signs out on idle; the customer app's session lives in secure storage. 87 unit and 240 integration tests green.
+**Phase:** MVP, worked through `BOKPOINTS The Way Forward.md` one work package at a time. WP0-WP3 are complete — sale record, rewards, redemption, and the basket discount behind the rotating QR (D-133). **Next up: A's call — WP7 pilot readiness (domain, email sender, billing setup) or the offline awarding prototype (build step 8).**
+**Last updated:** 23 Oct 2026, after Build 19 (the discount behind the rotating QR). A store sets one basket discount; the customer shows a fresh 60-second code from their app; the till quotes the discount online and the confirm consumes the code — one code, one sale, points on what was actually paid. The hosted database is at migration 0014. 87 unit and 258 integration tests green.
 
 ## Done
+
+- **Build 19 — the basket discount behind the rotating QR (D-146).** One discount rule per
+  store (threshold + fixed/percent, `discount.manage`, audited); the customer app shows a
+  fresh 60-second signed code per store; the till verifies it online as a dry run and the
+  confirm consumes it — jti as primary key, so one code is one sale — with the discount on
+  the sale record and the points on the discounted amount paid. The store funds it (D-130);
+  no offline discounts (D-133). Migration 0014, applied locally and to the hosted database.
+  87 unit and 258 integration tests green (18 new).
 
 - **Review hardening (D-143 to D-145).** From A's list: the reversal policy (recorder +
   15 minutes, or owner/manager; reason required; branch-limited; a full void restores the
@@ -244,7 +252,7 @@
   read the audit log. Live: register → award 25 → adjust +5 → list → audit line →
   clawback 40 → −35.
 
-**Tests: 87 unit, 240 integration, all passing.**
+**Tests: 87 unit, 258 integration, all passing.**
 
 ## In progress
 
