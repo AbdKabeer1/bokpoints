@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
@@ -56,6 +57,19 @@ export const secureStorage = {
   removeItem: secureRemoveItem,
 };
 
+/**
+ * On the web expo-secure-store has no native backing, so the session keeps
+ * the browser's own storage there; on a phone it is the keystore/keychain.
+ */
+export const sessionStorage =
+  Platform.OS === 'web'
+    ? AsyncStorage
+    : {
+        getItem: secureGetItem,
+        setItem: secureSetItem,
+        removeItem: secureRemoveItem,
+      };
+
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 const publishableKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '';
 
@@ -67,7 +81,7 @@ export const hasConfig = url !== '' && publishableKey !== '';
 
 export const supabase = createClient(url || 'http://127.0.0.1:54321', publishableKey || 'missing', {
   auth: {
-    storage: secureStorage,
+    storage: sessionStorage,
     persistSession: true,
     autoRefreshToken: true,
     // On the web a magic link can land back in the same tab; on a phone the
