@@ -6,6 +6,16 @@
 
 ## Done
 
+- **Build 14a — component document check.** `UI_and_App_Components_revised.docx` (A's 23 Oct
+  revision) is now in the repo and is the source for what each app contains. Every MVP line
+  was checked against the code: the result table lives in `docs/HANDOFF.md` section 10.
+  Biggest findings: redemption and a rewards catalog are now MVP (D-138), the till needs a
+  camera scanner, a payment-confirmation step (WP3), recent awards, scan feedback and
+  offline mode; the customer app needs consents, settings, privacy tools and rewards; the
+  dashboard needs reports, branches, store profile and billing; the platform console has no
+  screens at all yet. Note: the document's "D-125" citation for redemption is a numbering
+  slip; it is D-138 here.
+
 - **Build 14 — the owner portal (`apps/owner`, "Poket Merchant Platform", :5174).**
   Sign-in and TOTP identical to the till, four sections. **Rules** is the point-calculation
   control: see every current rule in one line each, create one of the four types, change a

@@ -38,7 +38,7 @@ FR-CHK, FR-SAL, `AC-12` to `AC-18`), so the repo copy is now the newer one.
 | Code                      | Monorepo skeleton, CI, points engine in `packages/shared`, ledger schema and migrations, transactional ledger write path, Fastify API (identify, award, balance, store setup, invites, expiry, `/v1/me`, side-effect-free award preview), the Supabase session resolver (second factor enforced), optional store branches, row-level security on every table, the Cashier screen in `apps/web` (React + Vite PWA), the customer API plus the Expo customer app in `apps/customer` (an animated white-and-green intro, a rebuilt sign-in landing page, then the QR, per-store balances, history and expiring notices), the store actions — register a customer by email, adjust a balance, admin clawback, read the audit log — and WP0: invites that never alter an existing account (D-119) and a verified email required before a customer account is created or claimed (D-120, D-127) |
 | Tests                     | 87 unit (Vitest) and 211 integration (real local Postgres), all passing                                                                                                                        |
 | Accounts (Stripe, Supabase, email provider, hosting, Apple and Google developer accounts) | Supabase: a dev project exists in Stockholm (`eu-north-1`), Free plan. Stripe, the email provider, hosting, a domain, Apple and Google: none confirmed |
-| Plan of record            | `BOKPOINTS The Way Forward.md` (D-128): MVP boundary, parking lot, WP0–WP8. Its proposed D-113–D-124 are recorded here as D-115–D-126                                                                  |
+| Plan of record            | `BOKPOINTS The Way Forward.md` (D-128): MVP boundary, parking lot, WP0–WP8. Its proposed D-113–D-124 are recorded here as D-115–D-126. **`UI_and_App_Components_revised.docx` (23 Oct) is the source for what each app contains**; the MVP check is section 10 |
 | Pilot stores             | None chosen                                                                                                                                                                                    |
 
 ## 4. Scope of the MVP (summary)
@@ -163,3 +163,95 @@ Newest first. One entry per session. Keep each entry to a few lines.
 | Build 2    | Added the award endpoint with a pluggable session resolver, the identify and balance endpoints, server-side store scoping and permission checks, the OpenAPI document generated from the shared Zod schemas, and the Supabase seam                                                                                                                                                                                                                                                                                                                                                                                                   | 42 unit and 33 integration tests pass. The award endpoint is live but authenticates through the development resolver until Supabase is chosen | The Supabase session resolver, then the points expiry job      |
 | Build 1    | Created the repo and the monorepo skeleton with CI; exported the PRD and FRD into `docs/`; built the points engine (calculation, rounding, minimum and maximum rules, expiry, FIFO, balance rules) and the role and capability matrix with unit tests; defined the 13-table schema with migrations and append-only triggers; added the transactional ledger write path with integration tests; added the Fastify skeleton                                                                                                                                                                                                            | Steps 1 and 2 of the build order are done. 39 unit and 13 integration tests pass. Private GitHub remote created                               | Points expiry job, then auth and roles once Supabase is chosen |
 | Planning 1 | Brainstormed the product; wrote PRD v0.2, FRD v0.2 and AGENT.md v0.1; answered the FRD decisions; locked the tech stack; created HANDOFF.md and DECISIONS.md                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Planning complete; no repo, no code                                                                                                           | Create the repo and skeleton; build the points engine          |
+
+## 10. MVP components: what exists (UI and App Components, 23 Oct 2026)
+
+The revised component document is the source for what each app contains. Every MVP line
+was checked against the code on 23 Oct. State: **Exists** (built and working), **Partial**
+(built, short of the line), **Missing** (not started). v1.1/v2/Idea lines are out of scope
+here.
+
+### Shared
+
+| Component | State | Note |
+| --- | --- | --- |
+| Staff sign-in (email, password, authenticator) | Exists | Supabase, aal2 enforced |
+| Customer sign-in (email one-time code) | Exists | May change before launch; accounts do not depend on the method |
+| Roles and permissions, store and branch scoping | Exists | Checked on every route |
+| Error, loading and empty states | Exists | In all four apps |
+| Audit trail | Exists | Written on every action; readable in the portal |
+| Language switch (Finnish / English) | Missing | Hardcoded English everywhere |
+| Idle sign-out | Missing | Matters on a shared till |
+| Help and contact | Missing | |
+| Accessibility pass | Partial | Contrast and sizes chosen well; no audit done |
+| Consent capture at sign-up | Missing | No marketing choice is recorded anywhere yet |
+| Notifications | v1.1 | Out |
+
+### Cashier screen (till, `apps/web`)
+
+| Component | State | Note |
+| --- | --- | --- |
+| Customer lookup box (scanner types, or type the code) | Exists | |
+| Customer confirmation (name and balance) | Exists | |
+| Amount entry | Exists | |
+| Result screen | Exists | Points awarded, balance |
+| Branch selector | Exists | Shown when the store has 2+ branches |
+| Points preview | Partial | Shows points, not *which rules* gave them; breakdown comes from the API already |
+| Common error help | Partial | Most codes mapped to plain words |
+| Camera scanner | Missing | MVP per the document; the till reads typed codes only |
+| Scan feedback (sound and visual) | Missing | |
+| Payment confirmation step | Missing | Award currently fires on confirm; needs WP3's sale record and amount paid |
+| Reward picker and redemption | Missing | No rewards table exists yet (D-138 moves it into the MVP) |
+| Points and discount preview | Partial | No discounts exist in the product yet |
+| Recent awards | Missing | |
+| Offline mode and sync | Missing | Largest remaining till item |
+
+### Store dashboard (owner portal, `apps/owner`)
+
+| Component | State | Note |
+| --- | --- | --- |
+| Rule builder (four types), simulator, history | Exists | Build 14 |
+| Manual adjustment with reason | Exists | |
+| Customer list and search | Exists | |
+| Customer detail with balance and history, incl. redemptions | Partial | No per-customer history view yet |
+| Staff list | Exists | |
+| Audit log | Exists | |
+| Staff invitations | Partial | Deliberate: until there is an email sender, the platform admin links people (document agrees) |
+| Basket threshold discount | Missing | Engine, config and the QR gate (D-133) all still to build |
+| Rewards catalog | Missing | D-138 |
+| Basic reports (customers, points issued/redeemed/expired, visits) | Missing | |
+| Active customers and points outstanding | Missing | Also the pricing-tier count |
+| Branches management | Missing | Data and till picker exist; no management UI |
+| Store profile (name, logo, address, contact) | Missing | |
+| Counter QR sign | Missing | |
+| Billing: plan, usage, invoices, warnings, contact | Missing | Depends on the Stripe decision |
+| Store settings | Missing | |
+
+### Customer app (`apps/customer`)
+
+| Component | State | Note |
+| --- | --- | --- |
+| Sign-up and sign-in (one-time code) | Exists | |
+| My code (QR) | Partial | Shown; no brightness boost |
+| Stores and balances | Exists | |
+| Store detail with history | Exists | Earned, redeemed, expired |
+| Expiring soon | Exists | From `/v1/customer/me/expiring` |
+| Profile setup | Partial | Name at sign-up; no language or consent choice |
+| Rewards per store | Missing | D-138 |
+| Profile and settings (name, email, language, consent, sign out) | Missing | |
+| Privacy tools (download my data, delete my account) | Missing | Needs the two API endpoints too |
+| Help and contact | Missing | |
+| Offers, notifications, NFC card | v1.1 | Out |
+
+### Platform admin console
+
+| Component | State | Note |
+| --- | --- | --- |
+| Store onboarding (create store, owner login, starting rule) | Partial | The API exists end to end; there is no console screen |
+| Suspend and reactivate | Partial | Store status exists in the data; no UI |
+| Customer support tools | Partial | Clawback and audit APIs exist; no console |
+| Store list and status | Missing | |
+| Subscriptions and payment stages | Missing | No Stripe yet |
+| Platform analytics | Missing | |
+| Admin audit log | Exists (API) | No console screen yet |
+
