@@ -3,9 +3,12 @@ import {
   adjustPoints,
   applyFraudClawback,
   calculatePoints,
+  calculatePurchase,
   expiryDateForEarn,
+  type EarningRule,
   type PointsRejectionReason,
   type PointsRule,
+  type RuleBreakdownEntry,
 } from '@bokpoints/shared';
 import { createBatch, drawDownBatches } from './batches.js';
 import type { Database } from './client.js';
@@ -51,12 +54,49 @@ export class LedgerError extends Error {
   }
 }
 
+export interface AwardProgram {
+  rules: EarningRule[];
+  maxPointsPerSale?: number;
+}
+
+type AwardCalculation = ReturnType<typeof calculatePoints> & {
+  breakdown?: RuleBreakdownEntry[];
+};
+
+/** The store's rule set when it has one, else the legacy single rule. */
+function calculateAward(input: {
+  amountCents: number;
+  rule?: PointsRule;
+  program?: AwardProgram;
+}): AwardCalculation {
+  if (input.program !== undefined) {
+    return calculatePurchase({
+      lines: [{ amountCents: input.amountCents }],
+      rules: input.program.rules,
+      ...(input.program.maxPointsPerSale === undefined
+        ? {}
+        : { maxPointsPerSale: input.program.maxPointsPerSale }),
+    });
+  }
+  if (input.rule !== undefined) return calculatePoints(input.amountCents, input.rule);
+  throw new Error('An award needs a rule or a program');
+}
+
+function ruleVersionFor(input: { ruleVersion?: number; program?: AwardProgram }): number | null {
+  if (input.ruleVersion !== undefined) return input.ruleVersion;
+  if (input.program === undefined || input.program.rules.length === 0) return null;
+  return Math.max(...input.program.rules.map((rule) => rule.version));
+}
+
 export interface RecordEarnInput {
   customerId: string;
   storeId: string;
   amountCents: number;
-  rule: PointsRule;
-  ruleVersion: number;
+  /** The legacy single per-euro rule; WP3 removes it once every caller uses a program. */
+  rule?: PointsRule;
+  ruleVersion?: number;
+  /** The store's earning program (WP2): rules plus the per-sale ceiling. */
+  program?: AwardProgram;
   idempotencyKey: string;
   scannedAt?: Date;
   staffId?: string;
@@ -77,6 +117,7 @@ export interface RecordEarnResult {
   reason?: PointsRejectionReason | undefined;
   /** True when this request had already been awarded and was replayed. */
   replayed: boolean;
+  breakdown?: RuleBreakdownEntry[];
 }
 
 export interface RecordAdjustInput {
@@ -207,7 +248,8 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
         );
       }
 
-      const calculation = calculatePoints(input.amountCents, input.rule);
+      const calculation = calculateAward(input);
+      const ruleVersion = ruleVersionFor(input);
 
       // FR-PTS-2: below the minimum purchase, award zero points and tell the
       // cashier why. A zero-value purchase is the same: nothing is written
@@ -234,7 +276,8 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
           points: calculation.points,
           amountCents: input.amountCents,
           expiresAt,
-          ruleVersion: input.ruleVersion,
+          ruleVersion,
+          rulesApplied: calculation.breakdown ?? null,
           staffId: input.staffId,
           deviceId: input.deviceId,
           scannedAt,
@@ -275,6 +318,7 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
         points: calculation.points,
         awarded: true,
         replayed: false,
+        breakdown: calculation.breakdown ?? [],
       };
     });
   } catch (error) {
@@ -322,7 +366,10 @@ export interface PreviewEarnInput {
   customerId: string;
   storeId: string;
   amountCents: number;
-  rule: PointsRule;
+  /** The legacy single per-euro rule. */
+  rule?: PointsRule;
+  /** The store's earning program (WP2). */
+  program?: AwardProgram;
   locationId: string | null;
 }
 
@@ -334,6 +381,7 @@ export interface PreviewEarnResult {
   expiresAt: Date | null;
   locationId: string | null;
   locationName: string | null;
+  breakdown?: RuleBreakdownEntry[];
 }
 
 /**
@@ -395,7 +443,7 @@ export async function previewEarn(
     );
   }
 
-  const calculation = calculatePoints(input.amountCents, input.rule);
+  const calculation = calculateAward(input);
   if (!calculation.awarded) {
     return {
       points: 0,
@@ -404,6 +452,7 @@ export async function previewEarn(
       expiresAt: null,
       locationId,
       locationName,
+      breakdown: calculation.breakdown ?? [],
     };
   }
 
@@ -413,6 +462,7 @@ export async function previewEarn(
     expiresAt: expiryDateForEarn(new Date()),
     locationId,
     locationName,
+    breakdown: calculation.breakdown ?? [],
   };
 }
 

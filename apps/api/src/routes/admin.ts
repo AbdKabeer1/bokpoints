@@ -10,6 +10,7 @@ import {
 import { authorizeAdminRequest } from '../auth/authorize.js';
 import {
   auditLogEntries,
+  earningRules,
   pointsRules,
   storeLocations,
   storeMembers,
@@ -75,11 +76,14 @@ export const adminRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
             ...(body.contactName === undefined ? {} : { contactName: body.contactName }),
             ...(body.contactEmail === undefined ? {} : { contactEmail: body.contactEmail }),
             status: 'active',
+            maxPointsPerSale: body.pointsRule.maxPointsPerTransaction ?? null,
           })
           .returning({ id: stores.id });
         const storeId = insertedStore[0]?.id;
         if (!storeId) throw new Error('Could not create the store');
 
+        // The legacy per-euro row stays (existing ledger entries point at it);
+        // the earning rule below is what awards read from WP2 onward (D-116).
         await tx.insert(pointsRules).values({
           storeId,
           ruleVersion: 1,
@@ -88,6 +92,23 @@ export const adminRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
           minPurchaseCents: body.pointsRule.minPurchaseCents ?? null,
           maxPointsPerTransaction: body.pointsRule.maxPointsPerTransaction ?? null,
           activeFrom: new Date(),
+        });
+
+        await tx.insert(earningRules).values({
+          storeId,
+          type: 'per_euro',
+          params: {
+            pointsPerEuroThousandths: body.pointsRule.pointsPerEuroThousandths,
+            rounding: body.pointsRule.rounding,
+          },
+          conditions:
+            body.pointsRule.minPurchaseCents === undefined
+              ? {}
+              : { minSpendCents: body.pointsRule.minPurchaseCents },
+          effectiveFrom: new Date(),
+          status: 'active',
+          version: 1,
+          createdBy: auth.staffUserId,
         });
 
         const branches: { id: string; name: string }[] = [];

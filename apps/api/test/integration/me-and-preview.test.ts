@@ -173,6 +173,15 @@ describe('POST /v1/stores/:storeId/awards/preview', () => {
       expiresAt: expectedExpiry,
       locationId: kamppiId,
       locationName: 'Kamppi',
+      breakdown: [
+        {
+          ruleId: expect.any(String),
+          type: 'per_euro',
+          version: 1,
+          points: 25,
+          applied: true,
+        },
+      ],
     });
 
     const entries = await pool.query('SELECT count(*) FROM points_ledger_entries');

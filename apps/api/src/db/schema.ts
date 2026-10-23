@@ -89,10 +89,18 @@ export const stores = pgTable(
     // Store status lifecycle from FRD 4.1.
     status: text('status').notNull().default('invited'),
     plan: text('plan'),
+    // The store's per-sale ceiling (WP2, FR-RUL-5). A technical safety limit
+    // against a typo, not a business rule. Null means only the platform's
+    // ceiling applies.
+    maxPointsPerSale: integer('max_points_per_sale'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
+    check(
+      'stores_max_points_per_sale_check',
+      sql`${t.maxPointsPerSale} is null or ${t.maxPointsPerSale} >= 0`,
+    ),
     check(
       'stores_status_check',
       sql`${t.status} in ('invited', 'setup', 'active', 'paused', 'suspended', 'offboarded')`,
@@ -273,6 +281,50 @@ export const pointsRules = pgTable(
   ],
 ).enableRLS();
 
+/**
+ * A store's own earning rules (D-115, D-116, Way Forward WP2).
+ *
+ * `points_rules` stays as the legacy per-euro record that existing ledger
+ * entries point at; the migration that adds this table converts every
+ * `points_rules` row into one `per_euro` rule here, so nothing is lost.
+ *
+ * A rule is versioned: an edit writes a new row with the next store-wide
+ * version and marks the previous one `superseded`, because a change must
+ * never alter points already earned (FR-RUL-4). Only `active` rules with an
+ * `effective_from` in the past take part in an award.
+ */
+export const earningRules = pgTable(
+  'earning_rules',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    storeId: uuid('store_id')
+      .notNull()
+      .references(() => stores.id),
+    // Stable across versions of the same rule.
+    ruleKey: uuid('rule_key').notNull().defaultRandom(),
+    type: text('type').notNull(),
+    /** per_euro: pointsPerEuroThousandths, rounding. Fixed: points. */
+    params: jsonb('params').notNull(),
+    /** minSpendCents, optional branch and date conditions. */
+    conditions: jsonb('conditions').notNull().default(sql`'{}'::jsonb`),
+    effectiveFrom: timestamp('effective_from', { withTimezone: true }).notNull(),
+    status: text('status').notNull().default('active'),
+    version: integer('version').notNull(),
+    createdBy: uuid('created_by').references(() => staffUsers.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check(
+      'earning_rules_type_check',
+      sql`${t.type} in ('per_euro', 'fixed_per_purchase', 'threshold_bonus')`,
+    ),
+    check('earning_rules_status_check', sql`${t.status} in ('active', 'paused', 'superseded')`),
+    check('earning_rules_version_check', sql`${t.version} >= 1`),
+    uniqueIndex('earning_rules_store_version_unique').on(t.storeId, t.version),
+    index('earning_rules_store_status_idx').on(t.storeId, t.status, t.effectiveFrom),
+  ],
+).enableRLS();
+
 export const pointsLedgerEntries = pgTable(
   'points_ledger_entries',
   {
@@ -289,6 +341,9 @@ export const pointsLedgerEntries = pgTable(
     amountCents: integer('amount_cents'),
     expiresAt: timestamp('expires_at', { withTimezone: true }),
     ruleVersion: integer('rule_version'),
+    // Which rules produced this award, and how many points each gave
+    // (FR-RUL-5, FR-CHK-5). A snapshot: later rule edits never rewrite it.
+    rulesApplied: jsonb('rules_applied'),
     reason: text('reason'),
     staffId: uuid('staff_id').references(() => staffUsers.id),
     deviceId: uuid('device_id').references(() => cashierDevices.id),

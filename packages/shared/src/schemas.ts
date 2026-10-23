@@ -45,11 +45,22 @@ export const idempotencyKeyHeaderSchema = z.object({
   'idempotency-key': z.string().min(1).max(200),
 });
 
+export const pointsBreakdownEntrySchema = z.object({
+  ruleId: z.string().uuid().optional(),
+  type: z.enum(['per_euro', 'fixed_per_purchase', 'threshold_bonus']),
+  version: z.number().int(),
+  points: z.number().int(),
+  applied: z.boolean(),
+  reason: z.enum(['below_minimum', 'condition_not_met']).optional(),
+});
+
 export const awardResponseSchema = z.object({
   entryId: z.string().uuid().nullable(),
   points: z.number().int(),
   awarded: z.boolean(),
   reason: z.string().optional(),
+  /** Which rules produced the award (FR-CHK-5). */
+  breakdown: z.array(pointsBreakdownEntrySchema).optional(),
 });
 
 export const identifyResponseSchema = z.object({
@@ -207,6 +218,8 @@ export const awardPreviewResponseSchema = z.object({
   expiresAt: z.string().nullable(),
   locationId: z.string().uuid().nullable(),
   locationName: z.string().nullable(),
+  /** Which rules produced the quoted points (FR-CHK-5). */
+  breakdown: z.array(pointsBreakdownEntrySchema).optional(),
 });
 
 export const healthResponseSchema = z.object({

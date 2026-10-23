@@ -154,24 +154,25 @@
   read the audit log. Live: register → award 25 → adjust +5 → list → audit line →
   clawback 40 → −35.
 
-**Tests: 75 unit, 195 integration, all passing.**
+**Tests: 85 unit, 200 integration, all passing.**
 
 ## In progress
 
-**WP2 — store-owned earning rules, first slice.** The multi-rule engine is
-in and tested: `packages/shared/src/points/purchase.ts` (`calculatePurchase`)
-evaluates a basket of item lines against a set of `per_euro`,
-`fixed_per_purchase` and `threshold_bonus` rules, adds matching rules, applies
-the per-sale ceiling, and returns a per-rule breakdown. A store with one
-per-euro rule produces exactly the same points, award status, cap and reason as
-the old `calculatePoints` (proven over a range of amounts in the tests).
+**WP2 — store-owned earning rules.** Working: a store's rules are rows in
+`earning_rules` (type, params, conditions, effective date, status, version), and
+`packages/shared/src/points/purchase.ts` (`calculatePurchase`) evaluates a basket of
+item lines against all active, effective rules — points add up under the store's
+per-sale ceiling (`stores.max_points_per_sale`). The award and preview endpoints now
+use the rule set, and each award stores its breakdown in
+`points_ledger_entries.rules_applied`. Migration `0009` converts every existing
+`points_rules` row into a per-euro earning rule and moves the ceiling onto the store;
+store creation writes both the legacy row and the new rule.
 
-Still to do in WP2 (next session): the `earning_rules` table and a generated
-migration that converts today's `points_rules` rows into per-euro rules, a
-store-level per-sale ceiling, wiring `recordEarn` and the award preview to the
-engine (recording the breakdown), the owner endpoints (list, create, edit,
-pause, simulate) with a `rules.manage` capability, and the admin template.
-Nothing is wired to the engine yet, so the API's behaviour is unchanged.
+Still to do in WP2: the owner endpoints (list, create, edit, pause, simulate) with a
+`rules.manage` capability and audit entries; the every-Nth-visit rule type; and
+removing the transitional fallback that reads `points_rules` when a store has no
+earning-rule rows (it covers the test fixtures and any store created by an older
+process).
 
 ## Blocked
 

@@ -1,4 +1,4 @@
-import { and, desc, eq, lte } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import {
   apiErrorSchema,
   awardPreviewResponseSchema,
@@ -10,7 +10,6 @@ import {
   identifyResponseSchema,
   idempotencyKeyHeaderSchema,
   storeIdParamsSchema,
-  type PointsRule,
 } from '@bokpoints/shared';
 import type { LedgerErrorCode } from '../db/ledger.js';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
@@ -18,7 +17,8 @@ import { authorizeStoreRequest } from '../auth/authorize.js';
 import type { SessionResolver } from '../auth/session.js';
 import type { Database } from '../db/client.js';
 import { getBalance, LedgerError, previewEarn, recordEarn } from '../db/ledger.js';
-import { credentials, customers, pointsRules } from '../db/schema.js';
+import { credentials, customers } from '../db/schema.js';
+import { currentProgramFor } from '../db/earning-rules.js';
 
 export interface RouteOptions {
   db: Database;
@@ -177,12 +177,12 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
           });
       }
 
-      const rule = await currentRuleFor(db, storeId);
-      if (!rule) {
+      const program = await currentProgramFor(db, storeId);
+      if (!program) {
         return reply
           .code(409)
           .send({
-            error: { code: 'NO_ACTIVE_RULE', message: 'This store has no points rule yet' },
+            error: { code: 'NO_ACTIVE_RULE', message: 'This store has no earning rules yet' },
           });
       }
 
@@ -208,8 +208,7 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
           customerId: request.body.customerId,
           storeId,
           amountCents: request.body.amountCents,
-          rule: rule.rule,
-          ruleVersion: rule.ruleVersion,
+          program,
           idempotencyKey,
           staffId: auth.staffUserId,
           locationId,
@@ -232,6 +231,7 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
         points: result.points,
         awarded: result.awarded,
         ...(result.reason === undefined ? {} : { reason: result.reason }),
+        breakdown: result.breakdown ?? [],
       });
     },
   );
@@ -273,10 +273,10 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
         return reply.code(auth.status).send({ error: auth.error });
       }
 
-      const rule = await currentRuleFor(db, storeId);
-      if (!rule) {
+      const program = await currentProgramFor(db, storeId);
+      if (!program) {
         return reply.code(409).send({
-          error: { code: 'NO_ACTIVE_RULE', message: 'This store has no points rule yet' },
+          error: { code: 'NO_ACTIVE_RULE', message: 'This store has no earning rules yet' },
         });
       }
 
@@ -300,7 +300,7 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
           customerId: request.body.customerId,
           storeId,
           amountCents: request.body.amountCents,
-          rule: rule.rule,
+          program,
           locationId,
         });
 
@@ -312,6 +312,7 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
           expiresAt: result.expiresAt === null ? null : result.expiresAt.toISOString().slice(0, 10),
           locationId: result.locationId,
           locationName: result.locationName,
+          breakdown: result.breakdown ?? [],
         });
       } catch (error) {
         if (error instanceof LedgerError) {
@@ -354,34 +355,3 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
   );
 };
 
-/**
- * The rule that applies to a purchase made now.
- *
- * FR-STO-5: a rule change applies to future purchases only, so the rule with
- * the highest version that is already active wins.
- */
-async function currentRuleFor(
-  db: Database,
-  storeId: string,
-): Promise<{ rule: PointsRule; ruleVersion: number } | null> {
-  const rows = await db
-    .select()
-    .from(pointsRules)
-    .where(and(eq(pointsRules.storeId, storeId), lte(pointsRules.activeFrom, new Date())))
-    .orderBy(desc(pointsRules.ruleVersion))
-    .limit(1);
-
-  const row = rows[0];
-  if (!row) return null;
-
-  const rule: PointsRule = {
-    pointsPerEuroThousandths: row.pointsPerEuroThousandths,
-    rounding: row.rounding === 'nearest' ? 'nearest' : 'floor',
-    ...(row.minPurchaseCents === null ? {} : { minPurchaseCents: row.minPurchaseCents }),
-    ...(row.maxPointsPerTransaction === null
-      ? {}
-      : { maxPointsPerTransaction: row.maxPointsPerTransaction }),
-  };
-
-  return { rule, ruleVersion: row.ruleVersion };
-}
