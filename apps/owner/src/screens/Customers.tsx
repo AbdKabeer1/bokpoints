@@ -7,6 +7,7 @@ import {
   type RuleCustomer,
 } from '../api';
 import { ownerMessage } from '../errors';
+import { CustomerDetail } from './CustomerDetail';
 import { isEmail } from '../format';
 
 export function CustomersScreen({ token, storeId }: { token: string; storeId: string }) {
@@ -15,6 +16,7 @@ export function CustomersScreen({ token, storeId }: { token: string; storeId: st
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const [adjustingId, setAdjustingId] = useState<string | null>(null);
+  const [historyId, setHistoryId] = useState<string | null>(null);
   const [registerOpen, setRegisterOpen] = useState(false);
 
   const load = useCallback(
@@ -152,7 +154,20 @@ export function CustomersScreen({ token, storeId }: { token: string; storeId: st
                     <button
                       className="ghost small"
                       type="button"
-                      onClick={() => setAdjustingId(customer.customerId)}
+                      onClick={() => {
+                        setAdjustingId(null);
+                        setHistoryId(historyId === customer.customerId ? null : customer.customerId);
+                      }}
+                    >
+                      History
+                    </button>{' '}
+                    <button
+                      className="ghost small"
+                      type="button"
+                      onClick={() => {
+                        setHistoryId(null);
+                        setAdjustingId(customer.customerId);
+                      }}
                     >
                       Adjust points
                     </button>
@@ -160,6 +175,24 @@ export function CustomersScreen({ token, storeId }: { token: string; storeId: st
                 </tr>
               ),
             )}
+            {historyId !== null &&
+              (() => {
+                const customer = rows.find((row) => row.customerId === historyId);
+                if (customer === undefined) return null;
+                return (
+                  <tr className="formrow">
+                    <td colSpan={5}>
+                      <CustomerDetail
+                        name={customer.name}
+                        customerId={customer.customerId}
+                        token={token}
+                        storeId={storeId}
+                        onClose={() => setHistoryId(null)}
+                      />
+                    </td>
+                  </tr>
+                );
+              })()}
           </tbody>
         </table>
       )}

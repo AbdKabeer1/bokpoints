@@ -19,6 +19,7 @@ import {
 } from '../lib/api';
 import { expiryLabel, formatDate } from '../lib/format';
 import { colors, layout } from '../lib/theme';
+import { SettingsScreen } from './Settings';
 import { StoreHistory } from './StoreHistory';
 
 interface HomeProps {
@@ -37,6 +38,7 @@ export function Home({ token, me, onSignOut }: HomeProps) {
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [openStore, setOpenStore] = useState<StoreSummary | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -67,6 +69,18 @@ export function Home({ token, me, onSignOut }: HomeProps) {
     return <StoreHistory token={token} store={openStore} onBack={() => setOpenStore(null)} />;
   }
 
+  if (showSettings) {
+    return (
+      <SettingsScreen
+        token={token}
+        me={me}
+        onBack={() => setShowSettings(false)}
+        onSignOut={onSignOut}
+        onSaved={() => setShowSettings(false)}
+      />
+    );
+  }
+
   return (
     <ScrollView
       style={styles.screen}
@@ -78,9 +92,14 @@ export function Home({ token, me, onSignOut }: HomeProps) {
           <Text style={styles.brand}>POKET</Text>
           <Text style={styles.hello}>Hi {me.customer.name || 'there'}</Text>
         </View>
-        <Pressable onPress={onSignOut} hitSlop={12}>
-          <Text style={styles.signOut}>Sign out</Text>
-        </Pressable>
+        <View style={styles.headerActions}>
+          <Pressable onPress={() => setShowSettings(true)} hitSlop={12}>
+            <Text style={styles.signOut}>Settings</Text>
+          </Pressable>
+          <Pressable onPress={onSignOut} hitSlop={12}>
+            <Text style={styles.signOut}>Sign out</Text>
+          </Pressable>
+        </View>
       </View>
 
       <View style={styles.qrCard}>
@@ -166,6 +185,10 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: colors.text,
     marginTop: 4,
+  },
+  headerActions: {
+    alignItems: 'flex-end',
+    gap: 6,
   },
   signOut: {
     color: colors.muted,

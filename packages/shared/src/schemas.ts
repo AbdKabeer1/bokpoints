@@ -249,6 +249,66 @@ export const discountProofVerifyResponseSchema = z.object({
   discountCents: z.number().int().min(0),
 });
 
+/* ── The owner's remaining panels: profile, branches, customer detail, reports ── */
+
+const hexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'A colour looks like #0b7a4b');
+
+export const storeProfileResponseSchema = z.object({
+  name: z.string(),
+  address: z.string().nullable(),
+  contactName: z.string().nullable(),
+  contactEmail: z.string().nullable(),
+  brandColor: z.string().nullable(),
+});
+
+export const storeProfileUpdateRequestSchema = z
+  .object({
+    name: z.string().trim().min(1).max(120).optional(),
+    address: z.string().trim().max(200).nullish(),
+    contactName: z.string().trim().max(120).nullish(),
+    contactEmail: z.string().trim().max(200).nullish(),
+    brandColor: hexColor.nullish(),
+  })
+  .refine((value) => Object.keys(value).length > 0, { message: 'Change at least one field' });
+
+export const branchRowSchema = z.object({
+  branchId: z.string().uuid(),
+  name: z.string(),
+  status: z.string(),
+});
+
+export const branchesResponseSchema = z.object({
+  branches: z.array(branchRowSchema),
+});
+
+export const branchCreateRequestSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+});
+
+/** One entry in a customer's history, as the owner's panel reads it. */
+export const storeCustomerHistoryEntrySchema = z.object({
+  id: z.string().uuid(),
+  type: z.string(),
+  points: z.number().int(),
+  amountCents: z.number().int().nullable(),
+  reason: z.string().nullable(),
+  createdAt: z.string(),
+});
+
+export const storeCustomerHistoryResponseSchema = z.object({
+  balance: z.number().int(),
+  entries: z.array(storeCustomerHistoryEntrySchema),
+});
+
+export const storeReportsResponseSchema = z.object({
+  customers: z.number().int(),
+  newCustomers30d: z.number().int(),
+  pointsIssued30d: z.number().int(),
+  pointsRedeemed30d: z.number().int(),
+  pointsExpired30d: z.number().int(),
+  visits30d: z.number().int(),
+});
+
 export const identifyResponseSchema = z.object({
   customerId: z.string().uuid(),
   firstName: z.string(),

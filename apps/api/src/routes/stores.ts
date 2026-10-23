@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import type { z } from 'zod';
 import type { earningRuleDefinitionSchema } from '@bokpoints/shared';
 import {
@@ -29,9 +29,14 @@ import {
   storeRewardsResponseSchema,
   tillRewardsQuerySchema,
   tillRewardsResponseSchema,
+  branchCreateRequestSchema,
+  branchesResponseSchema,
   discountRuleResponseSchema,
   discountRuleRowSchema,
   discountRuleSetRequestSchema,
+  storeProfileResponseSchema,
+  storeProfileUpdateRequestSchema,
+  storeReportsResponseSchema,
   discountProofVerifyRequestSchema,
   discountProofVerifyResponseSchema,
   idempotencyKeyHeaderSchema,
@@ -64,6 +69,7 @@ import {
   discountRules,
   pointsLedgerEntries,
   sales,
+  storeLocations,
   storeRewards,
   stores,
 } from '../db/schema.js';
@@ -930,6 +936,295 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
       }
 
       return reply.send({ valid: true, discountCents });
+    },
+  );
+
+  /* ── The owner's panels: profile, branches, reports ───────────────────── */
+
+  /** The store's own profile (D-139): what the customers' app shows. */
+  app.get(
+    '/v1/stores/:storeId/profile',
+    {
+      config: {
+        rateLimit: rateLimit ?? { max: 60, timeWindow: '1 minute' },
+      },
+      schema: {
+        params: storeIdParamsSchema,
+        response: {
+          200: storeProfileResponseSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+          404: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { storeId } = request.params;
+      const auth = await authorizeStoreRequest(db, sessionResolver, {
+        token: bearer(request.headers.authorization),
+        storeId,
+        anyOf: ['store.manage'],
+      });
+      if (!auth.ok) {
+        return reply.code(auth.status).send({ error: auth.error });
+      }
+
+      const rows = await db
+        .select({
+          name: stores.name,
+          address: stores.address,
+          contactName: stores.contactName,
+          contactEmail: stores.contactEmail,
+          brandColor: stores.brandColor,
+        })
+        .from(stores)
+        .where(eq(stores.id, storeId))
+        .limit(1);
+      const store = rows[0];
+      if (!store) {
+        return reply.code(404).send({
+          error: { code: 'STORE_NOT_FOUND', message: 'That store does not exist here' },
+        });
+      }
+      return reply.send(store);
+    },
+  );
+
+  app.patch(
+    '/v1/stores/:storeId/profile',
+    {
+      config: {
+        rateLimit: rateLimit ?? { max: 30, timeWindow: '1 minute' },
+      },
+      schema: {
+        params: storeIdParamsSchema,
+        body: storeProfileUpdateRequestSchema,
+        response: {
+          200: storeProfileResponseSchema,
+          400: apiErrorSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+          404: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { storeId } = request.params;
+      const auth = await authorizeStoreRequest(db, sessionResolver, {
+        token: bearer(request.headers.authorization),
+        storeId,
+        anyOf: ['store.manage'],
+      });
+      if (!auth.ok) {
+        return reply.code(auth.status).send({ error: auth.error });
+      }
+
+      const beforeRows = await db.select().from(stores).where(eq(stores.id, storeId)).limit(1);
+      const before = beforeRows[0];
+      if (!before) {
+        return reply.code(404).send({
+          error: { code: 'STORE_NOT_FOUND', message: 'That store does not exist here' },
+        });
+      }
+
+      const body = request.body;
+      const updatedRows = await db
+        .update(stores)
+        .set({
+          ...(body.name === undefined ? {} : { name: body.name }),
+          ...(body.address === undefined ? {} : { address: body.address ?? null }),
+          ...(body.contactName === undefined ? {} : { contactName: body.contactName ?? null }),
+          ...(body.contactEmail === undefined ? {} : { contactEmail: body.contactEmail ?? null }),
+          ...(body.brandColor === undefined ? {} : { brandColor: body.brandColor ?? null }),
+        })
+        .where(eq(stores.id, storeId))
+        .returning({
+          name: stores.name,
+          address: stores.address,
+          contactName: stores.contactName,
+          contactEmail: stores.contactEmail,
+          brandColor: stores.brandColor,
+        });
+      const updated = updatedRows[0] ?? {
+        name: before.name,
+        address: before.address,
+        contactName: before.contactName,
+        contactEmail: before.contactEmail,
+        brandColor: before.brandColor,
+      };
+
+      await db.insert(auditLogEntries).values({
+        actorId: auth.staffUserId,
+        action: 'store.profile',
+        storeId,
+        targetType: 'store',
+        targetId: storeId,
+        before: {
+          name: before.name,
+          address: before.address,
+          contactName: before.contactName,
+          contactEmail: before.contactEmail,
+          brandColor: before.brandColor,
+        },
+        after: updated,
+      });
+
+      return reply.send(updated);
+    },
+  );
+
+  /** The store's branches: the list the till already picks from. */
+  app.get(
+    '/v1/stores/:storeId/branches',
+    {
+      config: {
+        rateLimit: rateLimit ?? { max: 60, timeWindow: '1 minute' },
+      },
+      schema: {
+        params: storeIdParamsSchema,
+        response: {
+          200: branchesResponseSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { storeId } = request.params;
+      const auth = await authorizeStoreRequest(db, sessionResolver, {
+        token: bearer(request.headers.authorization),
+        storeId,
+        anyOf: ['store.manage'],
+      });
+      if (!auth.ok) {
+        return reply.code(auth.status).send({ error: auth.error });
+      }
+
+      const rows = await db
+        .select({
+          branchId: storeLocations.id,
+          name: storeLocations.name,
+          status: storeLocations.status,
+        })
+        .from(storeLocations)
+        .where(eq(storeLocations.storeId, storeId))
+        .orderBy(asc(storeLocations.name));
+      return reply.send({ branches: rows });
+    },
+  );
+
+  app.post(
+    '/v1/stores/:storeId/branches',
+    {
+      config: {
+        rateLimit: rateLimit ?? { max: 30, timeWindow: '1 minute' },
+      },
+      schema: {
+        params: storeIdParamsSchema,
+        body: branchCreateRequestSchema,
+        response: {
+          201: branchesResponseSchema,
+          400: apiErrorSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { storeId } = request.params;
+      const auth = await authorizeStoreRequest(db, sessionResolver, {
+        token: bearer(request.headers.authorization),
+        storeId,
+        anyOf: ['store.manage'],
+      });
+      if (!auth.ok) {
+        return reply.code(auth.status).send({ error: auth.error });
+      }
+
+      await db.insert(storeLocations).values({
+        storeId,
+        name: request.body.name,
+        status: 'active',
+      });
+      await db.insert(auditLogEntries).values({
+        actorId: auth.staffUserId,
+        action: 'branch.create',
+        storeId,
+        targetType: 'store_location',
+        targetId: storeId,
+        after: { name: request.body.name },
+      });
+
+      const rows = await db
+        .select({
+          branchId: storeLocations.id,
+          name: storeLocations.name,
+          status: storeLocations.status,
+        })
+        .from(storeLocations)
+        .where(eq(storeLocations.storeId, storeId))
+        .orderBy(asc(storeLocations.name));
+      return reply.code(201).send({ branches: rows });
+    },
+  );
+
+  /**
+   * The store's numbers (the panel's Reports): customers, and the last
+   * thirty days of points issued, redeemed, expired, and visits recorded.
+   * One query, all reads.
+   */
+  app.get(
+    '/v1/stores/:storeId/reports/summary',
+    {
+      config: {
+        rateLimit: rateLimit ?? { max: 60, timeWindow: '1 minute' },
+      },
+      schema: {
+        params: storeIdParamsSchema,
+        response: {
+          200: storeReportsResponseSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { storeId } = request.params;
+      const auth = await authorizeStoreRequest(db, sessionResolver, {
+        token: bearer(request.headers.authorization),
+        storeId,
+        anyOf: ['audit.view'],
+      });
+      if (!auth.ok) {
+        return reply.code(auth.status).send({ error: auth.error });
+      }
+
+      const result = await db.execute(sql`
+        SELECT
+          (SELECT count(*)::int FROM customer_store_links WHERE store_id = ${storeId}) AS customers,
+          (SELECT count(*)::int FROM customer_store_links
+             WHERE store_id = ${storeId} AND joined_at > now() - interval '30 days') AS new_customers_30d,
+          (SELECT coalesce(sum(points), 0)::int FROM points_ledger_entries
+             WHERE store_id = ${storeId} AND type = 'earn' AND points > 0
+               AND created_at > now() - interval '30 days') AS points_issued_30d,
+          (SELECT coalesce(-sum(points), 0)::int FROM points_ledger_entries
+             WHERE store_id = ${storeId} AND type = 'redeem'
+               AND created_at > now() - interval '30 days') AS points_redeemed_30d,
+          (SELECT coalesce(-sum(points), 0)::int FROM points_ledger_entries
+             WHERE store_id = ${storeId} AND type = 'expire'
+               AND created_at > now() - interval '30 days') AS points_expired_30d,
+          (SELECT count(*)::int FROM sales
+             WHERE store_id = ${storeId} AND created_at > now() - interval '30 days') AS visits_30d
+      `);
+      const row = (result.rows[0] ?? {}) as Record<string, number | null>;
+      return reply.send({
+        customers: Number(row.customers ?? 0),
+        newCustomers30d: Number(row.new_customers_30d ?? 0),
+        pointsIssued30d: Number(row.points_issued_30d ?? 0),
+        pointsRedeemed30d: Number(row.points_redeemed_30d ?? 0),
+        pointsExpired30d: Number(row.points_expired_30d ?? 0),
+        visits30d: Number(row.visits_30d ?? 0),
+      });
     },
   );
 

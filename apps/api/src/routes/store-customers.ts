@@ -3,6 +3,7 @@ import {
   adjustmentRequestSchema,
   adjustmentResponseSchema,
   apiErrorSchema,
+  storeCustomerHistoryResponseSchema,
   customerParamsSchema,
   registerCustomerRequestSchema,
   registeredCustomerSchema,
@@ -11,7 +12,7 @@ import {
   storeIdParamsSchema,
 } from '@bokpoints/shared';
 import { authorizeStoreRequest } from '../auth/authorize.js';
-import { LedgerError, recordAdjust, type LedgerErrorCode } from '../db/ledger.js';
+import { getBalance, LedgerError, recordAdjust, type LedgerErrorCode } from '../db/ledger.js';
 import { LEDGER_ERROR_STATUS } from './stores.js';
 import type { Database } from '../db/client.js';
 import {
@@ -19,6 +20,8 @@ import {
   listStoreCustomers,
   registerStoreCustomer,
 } from '../db/customers.js';
+import { pointsLedgerEntries } from '../db/schema.js';
+import { and, desc, eq } from 'drizzle-orm';
 import type { SessionResolver } from '../auth/session.js';
 
 export interface StoreCustomerRouteOptions {
@@ -174,6 +177,69 @@ export const storeCustomerRoutes: FastifyPluginAsyncZod<StoreCustomerRouteOption
         customers: rows.map((row) => ({
           ...row,
           joinedAt: new Date(row.joinedAt).toISOString(),
+        })),
+      });
+    },
+  );
+
+  /**
+   * One customer's story at this store (the panel's customer detail):
+   * their balance and their last hundred entries, newest first. Owners and
+   * managers only — the till needs the balance, not the full history.
+   */
+  app.get(
+    '/v1/stores/:storeId/customers/:customerId/history',
+    {
+      config: { rateLimit: rateLimit ?? { max: 120, timeWindow: '1 minute' } },
+      schema: {
+        params: customerParamsSchema,
+        response: {
+          200: storeCustomerHistoryResponseSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { storeId, customerId } = request.params;
+      const auth = await authorizeStoreRequest(db, sessionResolver, {
+        token: bearer(request.headers.authorization),
+        storeId,
+        anyOf: ['customers.list'],
+      });
+      if (!auth.ok) {
+        return reply.code(auth.status).send({ error: auth.error });
+      }
+
+      const balance = await getBalance(db, customerId, storeId);
+      const rows = await db
+        .select({
+          id: pointsLedgerEntries.id,
+          type: pointsLedgerEntries.type,
+          points: pointsLedgerEntries.points,
+          amountCents: pointsLedgerEntries.amountCents,
+          reason: pointsLedgerEntries.reason,
+          createdAt: pointsLedgerEntries.createdAt,
+        })
+        .from(pointsLedgerEntries)
+        .where(
+          and(
+            eq(pointsLedgerEntries.customerId, customerId),
+            eq(pointsLedgerEntries.storeId, storeId),
+          ),
+        )
+        .orderBy(desc(pointsLedgerEntries.createdAt))
+        .limit(100);
+
+      return reply.send({
+        balance,
+        entries: rows.map((row) => ({
+          id: row.id,
+          type: row.type,
+          points: row.points,
+          amountCents: row.amountCents,
+          reason: row.reason,
+          createdAt: row.createdAt.toISOString(),
         })),
       });
     },

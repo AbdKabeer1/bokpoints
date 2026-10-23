@@ -1,10 +1,18 @@
 # STATUS
 
 **Project:** BOKPOINTS, a B2B2C loyalty platform for SMEs in Finland / EU.
-**Phase:** MVP, worked through `BOKPOINTS The Way Forward.md` one work package at a time. WP0-WP3 are complete — sale record, rewards, redemption, and the basket discount behind the rotating QR (D-133). **Next up: A's call — WP7 pilot readiness (domain, email sender, billing setup) or the offline awarding prototype (build step 8).**
-**Last updated:** 23 Oct 2026, after Build 19 (the discount behind the rotating QR). A store sets one basket discount; the customer shows a fresh 60-second code from their app; the till quotes the discount online and the confirm consumes the code — one code, one sale, points on what was actually paid. The hosted database is at migration 0014. 87 unit and 258 integration tests green.
+**Phase:** MVP, worked through `BOKPOINTS The Way Forward.md` one work package at a time. WP0-WP3 are complete, and the interface-completion pass (D-147) has put a real panel in front of every user: the cashier's till, the customer app with settings, and the owner portal with reports, customer detail, branches, store profile, counter sign and honest placeholders for billing and invitations. **Next up: Build 21 — the admin console (the platform's own app).**
+**Last updated:** 24 Oct 2026, after Build 20 (the interface pass). The owner portal now shows the numbers a shop asks for, the customers' stories, its branches, its profile with a brand colour that reaches the customer app, and a printable counter sign. The hosted database is at migration 0015. 87 unit and 264 integration tests green.
 
 ## Done
+
+- **Build 20 — the interface-completion pass (D-147).** Owner portal: Reports (30-day
+  numbers), customer History panels, Branches (list + add), Store profile with the brand
+  colour that reaches the customer app (D-139's first slice), a printable counter sign, and
+  a Settings tab whose placeholders say exactly what they wait for (Stripe, the email
+  sender, image storage). Customer app: Settings — name, language, sign out. Migration 0015
+  (`stores.brand_color`), applied locally and to the hosted database. 87 unit and 264
+  integration tests green (6 new).
 
 - **Build 19 — the basket discount behind the rotating QR (D-146).** One discount rule per
   store (threshold + fixed/percent, `discount.manage`, audited); the customer app shows a
@@ -252,7 +260,7 @@
   read the audit log. Live: register → award 25 → adjust +5 → list → audit line →
   clawback 40 → −35.
 
-**Tests: 87 unit, 258 integration, all passing.**
+**Tests: 87 unit, 264 integration, all passing.**
 
 ## In progress
 

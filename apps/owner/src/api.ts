@@ -14,10 +14,16 @@ import {
   ruleSimulateResponseSchema,
   rewardCreateRequestSchema,
   rewardEditRequestSchema,
+  branchCreateRequestSchema,
+  branchesResponseSchema,
   discountRuleResponseSchema,
   discountRuleRowSchema,
   discountRuleSetRequestSchema,
+  storeCustomerHistoryResponseSchema,
   storeCustomersResponseSchema,
+  storeProfileResponseSchema,
+  storeProfileUpdateRequestSchema,
+  storeReportsResponseSchema,
   storeRewardsResponseSchema,
   storeRewardRowSchema,
   storeStaffResponseSchema,
@@ -236,6 +242,62 @@ export const setDiscountRule = (
     body: discountRuleSetRequestSchema.parse(body),
   });
 
+/* ── Panels: reports, branches, profile, customer detail ───────────────── */
+
+export const getReports = (token: string, storeId: string) =>
+  request(storeReportsResponseSchema, {
+    method: 'GET',
+    path: `/v1/stores/${storeId}/reports/summary`,
+    token,
+  });
+
+export const getBranches = (token: string, storeId: string) =>
+  request(branchesResponseSchema, {
+    method: 'GET',
+    path: `/v1/stores/${storeId}/branches`,
+    token,
+  });
+
+export const createBranch = (token: string, storeId: string, name: string) =>
+  request(branchesResponseSchema, {
+    method: 'POST',
+    path: `/v1/stores/${storeId}/branches`,
+    token,
+    body: branchCreateRequestSchema.parse({ name }),
+  });
+
+export const getProfile = (token: string, storeId: string) =>
+  request(storeProfileResponseSchema, {
+    method: 'GET',
+    path: `/v1/stores/${storeId}/profile`,
+    token,
+  });
+
+export const updateProfile = (
+  token: string,
+  storeId: string,
+  body: {
+    name?: string;
+    address?: string | null;
+    contactName?: string | null;
+    contactEmail?: string | null;
+    brandColor?: string | null;
+  },
+) =>
+  request(storeProfileResponseSchema, {
+    method: 'PATCH',
+    path: `/v1/stores/${storeId}/profile`,
+    token,
+    body: storeProfileUpdateRequestSchema.parse(body),
+  });
+
+export const getCustomerHistory = (token: string, storeId: string, customerId: string) =>
+  request(storeCustomerHistoryResponseSchema, {
+    method: 'GET',
+    path: `/v1/stores/${storeId}/customers/${customerId}/history`,
+    token,
+  });
+
 /* ── Audit ─────────────────────────────────────────────────────────────── */
 
 export const listAudit = (token: string, storeId: string, limit = '50', action?: string) =>
@@ -254,4 +316,8 @@ export type StaffMember = Awaited<ReturnType<typeof listStaff>>['members'][numbe
 export type AuditEntry = Awaited<ReturnType<typeof listAudit>>['entries'][number];
 export type Reward = Awaited<ReturnType<typeof listRewards>>['rewards'][number];
 export type DiscountRule = NonNullable<Awaited<ReturnType<typeof getDiscountRule>>['rule']>;
+export type Reports = Awaited<ReturnType<typeof getReports>>;
+export type Branch = Awaited<ReturnType<typeof getBranches>>['branches'][number];
+export type Profile = Awaited<ReturnType<typeof getProfile>>;
+export type CustomerHistory = Awaited<ReturnType<typeof getCustomerHistory>>;
 export type Simulation = Awaited<ReturnType<typeof simulateRules>>;

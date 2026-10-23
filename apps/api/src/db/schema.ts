@@ -86,6 +86,9 @@ export const stores = pgTable(
     contactName: text('contact_name'),
     contactEmail: text('contact_email'),
     vatId: text('vat_id'),
+    // The brand colour the customer app paints this store's page with (D-139).
+    // Null until the store picks one; the app then falls back to its own green.
+    brandColor: text('brand_color'),
     // Store status lifecycle from FRD 4.1.
     status: text('status').notNull().default('invited'),
     plan: text('plan'),

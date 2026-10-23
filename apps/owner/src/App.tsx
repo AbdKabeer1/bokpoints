@@ -10,6 +10,11 @@ import { PeopleScreen } from './screens/People';
 import { AuditScreen } from './screens/AuditScreen';
 import { RewardsScreen } from './screens/Rewards';
 import { DiscountScreen } from './screens/Discount';
+import { ReportsScreen } from './screens/Reports';
+import { BranchesScreen } from './screens/Branches';
+import { ProfileScreen } from './screens/Profile';
+import { CounterSignScreen } from './screens/CounterSign';
+import { SettingsScreen } from './screens/Settings';
 
 type Phase =
   | { kind: 'loading' }
@@ -18,15 +23,31 @@ type Phase =
   | { kind: 'ready'; token: string; me: Me }
   | { kind: 'unreachable'; message: string };
 
-type Tab = 'rules' | 'customers' | 'rewards' | 'discount' | 'people' | 'audit';
+type Tab =
+  | 'rules'
+  | 'customers'
+  | 'rewards'
+  | 'discount'
+  | 'reports'
+  | 'branches'
+  | 'profile'
+  | 'sign'
+  | 'people'
+  | 'audit'
+  | 'settings';
 
 const TABS: { id: Tab; label: string }[] = [
+  { id: 'reports', label: 'Reports' },
   { id: 'rules', label: 'Rules' },
   { id: 'customers', label: 'Customers' },
   { id: 'rewards', label: 'Rewards' },
   { id: 'discount', label: 'Discount' },
+  { id: 'branches', label: 'Branches' },
+  { id: 'profile', label: 'Store profile' },
+  { id: 'sign', label: 'Counter sign' },
   { id: 'people', label: 'People' },
   { id: 'audit', label: 'Audit' },
+  { id: 'settings', label: 'Settings' },
 ];
 
 export function App() {
@@ -201,8 +222,17 @@ export function App() {
             {tab === 'discount' && (
               <DiscountScreen token={phase.token} storeId={membership.storeId} />
             )}
+            {tab === 'reports' && <ReportsScreen token={phase.token} storeId={membership.storeId} />}
+            {tab === 'branches' && (
+              <BranchesScreen token={phase.token} storeId={membership.storeId} />
+            )}
+            {tab === 'profile' && <ProfileScreen token={phase.token} storeId={membership.storeId} />}
+            {tab === 'sign' && (
+              <CounterSignScreen token={phase.token} storeId={membership.storeId} />
+            )}
             {tab === 'people' && <PeopleScreen token={phase.token} storeId={membership.storeId} />}
             {tab === 'audit' && <AuditScreen token={phase.token} storeId={membership.storeId} />}
+            {tab === 'settings' && <SettingsScreen />}
           </main>
         </div>
       );
