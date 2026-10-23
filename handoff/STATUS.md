@@ -6,6 +6,14 @@
 
 ## Done
 
+- **Build 14b — A answered the component document's three questions (23 Oct).**
+  (1) Stores edit their own page in the pilot: brand image and colours plus their
+  offerings — D-139; campaign editing stays v1.1 per the document. (2) Levels and
+  referrals are wanted for the pilot — D-140; levels track points earned in a rolling
+  period, referrals carry per-person limits against fake accounts. (3) Pilot rewards
+  and their points costs are still open — stores define them themselves, so nothing
+  blocks the catalog build.
+
 - **Build 14a — component document check.** `UI_and_App_Components_revised.docx` (A's 23 Oct
   revision) is now in the repo and is the source for what each app contains. Every MVP line
   was checked against the code: the result table lives in `docs/HANDOFF.md` section 10.

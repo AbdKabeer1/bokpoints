@@ -223,6 +223,7 @@ here.
 | Active customers and points outstanding | Missing | Also the pricing-tier count |
 | Branches management | Missing | Data and till picker exist; no management UI |
 | Store profile (name, logo, address, contact) | Missing | |
+| Store page editor: brand image and colours, offerings | Missing | Now in the pilot (D-139); needs image storage |
 | Counter QR sign | Missing | |
 | Billing: plan, usage, invoices, warnings, contact | Missing | Depends on the Stripe decision |
 | Store settings | Missing | |
@@ -238,6 +239,8 @@ here.
 | Expiring soon | Exists | From `/v1/customer/me/expiring` |
 | Profile setup | Partial | Name at sign-up; no language or consent choice |
 | Rewards per store | Missing | D-138 |
+| Levels display (tier and progress) | Missing | In the pilot (D-140) |
+| Referral tab (invite link, tracked reward) | Missing | In the pilot (D-140); per-person limits required |
 | Profile and settings (name, email, language, consent, sign out) | Missing | |
 | Privacy tools (download my data, delete my account) | Missing | Needs the two API endpoints too |
 | Help and contact | Missing | |
