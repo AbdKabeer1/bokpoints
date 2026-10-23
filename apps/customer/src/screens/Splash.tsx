@@ -5,21 +5,23 @@ import {
   Easing,
   Platform,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
 import { colors } from '../lib/theme';
 
+const NAME = 'Poket'.split('');
+const LETTER_STAGGER = 60;
+
 /**
- * The first thing anyone sees: the wordmark arrives, the tagline settles, and
- * a green line fills before the app fades to the sign-in page. Short on
- * purpose (under two seconds) and skipped when the device asks for reduced
- * motion.
+ * The first thing anyone sees: each letter of the name rises into place, the
+ * green dot lands, the tagline settles, then the whole thing fades to the
+ * sign-in page. Short on purpose (about two seconds) and skipped when the
+ * device asks for reduced motion.
  */
 export function Splash({ onDone }: { onDone: () => void }) {
-  const mark = useRef(new Animated.Value(0)).current;
-  const word = useRef(new Animated.Value(0)).current;
-  const bar = useRef(new Animated.Value(0)).current;
+  const letters = useRef(NAME.map(() => new Animated.Value(0))).current;
+  const dot = useRef(new Animated.Value(0)).current;
+  const tagline = useRef(new Animated.Value(0)).current;
   const fade = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -38,37 +40,42 @@ export function Splash({ onDone }: { onDone: () => void }) {
 
     const play = (reduceMotion: boolean) => {
       if (reduceMotion) {
-        mark.setValue(1);
-        word.setValue(1);
-        bar.setValue(1);
+        for (const letter of letters) letter.setValue(1);
+        dot.setValue(1);
+        tagline.setValue(1);
         const timer = setTimeout(finish, 900);
         return () => clearTimeout(timer);
       }
 
       const sequence = Animated.sequence([
-        Animated.timing(mark, {
+        Animated.stagger(
+          LETTER_STAGGER,
+          letters.map((value) =>
+            Animated.timing(value, {
+              toValue: 1,
+              duration: 430,
+              easing: Easing.out(Easing.cubic),
+              useNativeDriver: native,
+            }),
+          ),
+        ),
+        Animated.spring(dot, {
           toValue: 1,
-          duration: 460,
-          easing: Easing.out(Easing.cubic),
+          friction: 4,
+          tension: 120,
           useNativeDriver: native,
         }),
-        Animated.timing(word, {
+        Animated.timing(tagline, {
           toValue: 1,
-          duration: 360,
+          duration: 300,
           easing: Easing.out(Easing.quad),
           useNativeDriver: native,
         }),
-        Animated.timing(bar, {
-          toValue: 1,
-          duration: 620,
-          easing: Easing.inOut(Easing.quad),
-          useNativeDriver: native,
-        }),
-        // A beat to read the tagline before it leaves.
-        Animated.delay(260),
+        // A beat to read it before the hand-off.
+        Animated.delay(520),
         Animated.timing(fade, {
           toValue: 0,
-          duration: 240,
+          duration: 260,
           easing: Easing.in(Easing.quad),
           useNativeDriver: native,
         }),
@@ -95,48 +102,49 @@ export function Splash({ onDone }: { onDone: () => void }) {
       clearTimeout(safety);
       cleanUp?.();
     };
-  }, [bar, fade, mark, onDone, word]);
+  }, [dot, fade, letters, onDone, tagline]);
 
   return (
     <Animated.View style={[styles.screen, { opacity: fade }]}>
-      <Animated.View
+      <View accessibilityRole="header" accessibilityLabel="Poket" style={styles.nameRow}>
+        {letters.map((value, index) => (
+          <Animated.Text
+            key={index}
+            style={[
+              styles.name,
+              {
+                opacity: value,
+                transform: [
+                  {
+                    translateY: value.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }),
+                  },
+                ],
+              },
+            ]}
+          >
+            {NAME[index] ?? ''}
+          </Animated.Text>
+        ))}
+        <Animated.View
+          style={[styles.dot, { opacity: dot, transform: [{ scale: dot }] }]}
+        />
+      </View>
+
+      <Animated.Text
         style={[
-          styles.mark,
+          styles.tagline,
           {
-            opacity: mark,
+            opacity: tagline,
             transform: [
-              { scale: mark.interpolate({ inputRange: [0, 1], outputRange: [0.86, 1] }) },
+              {
+                translateY: tagline.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }),
+              },
             ],
           },
         ]}
       >
-        <Text style={styles.markText}>B</Text>
-      </Animated.View>
-
-      <Animated.View
-        style={{
-          opacity: word,
-          transform: [
-            { translateY: word.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) },
-          ],
-        }}
-      >
-        <Text style={styles.wordmark}>BOKPOINTS</Text>
-        <Text style={styles.tagline}>Every visit counts.</Text>
-      </Animated.View>
-
-      <View style={styles.track}>
-        <Animated.View
-          style={[
-            styles.fill,
-            {
-              transform: [
-                { scaleX: bar.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }) },
-              ],
-            },
-          ]}
-        />
-      </View>
+        Every visit counts.
+      </Animated.Text>
     </Animated.View>
   );
 }
@@ -149,45 +157,30 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 32,
   },
-  mark: {
-    width: 76,
-    height: 76,
-    borderRadius: 24,
-    backgroundColor: colors.green,
-    alignItems: 'center',
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
     justifyContent: 'center',
-    marginBottom: 26,
   },
-  markText: {
-    color: colors.onGreen,
-    fontSize: 38,
-    fontWeight: '800',
-  },
-  wordmark: {
+  name: {
     color: colors.ink,
-    fontSize: 20,
+    fontSize: 58,
+    lineHeight: 64,
     fontWeight: '800',
-    letterSpacing: 6,
-    textAlign: 'center',
+    letterSpacing: -2.4,
+  },
+  dot: {
+    width: 11,
+    height: 11,
+    borderRadius: 5.5,
+    backgroundColor: colors.green,
+    marginLeft: 5,
+    marginBottom: 13,
   },
   tagline: {
     color: colors.muted,
     fontSize: 14,
-    textAlign: 'center',
-    marginTop: 10,
-    letterSpacing: 0.2,
-  },
-  track: {
-    marginTop: 34,
-    width: 96,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.greenSoft,
-    overflow: 'hidden',
-  },
-  fill: {
-    flex: 1,
-    backgroundColor: colors.green,
-    transformOrigin: 'left',
+    letterSpacing: 0.4,
+    marginTop: 16,
   },
 });

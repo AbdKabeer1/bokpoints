@@ -75,7 +75,7 @@ export function Home({ token, me, onSignOut }: HomeProps) {
     >
       <View style={styles.header}>
         <View>
-          <Text style={styles.brand}>BOKPOINTS</Text>
+          <Text style={styles.brand}>POKET</Text>
           <Text style={styles.hello}>Hi {me.customer.name || 'there'}</Text>
         </View>
         <Pressable onPress={onSignOut} hitSlop={12}>
@@ -112,7 +112,7 @@ export function Home({ token, me, onSignOut }: HomeProps) {
         <ActivityIndicator color={colors.gold} style={styles.spinner} />
       ) : stores.length === 0 ? (
         <Text style={styles.empty}>
-          No points yet. Show your code at a BOKPOINTS till and they will appear here.
+          No points yet. Show your code at a Poket till and they will appear here.
         </Text>
       ) : (
         stores.map((store) => (

@@ -111,9 +111,9 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
         >
           <View style={styles.brandRow}>
             <View style={styles.mark}>
-              <Text style={styles.markText}>B</Text>
+              <Text style={styles.markText}>P</Text>
             </View>
-            <Text style={styles.wordmark}>BOKPOINTS</Text>
+            <Text style={styles.wordmark}>Poket</Text>
           </View>
 
           {step === 'email' ? (
@@ -307,9 +307,9 @@ const styles = StyleSheet.create({
   },
   wordmark: {
     color: colors.ink,
-    fontSize: 15,
+    fontSize: 19,
     fontWeight: '800',
-    letterSpacing: 3,
+    letterSpacing: -0.3,
   },
   headline: {
     color: colors.ink,
