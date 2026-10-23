@@ -14,7 +14,11 @@
   palette is now white/green with the old names aliased, so Home,
   Onboarding and history picked it up too. The customer-facing name is **Poket**
   (D-136), shown as a letter-by-letter animated wordmark with a green dot; the repo,
-  packages, API and till keep BOKPOINTS until a full rename is approved.
+  packages, API and documents keep BOKPOINTS until a full rename is approved.
+- **Till restyle.** `apps/web` moved from dark navy/gold to the same white-and-green
+  Poket system: bright surface, 800-weight headings, green primary with soft-mint
+  disabled state, green eyebrows, focused-input ring, and the wordmark dot in the
+  top bar. Functionality untouched (one stylesheet plus the five brand strings).
 - **Discount, reversal, QR and device decisions (D-129 to D-135).** Recorded in
   `docs/DECISIONS.md` and applied to the PRD and FRD: points on the amount actually paid
   (D-129), the store funds its own discounts and the platform never settles (D-130), one
