@@ -59,7 +59,7 @@ h1 {
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 9px;
   color: var(--text);
   font-weight: 800;
   font-size: 1.05rem;
@@ -68,12 +68,23 @@ h1 {
 }
 
 /* The wordmark's green dot, so the till matches the customer app. */
-.brand::after {
+.brand-word::after {
   content: '';
+  display: inline-block;
   width: 7px;
   height: 7px;
   border-radius: 50%;
   background: var(--green);
+  margin-left: 3px;
+}
+
+/* Says this is staff-facing, not the customer app. */
+.brand-tag {
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
 }
 
 .muted {

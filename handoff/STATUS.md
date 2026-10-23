@@ -19,6 +19,9 @@
   Poket system: bright surface, 800-weight headings, green primary with soft-mint
   disabled state, green eyebrows, focused-input ring, and the wordmark dot in the
   top bar. Functionality untouched (one stylesheet plus the five brand strings).
+  The till identifies as **Poket · STORE PORTAL** (wordmark + small tag on every
+  screen, tab title, and the sign-in headline), keeping "Merchant Platform" free
+  for the owner console; the customer app stays plain Poket.
 - **Discount, reversal, QR and device decisions (D-129 to D-135).** Recorded in
   `docs/DECISIONS.md` and applied to the PRD and FRD: points on the amount actually paid
   (D-129), the store funds its own discounts and the platform never settles (D-130), one
