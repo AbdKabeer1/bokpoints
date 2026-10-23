@@ -1,4 +1,7 @@
+import { randomUUID } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
+import type { z } from 'zod';
+import type { earningRuleDefinitionSchema } from '@bokpoints/shared';
 import {
   apiErrorSchema,
   awardPreviewResponseSchema,
@@ -6,10 +9,19 @@ import {
   awardResponseSchema,
   balanceResponseSchema,
   customerParamsSchema,
+  earningRuleCreateRequestSchema,
+  earningRuleEditRequestSchema,
+  earningRuleParamsSchema,
+  earningRuleRowSchema,
+  earningRuleStatusRequestSchema,
+  earningRulesResponseSchema,
   identifyRequestSchema,
   identifyResponseSchema,
   idempotencyKeyHeaderSchema,
+  ruleSimulateRequestSchema,
+  ruleSimulateResponseSchema,
   storeIdParamsSchema,
+  calculatePurchase,
 } from '@bokpoints/shared';
 import type { LedgerErrorCode } from '../db/ledger.js';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
@@ -17,8 +29,18 @@ import { authorizeStoreRequest } from '../auth/authorize.js';
 import type { SessionResolver } from '../auth/session.js';
 import type { Database } from '../db/client.js';
 import { getBalance, LedgerError, previewEarn, recordEarn } from '../db/ledger.js';
-import { credentials, customers } from '../db/schema.js';
-import { currentProgramFor } from '../db/earning-rules.js';
+import { auditLogEntries, credentials, customers, earningRules, stores } from '../db/schema.js';
+import {
+  conditionsFromDefinition,
+  currentProgramFor,
+  engineRuleFromDefinition,
+  listStoreRules,
+  nextStoreRuleVersion,
+  paramsFromDefinition,
+  ruleDefinitionFromRow,
+  type RuleDefinition,
+  type StoredRule,
+} from '../db/earning-rules.js';
 
 export interface RouteOptions {
   db: Database;
@@ -351,6 +373,464 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
 
       const balance = await getBalance(db, customerId, storeId);
       return reply.send({ customerId, storeId, balance });
+    },
+  );
+
+  /**
+   * The owner's rule controls (WP2, FR-RUL). The history is append-only:
+   * creating and editing always land as a new store-wide version, and the
+   * old rows keep their place (D-116, FR-RUL-4). Cashiers read nothing
+   * here; the capability is points_rule.manage (owner, manager, admin).
+   */
+  // The zod schema and the engine agree by construction; TS only sees the
+  // engine's 'floor' | 'nearest' | undefined against the schema's narrowed
+  // required field, so the one narrowing happens here, in one place.
+  type RuleRowResponse = z.infer<typeof earningRuleRowSchema>;
+  const ruleRowResponse = (rule: StoredRule): RuleRowResponse => ({
+    ruleId: rule.id,
+    ruleKey: rule.ruleKey,
+    definition: rule.definition as RuleRowResponse['definition'],
+    version: rule.version,
+    status: rule.status,
+    effectiveFrom: rule.effectiveFrom.toISOString(),
+    createdAt: rule.createdAt.toISOString(),
+  });
+
+  /**
+   * A zod-parsed definition into the engine's exact shape: this repo compiles
+   * with exactOptionalPropertyTypes, so an explicit omission is the honest
+   * translation of "optional, not undefined".
+   */
+  const cleanDefinition = (value: z.infer<typeof earningRuleDefinitionSchema>): RuleDefinition => {
+    switch (value.type) {
+      case 'per_euro':
+        return {
+          type: 'per_euro',
+          pointsPerEuroThousandths: value.pointsPerEuroThousandths,
+          rounding: value.rounding,
+          ...(value.minSpendCents === undefined ? {} : { minSpendCents: value.minSpendCents }),
+        };
+      case 'fixed_per_purchase':
+        return {
+          type: 'fixed_per_purchase',
+          points: value.points,
+          ...(value.minSpendCents === undefined ? {} : { minSpendCents: value.minSpendCents }),
+        };
+      case 'threshold_bonus':
+        return {
+          type: 'threshold_bonus',
+          points: value.points,
+          ...(value.minSpendCents === undefined ? {} : { minSpendCents: value.minSpendCents }),
+        };
+      case 'every_nth_visit':
+        return { type: 'every_nth_visit', points: value.points, everyN: value.everyN };
+    }
+    throw new Error('Unknown rule type');
+  };
+
+  /** The engine holds the technical limits, so validation runs through it. */
+  const definitionError = (definition: RuleDefinition): string | null => {
+    try {
+      calculatePurchase({
+        lines: [{ amountCents: 100 }],
+        rules: [engineRuleFromDefinition(definition)],
+        visitNumber: 1,
+      });
+      return null;
+    } catch (error) {
+      return error instanceof Error ? error.message : 'That rule does not pass the limits';
+    }
+  };
+
+  app.get(
+    '/v1/stores/:storeId/rules',
+    {
+      schema: {
+        params: storeIdParamsSchema,
+        response: {
+          200: earningRulesResponseSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+          404: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { storeId } = request.params;
+      const auth = await authorizeStoreRequest(db, sessionResolver, {
+        token: bearer(request.headers.authorization),
+        storeId,
+        anyOf: ['points_rule.manage'],
+      });
+      if (!auth.ok) {
+        return reply.code(auth.status).send({ error: auth.error });
+      }
+
+      const rules = await listStoreRules(db, storeId);
+      if (rules === null) {
+        return reply.code(404).send({ error: { code: 'STORE_NOT_FOUND', message: 'No such store' } });
+      }
+      return reply.code(200).send({ rules: rules.map(ruleRowResponse) });
+    },
+  );
+
+  app.post(
+    '/v1/stores/:storeId/rules',
+    {
+      schema: {
+        params: storeIdParamsSchema,
+        body: earningRuleCreateRequestSchema,
+        response: {
+          201: earningRuleRowSchema,
+          400: apiErrorSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+          404: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { storeId } = request.params;
+      const auth = await authorizeStoreRequest(db, sessionResolver, {
+        token: bearer(request.headers.authorization),
+        storeId,
+        anyOf: ['points_rule.manage'],
+      });
+      if (!auth.ok) {
+        return reply.code(auth.status).send({ error: auth.error });
+      }
+
+      const store = await db
+        .select({ id: stores.id })
+        .from(stores)
+        .where(eq(stores.id, storeId))
+        .limit(1);
+      if (!store[0]) {
+        return reply.code(404).send({ error: { code: 'STORE_NOT_FOUND', message: 'No such store' } });
+      }
+
+      const { effectiveFrom } = request.body;
+      const definition = cleanDefinition(request.body.definition);
+      const invalid = definitionError(definition);
+      if (invalid !== null) {
+        return reply
+          .code(400)
+          .send({ error: { code: 'INVALID_RULE', message: invalid } });
+      }
+
+      const created = await db.transaction(async (tx) => {
+        const version = await nextStoreRuleVersion(tx, storeId);
+        const inserted = await tx
+          .insert(earningRules)
+          .values({
+            storeId,
+            ruleKey: randomUUID(),
+            type: definition.type,
+            params: paramsFromDefinition(definition),
+            conditions: conditionsFromDefinition(definition),
+            effectiveFrom: effectiveFrom === undefined ? new Date() : new Date(effectiveFrom),
+            status: 'active',
+            version,
+            createdBy: auth.staffUserId,
+          })
+          .returning();
+        const row = inserted[0];
+        if (!row) throw new Error('Could not create the rule');
+
+        await tx.insert(auditLogEntries).values({
+          actorId: auth.staffUserId,
+          actorRole: auth.role,
+          action: 'rule.create',
+          storeId,
+          targetType: 'earning_rule',
+          targetId: row.id,
+          after: { definition, version },
+        });
+
+        return row;
+      });
+
+      return reply.code(201).send(
+        ruleRowResponse({
+          id: created.id,
+          ruleKey: created.ruleKey,
+          definition,
+          version: created.version,
+          status: 'active',
+          effectiveFrom: created.effectiveFrom,
+          createdAt: created.createdAt,
+        }),
+      );
+    },
+  );
+
+  /** A draft or the store's current rules into the engine, ledger untouched. */
+  app.post(
+    '/v1/stores/:storeId/rules/simulate',
+    {
+      schema: {
+        params: storeIdParamsSchema,
+        body: ruleSimulateRequestSchema,
+        response: {
+          200: ruleSimulateResponseSchema,
+          400: apiErrorSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+          404: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { storeId } = request.params;
+      const auth = await authorizeStoreRequest(db, sessionResolver, {
+        token: bearer(request.headers.authorization),
+        storeId,
+        anyOf: ['points_rule.manage'],
+      });
+      if (!auth.ok) {
+        return reply.code(auth.status).send({ error: auth.error });
+      }
+
+      const store = await db
+        .select({ maxPointsPerSale: stores.maxPointsPerSale })
+        .from(stores)
+        .where(eq(stores.id, storeId))
+        .limit(1);
+      if (!store[0]) {
+        return reply.code(404).send({ error: { code: 'STORE_NOT_FOUND', message: 'No such store' } });
+      }
+
+      const { amountCents, visitNumber, rules: draftRules } = request.body;
+      let rulesSource: 'store' | 'draft';
+      let rules;
+      let maxPointsPerSale: number | undefined = store[0].maxPointsPerSale ?? undefined;
+
+      if (draftRules !== undefined) {
+        rulesSource = 'draft';
+        const definitions = draftRules.map(cleanDefinition);
+        rules = definitions.map((definition) => engineRuleFromDefinition(definition));
+        for (const definition of definitions) {
+          const invalid = definitionError(definition);
+          if (invalid !== null) {
+            return reply
+              .code(400)
+              .send({ error: { code: 'INVALID_RULE', message: invalid } });
+          }
+        }
+      } else {
+        const program = await currentProgramFor(db, storeId);
+        if (program === null || program.rules.length === 0) {
+          return reply.code(400).send({
+            error: { code: 'RULES_EMPTY', message: 'This store has no rules to simulate' },
+          });
+        }
+        rulesSource = 'store';
+        rules = program.rules;
+        maxPointsPerSale = program.maxPointsPerSale;
+      }
+
+      const result = calculatePurchase({
+        lines: [{ amountCents }],
+        rules: rules as never,
+        ...(maxPointsPerSale === undefined ? {} : { maxPointsPerSale }),
+        visitNumber: visitNumber ?? 1,
+      });
+
+      return reply.code(200).send({
+        points: result.points,
+        uncappedPoints: result.uncappedPoints,
+        capped: result.capped,
+        awarded: result.awarded,
+        ...(result.reason === undefined ? {} : { reason: result.reason }),
+        breakdown: result.breakdown,
+        rulesSource,
+      });
+    },
+  );
+
+  /** Editing never rewrites history: the change is a new version (FR-RUL-4). */
+  app.post(
+    '/v1/stores/:storeId/rules/:ruleId/version',
+    {
+      schema: {
+        params: earningRuleParamsSchema,
+        body: earningRuleEditRequestSchema,
+        response: {
+          201: earningRuleRowSchema,
+          400: apiErrorSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+          404: apiErrorSchema,
+          409: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { storeId, ruleId } = request.params;
+      const auth = await authorizeStoreRequest(db, sessionResolver, {
+        token: bearer(request.headers.authorization),
+        storeId,
+        anyOf: ['points_rule.manage'],
+      });
+      if (!auth.ok) {
+        return reply.code(auth.status).send({ error: auth.error });
+      }
+
+      const existing = await db
+        .select()
+        .from(earningRules)
+        .where(and(eq(earningRules.id, ruleId), eq(earningRules.storeId, storeId)))
+        .limit(1);
+      const previous = existing[0];
+      if (!previous) {
+        return reply
+          .code(404)
+          .send({ error: { code: 'RULE_NOT_FOUND', message: 'No such rule at this store' } });
+      }
+      if (previous.status === 'superseded') {
+        return reply.code(409).send({
+          error: {
+            code: 'RULE_SUPERSEDED',
+            message: 'A superseded version is history and cannot be edited',
+          },
+        });
+      }
+
+      const definition = cleanDefinition(request.body.definition);
+      const invalid = definitionError(definition);
+      if (invalid !== null) {
+        return reply.code(400).send({ error: { code: 'INVALID_RULE', message: invalid } });
+      }
+
+      const created = await db.transaction(async (tx) => {
+        const version = await nextStoreRuleVersion(tx, storeId);
+        const inserted = await tx
+          .insert(earningRules)
+          .values({
+            storeId,
+            ruleKey: previous.ruleKey,
+            type: definition.type,
+            params: paramsFromDefinition(definition),
+            conditions: conditionsFromDefinition(definition),
+            effectiveFrom:
+              request.body.effectiveFrom === undefined ? new Date() : new Date(request.body.effectiveFrom),
+            status: 'active',
+            version,
+            createdBy: auth.staffUserId,
+          })
+          .returning();
+        const row = inserted[0];
+        if (!row) throw new Error('Could not create the rule version');
+
+        await tx
+          .update(earningRules)
+          .set({ status: 'superseded' })
+          .where(eq(earningRules.id, ruleId));
+
+        await tx.insert(auditLogEntries).values({
+          actorId: auth.staffUserId,
+          actorRole: auth.role,
+          action: 'rule.version',
+          storeId,
+          targetType: 'earning_rule',
+          targetId: ruleId,
+          before: { definition: ruleDefinitionFromRow(previous), version: previous.version },
+          after: { definition, version },
+        });
+
+        return row;
+      });
+
+      return reply.code(201).send(
+        ruleRowResponse({
+          id: created.id,
+          ruleKey: created.ruleKey,
+          definition,
+          version: created.version,
+          status: 'active',
+          effectiveFrom: created.effectiveFrom,
+          createdAt: created.createdAt,
+        }),
+      );
+    },
+  );
+
+  app.post(
+    '/v1/stores/:storeId/rules/:ruleId/status',
+    {
+      schema: {
+        params: earningRuleParamsSchema,
+        body: earningRuleStatusRequestSchema,
+        response: {
+          200: earningRuleRowSchema,
+          400: apiErrorSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+          404: apiErrorSchema,
+          409: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { storeId, ruleId } = request.params;
+      const auth = await authorizeStoreRequest(db, sessionResolver, {
+        token: bearer(request.headers.authorization),
+        storeId,
+        anyOf: ['points_rule.manage'],
+      });
+      if (!auth.ok) {
+        return reply.code(auth.status).send({ error: auth.error });
+      }
+
+      const existing = await db
+        .select()
+        .from(earningRules)
+        .where(and(eq(earningRules.id, ruleId), eq(earningRules.storeId, storeId)))
+        .limit(1);
+      const row = existing[0];
+      if (!row) {
+        return reply
+          .code(404)
+          .send({ error: { code: 'RULE_NOT_FOUND', message: 'No such rule at this store' } });
+      }
+      if (row.status === 'superseded') {
+        return reply.code(409).send({
+          error: {
+            code: 'RULE_SUPERSEDED',
+            message: 'A superseded version is history and cannot be paused or resumed',
+          },
+        });
+      }
+      if (row.status !== request.body.status) {
+        await db.transaction(async (tx) => {
+          await tx
+            .update(earningRules)
+            .set({ status: request.body.status })
+            .where(eq(earningRules.id, ruleId));
+          await tx.insert(auditLogEntries).values({
+            actorId: auth.staffUserId,
+            actorRole: auth.role,
+            action: 'rule.status',
+            storeId,
+            targetType: 'earning_rule',
+            targetId: ruleId,
+            before: { status: row.status },
+            after: { status: request.body.status },
+          });
+        });
+      }
+
+      return reply.code(200).send(
+        ruleRowResponse({
+          id: row.id,
+          ruleKey: row.ruleKey,
+          definition: ruleDefinitionFromRow(row),
+          version: row.version,
+          status: request.body.status,
+          effectiveFrom: row.effectiveFrom,
+          createdAt: row.createdAt,
+        }),
+      );
     },
   );
 };

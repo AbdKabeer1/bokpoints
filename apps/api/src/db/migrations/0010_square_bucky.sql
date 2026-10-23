@@ -1,0 +1,2 @@
+ALTER TABLE "earning_rules" DROP CONSTRAINT "earning_rules_type_check";--> statement-breakpoint
+ALTER TABLE "earning_rules" ADD CONSTRAINT "earning_rules_type_check" CHECK ("earning_rules"."type" in ('per_euro', 'fixed_per_purchase', 'threshold_bonus', 'every_nth_visit'));

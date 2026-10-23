@@ -316,7 +316,7 @@ export const earningRules = pgTable(
   (t) => [
     check(
       'earning_rules_type_check',
-      sql`${t.type} in ('per_euro', 'fixed_per_purchase', 'threshold_bonus')`,
+      sql`${t.type} in ('per_euro', 'fixed_per_purchase', 'threshold_bonus', 'every_nth_visit')`,
     ),
     check('earning_rules_status_check', sql`${t.status} in ('active', 'paused', 'superseded')`),
     check('earning_rules_version_check', sql`${t.version} >= 1`),

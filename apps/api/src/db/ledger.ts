@@ -68,6 +68,7 @@ function calculateAward(input: {
   amountCents: number;
   rule?: PointsRule;
   program?: AwardProgram;
+  visitNumber?: number;
 }): AwardCalculation {
   if (input.program !== undefined) {
     return calculatePurchase({
@@ -76,6 +77,7 @@ function calculateAward(input: {
       ...(input.program.maxPointsPerSale === undefined
         ? {}
         : { maxPointsPerSale: input.program.maxPointsPerSale }),
+      ...(input.visitNumber === undefined ? {} : { visitNumber: input.visitNumber }),
     });
   }
   if (input.rule !== undefined) return calculatePoints(input.amountCents, input.rule);
@@ -88,6 +90,33 @@ function ruleVersionFor(input: { ruleVersion?: number; program?: AwardProgram })
   return Math.max(...input.program.rules.map((rule) => rule.version));
 }
 
+/**
+ * Only an every-Nth-visit rule needs the visit count; fetching it costs a
+ * query, so the count happens just for such programs.
+ */
+function programCountsVisits(program: AwardProgram | undefined): boolean {
+  return program?.rules.some((rule) => rule.type === 'every_nth_visit') ?? false;
+}
+
+/** The customer's prior successful purchases at this store (1-based next). */
+async function nextVisitNumber(
+  executor: Database,
+  customerId: string,
+  storeId: string,
+): Promise<number> {
+  const rows = await executor
+    .select({ count: sql<number>`count(*)::int` })
+    .from(pointsLedgerEntries)
+    .where(
+      and(
+        eq(pointsLedgerEntries.customerId, customerId),
+        eq(pointsLedgerEntries.storeId, storeId),
+        eq(pointsLedgerEntries.type, 'earn'),
+      ),
+    );
+  return (rows[0]?.count ?? 0) + 1;
+}
+
 export interface RecordEarnInput {
   customerId: string;
   storeId: string;
@@ -97,6 +126,8 @@ export interface RecordEarnInput {
   ruleVersion?: number;
   /** The store's earning program (WP2): rules plus the per-sale ceiling. */
   program?: AwardProgram;
+  /** Set internally when a rule counts visits; callers never pass it. */
+  visitNumber?: number;
   idempotencyKey: string;
   scannedAt?: Date;
   staffId?: string;
@@ -223,7 +254,12 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
             'That idempotency key was already used for a different amount',
           );
         }
-        return { entryId: found.id, points: found.points, awarded: true, replayed: true };
+        return {
+          entryId: found.id,
+          points: found.points,
+          awarded: found.points > 0,
+          replayed: true,
+        };
       }
 
       // D-103, D-104: a store with branches must say which one the award is
@@ -248,13 +284,70 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
         );
       }
 
-      const calculation = calculateAward(input);
+      const calculation = calculateAward({
+        ...input,
+        ...(programCountsVisits(input.program)
+          ? { visitNumber: await nextVisitNumber(tx, input.customerId, input.storeId) }
+          : {}),
+      });
       const ruleVersion = ruleVersionFor(input);
+
+      const scannedAt = input.scannedAt ?? new Date();
 
       // FR-PTS-2: below the minimum purchase, award zero points and tell the
       // cashier why. A zero-value purchase is the same: nothing is written
       // to the ledger and no customer-store link is created.
+      //
+      // The exception is an every-Nth-visit programme: the visits themselves
+      // are the thing being counted, so a visit that awards nothing is still
+      // a ledger fact. Without a zero-point entry the Nth visit would never
+      // arrive (WP2).
       if (!calculation.awarded) {
+        if (programCountsVisits(input.program)) {
+          const visitRows = await tx
+            .insert(pointsLedgerEntries)
+            .values({
+              customerId: input.customerId,
+              storeId: input.storeId,
+              type: 'earn',
+              points: 0,
+              amountCents: input.amountCents,
+              ruleVersion,
+              rulesApplied: calculation.breakdown ?? null,
+              reason: calculation.reason,
+              staffId: input.staffId,
+              deviceId: input.deviceId,
+              scannedAt,
+              locationId,
+              idempotencyKey: input.idempotencyKey,
+            })
+            .returning({ id: pointsLedgerEntries.id });
+          const visitRow = visitRows[0];
+          if (!visitRow) throw new Error('Could not record the visit');
+
+          await tx
+            .insert(customerStoreLinks)
+            .values({ customerId: input.customerId, storeId: input.storeId })
+            .onConflictDoNothing();
+
+          await tx.insert(auditLogEntries).values({
+            actorId: input.staffId,
+            action: 'points.award',
+            storeId: input.storeId,
+            targetType: 'customer',
+            targetId: input.customerId,
+            after: { points: 0, amountCents: input.amountCents, visitOnly: true },
+          });
+
+          return {
+            entryId: visitRow.id,
+            points: 0,
+            awarded: false,
+            reason: calculation.reason,
+            replayed: false,
+          };
+        }
+
         return {
           entryId: null,
           points: 0,
@@ -264,7 +357,6 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
         };
       }
 
-      const scannedAt = input.scannedAt ?? new Date();
       const expiresAt = expiryDateForEarn(scannedAt);
 
       const inserted = await tx
@@ -370,6 +462,8 @@ export interface PreviewEarnInput {
   rule?: PointsRule;
   /** The store's earning program (WP2). */
   program?: AwardProgram;
+  /** Set internally when a rule counts visits; callers never pass it. */
+  visitNumber?: number;
   locationId: string | null;
 }
 
@@ -443,7 +537,12 @@ export async function previewEarn(
     );
   }
 
-  const calculation = calculateAward(input);
+  const calculation = calculateAward({
+    ...input,
+    ...(programCountsVisits(input.program)
+      ? { visitNumber: await nextVisitNumber(db, input.customerId, input.storeId) }
+      : {}),
+  });
   if (!calculation.awarded) {
     return {
       points: 0,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { calculatePoints } from './calculate.js';
-import { calculatePurchase, type EarningRule } from './purchase.js';
+import { calculatePurchase, type EarningRule, type EveryNthVisitEarningRule } from './purchase.js';
 
 const perEuro = (rate: number, extra: Partial<EarningRule> = {}): EarningRule =>
   ({ type: 'per_euro', version: 1, pointsPerEuroThousandths: rate, ...extra }) as EarningRule;
@@ -149,5 +149,52 @@ describe('calculatePurchase (FR-RUL-5, Way Forward WP2)', () => {
         rules: [{ type: 'fixed_per_purchase', version: 1, points: 0 }],
       }),
     ).toThrow(RangeError);
+    expect(() =>
+      calculatePurchase({
+        lines: [{ amountCents: 100 }],
+        rules: [{ type: 'every_nth_visit', version: 1, points: 5, everyN: 1 }],
+      }),
+    ).toThrow(RangeError);
+    expect(() =>
+      calculatePurchase({
+        lines: [{ amountCents: 100 }],
+        rules: [{ type: 'every_nth_visit', version: 1, points: 5, everyN: 3 }],
+      }),
+    ).toThrow(RangeError); // no visit number given
+  });
+
+  it('awards an every_nth_visit rule on the Nth visit only (WP2)', () => {
+    const rule: EveryNthVisitEarningRule = {
+      type: 'every_nth_visit',
+      version: 1,
+      points: 50,
+      everyN: 3,
+    };
+    const base = { rules: [rule], lines: [{ amountCents: 500 }] };
+
+    const first = calculatePurchase({ ...base, visitNumber: 1 });
+    expect(first.points).toBe(0);
+    expect(first.awarded).toBe(false);
+    expect(first.breakdown[0]).toMatchObject({ applied: false, reason: 'condition_not_met' });
+
+    const third = calculatePurchase({ ...base, visitNumber: 3 });
+    expect(third).toMatchObject({ points: 50, awarded: true });
+    expect(third.breakdown[0]).toMatchObject({ applied: true, points: 50 });
+
+    const fourth = calculatePurchase({ ...base, visitNumber: 4 });
+    expect(fourth.awarded).toBe(false);
+  });
+
+  it('combines an every_nth_visit rule with the per-euro rules', () => {
+    const result = calculatePurchase({
+      lines: [{ amountCents: 10_00 }],
+      rules: [
+        { type: 'per_euro', version: 1, pointsPerEuroThousandths: 1000 },
+        { type: 'every_nth_visit', version: 2, points: 50, everyN: 3 },
+      ],
+      visitNumber: 3,
+    });
+    expect(result.points).toBe(60);
+    expect(result.breakdown).toHaveLength(2);
   });
 });

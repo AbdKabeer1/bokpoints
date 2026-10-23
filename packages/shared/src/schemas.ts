@@ -47,7 +47,7 @@ export const idempotencyKeyHeaderSchema = z.object({
 
 export const pointsBreakdownEntrySchema = z.object({
   ruleId: z.string().uuid().optional(),
-  type: z.enum(['per_euro', 'fixed_per_purchase', 'threshold_bonus']),
+  type: z.enum(['per_euro', 'fixed_per_purchase', 'threshold_bonus', 'every_nth_visit']),
   version: z.number().int(),
   points: z.number().int(),
   applied: z.boolean(),
@@ -389,4 +389,85 @@ export const auditQuerySchema = z.object({
 
 export const adminAuditQuerySchema = auditQuerySchema.extend({
   storeId: z.string().uuid().optional(),
+});
+
+/**
+ * What an owner (or manager) sends when they create or change a rule (WP2).
+ * The bounds mirror the engine's technical limits, which hold the real
+ * authority: the API refuses shape violations here and rule violations in
+ * the engine (D-116: the platform owns the technical limits).
+ */
+export const earningRuleDefinitionSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('per_euro'),
+    pointsPerEuroThousandths: z.number().int().min(1).max(1_000_000),
+    rounding: z.enum(['floor', 'nearest']).default('floor'),
+    minSpendCents: z.number().int().min(0).optional(),
+  }),
+  z.object({
+    type: z.literal('fixed_per_purchase'),
+    points: z.number().int().min(1).max(1_000_000),
+    minSpendCents: z.number().int().min(0).optional(),
+  }),
+  z.object({
+    type: z.literal('threshold_bonus'),
+    points: z.number().int().min(1).max(1_000_000),
+    // Optional here: a threshold bonus without a threshold is refused by the
+    // engine as an INVALID_RULE response, which carries its message.
+    minSpendCents: z.number().int().min(1).optional(),
+  }),
+  z.object({
+    type: z.literal('every_nth_visit'),
+    points: z.number().int().min(1).max(1_000_000),
+    everyN: z.number().int().min(2).max(1_000),
+  }),
+]);
+
+export const earningRuleParamsSchema = storeIdParamsSchema.extend({
+  ruleId: z.string().uuid(),
+});
+
+export const earningRuleRowSchema = z.object({
+  ruleId: z.string().uuid(),
+  ruleKey: z.string().uuid(),
+  definition: earningRuleDefinitionSchema,
+  version: z.number().int(),
+  status: z.enum(['active', 'paused', 'superseded']),
+  effectiveFrom: z.string(),
+  createdAt: z.string(),
+});
+
+export const earningRulesResponseSchema = z.object({
+  rules: z.array(earningRuleRowSchema),
+});
+
+export const earningRuleCreateRequestSchema = z.object({
+  definition: earningRuleDefinitionSchema,
+  /** Defaults to now; a future date schedules the rule to take effect. */
+  effectiveFrom: z.string().datetime().optional(),
+});
+
+export const earningRuleEditRequestSchema = earningRuleCreateRequestSchema;
+
+export const earningRuleStatusRequestSchema = z.object({
+  status: z.enum(['active', 'paused']),
+});
+
+/** A dry-run of the engine against a draft or the store's current rules. */
+export const ruleSimulateRequestSchema = z.object({
+  amountCents: z.number().int().min(0).max(MAX_AMOUNT_CENTS),
+  /** Which visit to assume for every_nth_visit rules; defaults to the first. */
+  visitNumber: z.number().int().min(1).max(10_000).optional(),
+  /** Rules to try. When absent, the store's current rule set is used. */
+  rules: z.array(earningRuleDefinitionSchema).max(20).optional(),
+});
+
+export const ruleSimulateResponseSchema = z.object({
+  points: z.number().int(),
+  uncappedPoints: z.number().int(),
+  capped: z.boolean(),
+  awarded: z.boolean(),
+  reason: z.string().optional(),
+  breakdown: z.array(pointsBreakdownEntrySchema),
+  rulesSource: z.enum(['store', 'draft']),
 });

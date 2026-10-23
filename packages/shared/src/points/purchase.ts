@@ -8,7 +8,11 @@ import type { PointsRejectionReason, RoundingMode } from './types.js';
  * exactly the same points it always did.
  */
 
-export type EarningRuleType = 'per_euro' | 'fixed_per_purchase' | 'threshold_bonus';
+export type EarningRuleType =
+  | 'per_euro'
+  | 'fixed_per_purchase'
+  | 'threshold_bonus'
+  | 'every_nth_visit';
 
 interface EarningRuleBase {
   /** The earning-rule row, when it came from the database. */
@@ -32,7 +36,18 @@ export interface FixedEarningRule extends EarningRuleBase {
   points: number;
 }
 
-export type EarningRule = PerEuroEarningRule | FixedEarningRule;
+export interface EveryNthVisitEarningRule extends EarningRuleBase {
+  type: 'every_nth_visit';
+  /** Points added when this visit is the Nth. */
+  points: number;
+  /** How many visits make one award: 3 means every third visit. */
+  everyN: number;
+}
+
+export type EarningRule =
+  | PerEuroEarningRule
+  | FixedEarningRule
+  | EveryNthVisitEarningRule;
 
 /** One line of the purchase. The MVP sends one line carrying the total. */
 export interface PurchaseLine {
@@ -63,6 +78,12 @@ export interface PurchaseInput {
   rules: EarningRule[];
   /** The store's per-sale ceiling; the platform's technical limit is applied too. */
   maxPointsPerSale?: number;
+  /**
+   * Which visit this is for the customer at the store, counted from their
+   * successful purchases. Required when a rule is 'every_nth_visit'; other
+   * rule types ignore it.
+   */
+  visitNumber?: number;
 }
 
 const MAX_RATE_THOUSANDTHS = 1_000_000;
@@ -95,6 +116,12 @@ function validateRule(rule: EarningRule): void {
   if (rule.points > MAX_RULE_POINTS) {
     throw new RangeError(`rule.points must be at most ${MAX_RULE_POINTS}`);
   }
+  if (rule.type === 'every_nth_visit') {
+    assertInteger(rule.everyN, 'rule.everyN', 2);
+    if (rule.everyN > 1_000) {
+      throw new RangeError('rule.everyN must be at most 1000');
+    }
+  }
   // A threshold bonus without a threshold would fire on every purchase,
   // which is a fixed rule under another name. Refuse it instead of guessing.
   if (rule.type === 'threshold_bonus' && (rule.minSpendCents ?? 0) <= 0) {
@@ -102,7 +129,11 @@ function validateRule(rule: EarningRule): void {
   }
 }
 
-function evaluate(rule: EarningRule, totalCents: number): RuleBreakdownEntry {
+function evaluate(
+  rule: EarningRule,
+  totalCents: number,
+  visitNumber: number | undefined,
+): RuleBreakdownEntry {
   const base = {
     type: rule.type,
     version: rule.version,
@@ -119,6 +150,16 @@ function evaluate(rule: EarningRule, totalCents: number): RuleBreakdownEntry {
       applied: false,
       reason: rule.type === 'per_euro' ? 'below_minimum' : 'condition_not_met',
     };
+  }
+
+  if (rule.type === 'every_nth_visit') {
+    // The visit count comes from the ledger, not the basket, so the gate
+    // lives here: every visit that is not the Nth sees the rule again as a
+    // condition it did not meet.
+    if (visitNumber === undefined || visitNumber % rule.everyN !== 0) {
+      return { ...base, points: 0, applied: false, reason: 'condition_not_met' };
+    }
+    return { ...base, points: rule.points, applied: true };
   }
 
   if (rule.type === 'per_euro') {
@@ -172,9 +213,17 @@ export function calculatePurchase(input: PurchaseInput): PurchaseCalculation {
   let anyApplied = false;
   let anyBelowMinimum = false;
 
+  const needsVisitNumber = input.rules.some((rule) => rule.type === 'every_nth_visit');
+  if (needsVisitNumber) {
+    if (input.visitNumber === undefined) {
+      throw new RangeError('every_nth_visit rules need the visit number');
+    }
+    assertInteger(input.visitNumber, 'visitNumber', 1);
+  }
+
   for (const rule of input.rules) {
     validateRule(rule);
-    const entry = evaluate(rule, totalCents);
+    const entry = evaluate(rule, totalCents, input.visitNumber);
     breakdown.push(entry);
     uncappedPoints += entry.points;
     if (entry.applied) anyApplied = true;
