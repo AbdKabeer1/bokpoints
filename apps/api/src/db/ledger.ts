@@ -1,4 +1,4 @@
-import { and, eq, gte, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import {
   adjustPoints,
   applyFraudClawback,
@@ -165,9 +165,16 @@ export interface RedeemedReward {
 /** A ledger type or a transaction: both answer the same read queries. */
 type Queryable = Database | Parameters<Parameters<Database['transaction']>[0]>[0];
 
+/** The day the per-customer reward limit counts in (D-144). The pilot's
+ * shops are in Finland, so their local day is Helsinki's — UTC midnight
+ * would land at 2 or 3 in the morning and let a late-open shop hand out
+ * the same reward twice in one evening. One timezone for the platform in
+ * the MVP; a per-store timezone arrives with international stores. */
+export const REWARD_DAY_TIMEZONE = 'Europe/Helsinki';
+
 /**
- * How many times a customer took one reward today (UTC day), for the
- * per-customer-per-day limit (D-138). Read-only.
+ * How many times a customer took one reward today — today in the store's
+ * local day (D-144) — for the per-customer-per-day limit (D-138). Read-only.
  */
 export async function rewardTakesToday(
   db: Queryable,
@@ -175,8 +182,6 @@ export async function rewardTakesToday(
   storeId: string,
   rewardId: string,
 ): Promise<number> {
-  const since = new Date();
-  since.setUTCHours(0, 0, 0, 0);
   const rows = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(pointsLedgerEntries)
@@ -186,10 +191,37 @@ export async function rewardTakesToday(
         eq(pointsLedgerEntries.rewardId, rewardId),
         eq(pointsLedgerEntries.customerId, customerId),
         eq(pointsLedgerEntries.storeId, storeId),
-        gte(pointsLedgerEntries.createdAt, since),
+        // Both sides in Helsinki's wall-clock day, computed in the database
+        // so the count and the ledger's timestamps cannot drift.
+        sql`(${pointsLedgerEntries.createdAt} at time zone ${REWARD_DAY_TIMEZONE})::date
+            = (now() at time zone ${REWARD_DAY_TIMEZONE})::date`,
       ),
     );
   return rows[0]?.n ?? 0;
+}
+
+/**
+ * Takes a row lock on the customer's balance at this store, creating a
+ * zero row first when there is none. Every redemption holds this lock from
+ * before the limit count until the write lands, so two tills confirming
+ * for one customer at the same instant cannot both pass the same check —
+ * the second waits, then sees the first's redeem entry.
+ *
+ * Taking this lock first also fixes the lock order across the write paths
+ * (balance row, then batches), so a redemption racing an adjustment cannot
+ * deadlock. Used by `adjust` and the fraud clawback for the same reason.
+ */
+async function lockCustomerBalance(tx: Queryable, customerId: string, storeId: string): Promise<void> {
+  await tx.execute(sql`
+    INSERT INTO points_balances (customer_id, store_id, balance, updated_at)
+    VALUES (${customerId}, ${storeId}, 0, now())
+    ON CONFLICT (customer_id, store_id) DO NOTHING
+  `);
+  await tx.execute(sql`
+    SELECT balance FROM points_balances
+    WHERE customer_id = ${customerId} AND store_id = ${storeId}
+    FOR UPDATE
+  `);
 }
 
 export interface RecordEarnResult {
@@ -380,7 +412,12 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
 
       // D-138: the reward is checked before anything is written, under the
       // same store scope as everything else here.
-      let reward: { id: string; name: string; pointsCost: number } | null = null;
+      let reward: {
+        id: string;
+        name: string;
+        pointsCost: number;
+        perCustomerPerDayLimit: number | null;
+      } | null = null;
       if (input.redeemRewardId !== undefined) {
         const rewardRows = await tx
           .select({
@@ -402,16 +439,8 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
         if (!foundReward.active) {
           throw new LedgerError('REWARD_NOT_ACTIVE', 'That reward is not offered any more');
         }
-        if (
-          foundReward.perCustomerPerDayLimit !== null &&
-          (await rewardTakesToday(tx, input.customerId, input.storeId, foundReward.id)) >=
-            foundReward.perCustomerPerDayLimit
-        ) {
-          throw new LedgerError(
-            'REWARD_LIMIT_REACHED',
-            'This customer has already taken that reward today',
-          );
-        }
+        // The per-day limit is checked inside `redeemWith`, behind the
+        // balance lock, so two tills cannot both pass it.
         reward = foundReward;
       }
 
@@ -423,6 +452,22 @@ export async function recordEarn(db: Database, input: RecordEarnInput): Promise<
        */
       const redeemWith = async (saleId: string | null) => {
         if (reward === null) return { redeemed: null as RedeemedReward | null };
+
+        // One lock for the whole check-then-write: two tills confirming for
+        // one customer at the same instant line up here, and the second
+        // sees the first's redeem entry (the review's double-redemption race).
+        await lockCustomerBalance(tx, input.customerId, input.storeId);
+        if (
+          reward.perCustomerPerDayLimit !== null &&
+          (await rewardTakesToday(tx, input.customerId, input.storeId, reward.id)) >=
+            reward.perCustomerPerDayLimit
+        ) {
+          throw new LedgerError(
+            'REWARD_LIMIT_REACHED',
+            'This customer has already taken that reward today',
+          );
+        }
+
         // The award has already landed (when there was one), so this read
         // is the balance the redemption must fit inside.
         const balanceBefore = await readBalance(tx, input.customerId, input.storeId);
@@ -914,6 +959,9 @@ export async function recordAdjust(
   }
 
   return db.transaction(async (tx) => {
+    // Lock order (balance row, then batches) matches the redemption, so an
+    // adjustment racing a redemption cannot deadlock.
+    await lockCustomerBalance(tx, input.customerId, input.storeId);
     const balance = await readBalance(tx, input.customerId, input.storeId);
     const result = adjustPoints(balance, input.points);
 
@@ -974,6 +1022,9 @@ export async function recordFraudClawback(
   }
 
   return db.transaction(async (tx) => {
+    // Lock order (balance row, then batches) matches the redemption, so a
+    // clawback racing a redemption cannot deadlock.
+    await lockCustomerBalance(tx, input.customerId, input.storeId);
     const balance = await readBalance(tx, input.customerId, input.storeId);
     const result = applyFraudClawback(balance, input.points);
 
@@ -1035,9 +1086,11 @@ export interface ReverseSaleInput {
 }
 
 export interface ReverseSaleResult {
-  /** null when the sale had awarded nothing, so there was nothing to undo. */
+  /** The reversal of the sale's earn; null when the sale awarded nothing. */
   reversalEntryId: string | null;
   reversedPoints: number;
+  /** What a full void gave back for rewards paid on this sale (D-143). */
+  restoredPoints: number;
   balance: number;
 }
 
@@ -1053,6 +1106,12 @@ export interface ReverseSaleResult {
  * status all land, or none of them do.
  */
 export async function reverseSale(db: Database, input: ReverseSaleInput): Promise<ReverseSaleResult> {
+  // A reversal is a sensitive, audited action: it must say why (D-143).
+  if (input.reason === undefined || input.reason.trim() === '') {
+    throw new LedgerError('REASON_REQUIRED', 'A reversal needs a reason');
+  }
+  const reason = input.reason.trim();
+
   return db.transaction(async (tx) => {
     const saleRows = await tx
       .select({
@@ -1071,6 +1130,12 @@ export async function reverseSale(db: Database, input: ReverseSaleInput): Promis
       throw new LedgerError('SALE_ALREADY_REVERSED', 'That sale was already reversed');
     }
 
+    // Same lock order as every other balance-changing path: the balance
+    // row first, batches after (see `lockCustomerBalance`).
+    await lockCustomerBalance(tx, sale.customerId, input.storeId);
+    const balanceBefore = await readBalance(tx, sale.customerId, input.storeId);
+
+    // 1. Take back what the sale's earn gave (when it gave anything).
     const earnRows = await tx
       .select({ id: pointsLedgerEntries.id, points: pointsLedgerEntries.points })
       .from(pointsLedgerEntries)
@@ -1083,53 +1148,85 @@ export async function reverseSale(db: Database, input: ReverseSaleInput): Promis
       )
       .limit(1);
     const earn = earnRows[0];
-    const reason = input.reason?.trim() || 'Sale reversed at the till';
 
-    // A sale that awarded nothing (below every minimum) reverses to
-    // nothing: the status flip and the audit entry are the whole action.
-    if (!earn) {
-      await tx.update(sales).set({ status: 'reversed' }).where(eq(sales.id, input.saleId));
-      const balance = await readBalance(tx, sale.customerId, input.storeId);
-      await tx.insert(auditLogEntries).values({
-        actorId: input.staffId,
-        action: 'sale.reversal',
-        storeId: input.storeId,
-        targetType: 'sale',
-        targetId: input.saleId,
-        before: { status: 'completed', balance },
-        after: { status: 'reversed', points: 0 },
-        reason,
-      });
-      return { reversalEntryId: null, reversedPoints: 0, balance };
+    let reversalEntryId: string | null = null;
+    let reversedPoints = 0;
+    if (earn) {
+      const points = -earn.points;
+      // Removing points takes them off the batches too, so the expiry job
+      // cannot expire them later.
+      await drawDownBatches(tx, sale.customerId, input.storeId, earn.points);
+
+      const inserted = await tx
+        .insert(pointsLedgerEntries)
+        .values({
+          customerId: sale.customerId,
+          storeId: input.storeId,
+          type: 'reversal',
+          points,
+          reversalOf: earn.id,
+          saleId: input.saleId,
+          staffId: input.staffId,
+          reason,
+        })
+        .returning({ id: pointsLedgerEntries.id });
+      reversalEntryId = inserted[0]?.id ?? null;
+      reversedPoints = points;
+
+      // The guarded delta refuses a reversal that would take the balance
+      // below zero; the whole transaction then rolls back and the sale
+      // stays completed.
+      await applyGuardedBalanceDelta(tx, sale.customerId, input.storeId, points);
     }
 
-    const points = -earn.points;
-    const balanceBefore = await readBalance(tx, sale.customerId, input.storeId);
-
-    // Removing points takes them off the batches too, so the expiry job
-    // cannot expire them later.
-    await drawDownBatches(tx, sale.customerId, input.storeId, earn.points);
-
-    const inserted = await tx
-      .insert(pointsLedgerEntries)
-      .values({
-        customerId: sale.customerId,
-        storeId: input.storeId,
-        type: 'reversal',
-        points,
-        reversalOf: earn.id,
-        saleId: input.saleId,
-        staffId: input.staffId,
-        reason,
-      })
-      .returning({ id: pointsLedgerEntries.id });
-
-    // The guarded delta refuses a reversal that would take the balance
-    // below zero; the whole transaction then rolls back and the sale
-    // stays completed.
-    const newBalance = await applyGuardedBalanceDelta(tx, sale.customerId, input.storeId, points);
+    // 2. A full void also gives back what the sale's reward took (D-143):
+    //    the customer cancelled the whole sale, so they should not lose the
+    //    points they spent on it. Each redeem entry gets its own positive
+    //    reversal naming it, and the returned points get a fresh batch with
+    //    a fresh expiry, like a new award.
+    const redeemRows = await tx
+      .select({ id: pointsLedgerEntries.id, points: pointsLedgerEntries.points })
+      .from(pointsLedgerEntries)
+      .where(
+        and(
+          eq(pointsLedgerEntries.saleId, input.saleId),
+          eq(pointsLedgerEntries.type, 'redeem'),
+          sql`${pointsLedgerEntries.points} < 0`,
+        ),
+      );
+    let restoredPoints = 0;
+    for (const redeem of redeemRows) {
+      const restored = -redeem.points;
+      const insertedRestore = await tx
+        .insert(pointsLedgerEntries)
+        .values({
+          customerId: sale.customerId,
+          storeId: input.storeId,
+          type: 'reversal',
+          points: restored,
+          reversalOf: redeem.id,
+          saleId: input.saleId,
+          staffId: input.staffId,
+          reason,
+        })
+        .returning({ id: pointsLedgerEntries.id });
+      const restoreEntryId = insertedRestore[0]?.id;
+      if (restoreEntryId !== undefined) {
+        await createBatch(tx, {
+          earnEntryId: restoreEntryId,
+          customerId: sale.customerId,
+          storeId: input.storeId,
+          originalPoints: restored,
+          expiresAt: expiryDateForEarn(new Date()),
+        });
+      }
+      await applyBalanceDelta(tx, sale.customerId, input.storeId, restored);
+      restoredPoints += restored;
+    }
 
     await tx.update(sales).set({ status: 'reversed' }).where(eq(sales.id, input.saleId));
+
+    const newBalance = await readBalance(tx, sale.customerId, input.storeId);
 
     await tx.insert(auditLogEntries).values({
       actorId: input.staffId,
@@ -1138,11 +1235,11 @@ export async function reverseSale(db: Database, input: ReverseSaleInput): Promis
       targetType: 'sale',
       targetId: input.saleId,
       before: { balance: balanceBefore },
-      after: { balance: newBalance, points },
+      after: { balance: newBalance, points: reversedPoints, restoredPoints },
       reason,
     });
 
-    return { reversalEntryId: inserted[0]?.id ?? null, reversedPoints: points, balance: newBalance };
+    return { reversalEntryId, reversedPoints, restoredPoints, balance: newBalance };
   });
 }
 

@@ -34,6 +34,10 @@ export function createEmailVerifier(options: EmailVerifierOptions): EmailVerifie
         `${base}/auth/v1/admin/users/${encodeURIComponent(authUserId)}`,
         {
           headers: { apikey: options.secretKey, Authorization: `Bearer ${options.secretKey}` },
+          // A slow Supabase must not hang a first sign-in: after five
+          // seconds the check gives up and fails closed (not verified),
+          // which the sign-in reports as a plain retryable error.
+          signal: AbortSignal.timeout(5_000),
         },
       );
       if (!response.ok) return false;

@@ -25,6 +25,12 @@ export const envSchema = z.object({
     z.string().url().optional(),
   ),
   /**
+   * The Supabase secret key, used server-side only: the verified-email
+   * check (D-120) and the Auth Admin calls. Required in production —
+   * the server refuses to start without it (Way Forward 4.4).
+   */
+  SUPABASE_SECRET_KEY: z.string().optional(),
+  /**
    * How many awards a single caller may make per minute. A busy till is
    * far below this; it is there to stop a runaway client (AGENT.md
    * section 8).

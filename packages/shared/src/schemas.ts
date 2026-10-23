@@ -109,13 +109,17 @@ export const saleIdParamsSchema = storeIdParamsSchema.extend({
 });
 
 export const reversalRequestSchema = z.object({
-  reason: z.string().trim().max(500).optional(),
+  /** Why the sale is being undone — required, and it lands in the audit log. */
+  reason: z.string().trim().min(1).max(500),
 });
 
 export const reversalResponseSchema = z.object({
-  /** null when the sale had awarded nothing, so there was nothing to undo. */
+  /** The reversal of the sale's earn; null when the sale awarded nothing. */
   reversalEntryId: z.string().uuid().nullable(),
+  /** What the sale's earn gave, taken back — always zero or below. */
   reversedPoints: z.number().int().max(0),
+  /** What a full void gave back for rewards paid on this sale (D-143). */
+  restoredPoints: z.number().int().min(0),
   balance: z.number().int(),
 });
 
@@ -162,6 +166,10 @@ export const rewardParamsSchema = storeIdParamsSchema.extend({
 /** The till's picker: what this customer can take right now (D-138). */
 export const tillRewardsQuerySchema = z.object({
   customerId: z.string().uuid(),
+  /** What this purchase will actually be paid as, so the picker counts the
+   * points the purchase itself will earn (D-145): a customer with zero
+   * points can still take a reward their new purchase covers. */
+  paidCents: z.coerce.number().int().min(0).max(MAX_AMOUNT_CENTS).optional(),
 });
 
 export const tillRewardSchema = z.object({

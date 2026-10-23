@@ -54,6 +54,7 @@ import {
   customers,
   earningRules,
   pointsLedgerEntries,
+  sales,
   storeRewards,
   stores,
 } from '../db/schema.js';
@@ -631,6 +632,32 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
       }
 
       const balance = await getBalance(db, customerId, storeId);
+
+      // D-145: the purchase being confirmed earns points too, and the
+      // confirm lets them pay for a reward. The picker projects that earn
+      // with the same engine the quote uses, so what it offers is exactly
+      // what the confirm will accept.
+      let projectedEarn = 0;
+      if (request.query.paidCents !== undefined) {
+        const program = await currentProgramFor(db, storeId);
+        if (program) {
+          try {
+            const preview = await previewEarn(db, {
+              customerId,
+              storeId,
+              amountCents: request.query.paidCents,
+              program,
+              locationId: auth.locationId,
+            });
+            projectedEarn = preview.awarded ? preview.points : 0;
+          } catch {
+            // An unpriceable purchase (no rules, paused store) just means
+            // the picker falls back to the balance alone.
+            projectedEarn = 0;
+          }
+        }
+      }
+
       const rows = await db
         .select({
           id: storeRewards.id,
@@ -651,7 +678,7 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
           rewardId: row.id,
           name: row.name,
           pointsCost: row.pointsCost,
-          affordable: !limitReached && balance >= row.pointsCost,
+          affordable: !limitReached && balance + projectedEarn >= row.pointsCost,
           redeemedToday,
           limitReached,
         });
@@ -766,16 +793,60 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
         return reply.code(auth.status).send({ error: auth.error });
       }
 
+      // Reversal policy (D-143): the sale's own cashier may undo it for a
+      // short window after recording it; after that only an owner or a
+      // manager may. A branch-limited member may only reverse sales of
+      // their own branch, whatever their role. The reason is required.
+      const saleRows = await db
+        .select({
+          staffId: sales.staffId,
+          locationId: sales.locationId,
+          createdAt: sales.createdAt,
+        })
+        .from(sales)
+        .where(and(eq(sales.id, saleId), eq(sales.storeId, storeId)))
+        .limit(1);
+      const sale = saleRows[0];
+      if (!sale) {
+        return reply.code(404).send({
+          error: { code: 'SALE_NOT_FOUND', message: 'That sale does not exist at this store' },
+        });
+      }
+
+      const REVERSAL_WINDOW_MS = 15 * 60 * 1000;
+      if (
+        auth.role === 'cashier' &&
+        (sale.staffId !== auth.staffUserId ||
+          Date.now() - sale.createdAt.getTime() > REVERSAL_WINDOW_MS)
+      ) {
+        return reply.code(403).send({
+          error: {
+            code: 'REVERSAL_NOT_ALLOWED',
+            message:
+              'Only the cashier who recorded the sale can reverse it in the first 15 minutes — ask the owner or a manager',
+          },
+        });
+      }
+      if (auth.locationId !== null && sale.locationId !== auth.locationId) {
+        return reply.code(403).send({
+          error: {
+            code: 'LOCATION_MISMATCH',
+            message: 'That sale was recorded at a different branch',
+          },
+        });
+      }
+
       try {
         const result = await reverseSale(db, {
           saleId,
           storeId,
           staffId: auth.staffUserId,
-          ...(request.body.reason === undefined ? {} : { reason: request.body.reason }),
+          reason: request.body.reason,
         });
         return reply.code(200).send({
           reversalEntryId: result.reversalEntryId,
           reversedPoints: result.reversedPoints,
+          restoredPoints: result.restoredPoints,
           balance: result.balance,
         });
       } catch (error) {

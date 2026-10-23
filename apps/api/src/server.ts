@@ -9,6 +9,14 @@ import { createDb, createPool } from './db/client.js';
 import { loadEnv } from './env.js';
 
 const env = loadEnv();
+
+// The verified-email check (D-120) and the Auth Admin calls need the
+// secret key. Without it the API would answer sign-ins with a silent
+// "not verified" for everyone, so production refuses to start.
+if (env.NODE_ENV === 'production' && !env.SUPABASE_SECRET_KEY) {
+  throw new Error('SUPABASE_SECRET_KEY is required in production');
+}
+
 const pool = createPool(env.DATABASE_URL);
 const db = createDb(pool);
 

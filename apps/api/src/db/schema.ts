@@ -446,7 +446,9 @@ export const pointsLedgerEntries = pgTable(
     // (FR-PTS-8, FRD 4.5).
     check(
       'points_ledger_entries_points_sign',
-      sql`(${t.type} = 'earn' and ${t.points} >= 0) or ${t.type} = 'adjust' or (${t.type} in ('redeem', 'expire', 'fraud_clawback', 'reversal') and ${t.points} <= 0)`,
+      // A reversal undoes one entry, so it points either way: down when it
+    // undoes an earn, up when a full void restores reward points (D-143).
+    sql`(${t.type} = 'earn' and ${t.points} >= 0) or ${t.type} = 'adjust' or ${t.type} = 'reversal' or (${t.type} in ('redeem', 'expire', 'fraud_clawback') and ${t.points} <= 0)`,
     ),
     foreignKey({
       columns: [t.reversalOf],

@@ -531,3 +531,17 @@ details summary {
   color: var(--green-deep);
   font-weight: 600;
 }
+
+/* The one-minute idle warning, same as the till's. */
+.idlewarn {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  margin: 0;
+  padding: 10px 16px;
+  text-align: center;
+  font-weight: 600;
+  color: #7a5c00;
+  background: #fff4d6;
+  border-bottom: 1px solid #eadfb0;
+}

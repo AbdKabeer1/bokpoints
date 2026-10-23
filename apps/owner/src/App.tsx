@@ -30,6 +30,7 @@ const TABS: { id: Tab; label: string }[] = [
 export function App() {
   const [phase, setPhase] = useState<Phase>({ kind: 'loading' });
   const [chosenStoreId, setChosenStoreId] = useState<string | null>(null);
+  const [idleWarn, setIdleWarn] = useState(false);
   const [tab, setTab] = useState<Tab>('rules');
 
   const refresh = useCallback(async () => {
@@ -70,6 +71,31 @@ export function App() {
     setChosenStoreId(null);
     setPhase({ kind: 'signed-out' });
   }, []);
+
+  // Idle sign-out, on the same terms as the till: a shared portal must not
+  // stay open at the counter. The last minute shows a warning; any touch,
+  // key or tap resets the clock.
+  useEffect(() => {
+    if (phase.kind !== 'ready') return;
+    const LIMIT_MS = 15 * 60 * 1000;
+    const WARN_MS = LIMIT_MS - 60 * 1000;
+    let last = Date.now();
+    const touch = () => {
+      last = Date.now();
+      setIdleWarn(false);
+    };
+    const events = ['pointerdown', 'keydown', 'touchstart'] as const;
+    for (const name of events) window.addEventListener(name, touch, { passive: true });
+    const timer = window.setInterval(() => {
+      const idle = Date.now() - last;
+      if (idle >= LIMIT_MS) void handleSignOut();
+      else setIdleWarn(idle >= WARN_MS);
+    }, 5000);
+    return () => {
+      for (const name of events) window.removeEventListener(name, touch);
+      window.clearInterval(timer);
+    };
+  }, [phase.kind, handleSignOut]);
 
   switch (phase.kind) {
     case 'loading':
@@ -126,6 +152,11 @@ export function App() {
 
       return (
         <div className="portal">
+          {idleWarn && (
+            <p className="idlewarn" role="status">
+              Signing out in a minute — touch the screen to stay signed in.
+            </p>
+          )}
           <header className="topbar">
             <div>
               <p className="brand">

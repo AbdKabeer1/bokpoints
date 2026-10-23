@@ -23,6 +23,11 @@ const MESSAGES: Record<string, string> = {
   below_minimum: 'Purchase is below the minimum, so it earns no points.',
   condition_not_met: 'A rule condition was not met, so it earns no points.',
   BALANCE_WOULD_GO_NEGATIVE: 'That would take the balance below zero.',
+  REVERSAL_NOT_ALLOWED:
+    'Only the cashier who recorded the sale can reverse it in the first 15 minutes — ask the owner or a manager.',
+  REASON_REQUIRED: 'That action needs a reason.',
+  SALE_NOT_FOUND: 'That sale is not in this store any more.',
+  SALE_ALREADY_REVERSED: 'That sale was already reversed.',
   IDEMPOTENCY_KEY_REUSED: 'This purchase was already recorded with a different amount.',
   RATE_LIMITED: 'Too many tries. Wait a minute, then try again.',
 };

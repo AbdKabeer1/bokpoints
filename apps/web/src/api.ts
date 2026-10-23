@@ -157,12 +157,22 @@ export const recentAwards = (token: string, storeId: string) =>
  * What this customer can take right now (D-138): every active reward with
  * its cost, whether their balance covers it, and today's per-customer limit.
  */
-export const availableRewards = (token: string, storeId: string, customerId: string) =>
+export const availableRewards = (
+  token: string,
+  storeId: string,
+  customerId: string,
+  paidCents?: number,
+) =>
   request(tillRewardsResponseSchema, {
     method: 'GET',
     path: `/v1/stores/${storeId}/rewards/available`,
     token,
-    query: { customerId },
+    query: {
+      customerId,
+      // D-145: the purchase being confirmed earns points that may pay for
+      // the reward, so the picker prices what will actually be paid.
+      paidCents: paidCents === undefined ? undefined : String(paidCents),
+    },
   });
 
 export type Me = Awaited<ReturnType<typeof getMe>>;

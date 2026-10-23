@@ -157,18 +157,29 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
   useEffect(() => {
     if (!inPayStep || customer === null) return;
     let cancelled = false;
-    void (async () => {
-      try {
-        const result = await availableRewards(token, membership.storeId, customer.customerId);
-        if (!cancelled) setRewards(result.rewards);
-      } catch {
-        if (!cancelled) setRewards(null);
-      }
-    })();
+    // The picker follows the paid amount, debounced like the quote: the
+    // affordability it shows is what the confirm will accept (D-145).
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const paidCents = parseAmountToCents(paid ?? '') ?? undefined;
+          const result = await availableRewards(
+            token,
+            membership.storeId,
+            customer.customerId,
+            paidCents,
+          );
+          if (!cancelled) setRewards(result.rewards);
+        } catch {
+          if (!cancelled) setRewards(null);
+        }
+      })();
+    }, 300);
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
-  }, [inPayStep, customer, token, membership.storeId]);
+  }, [inPayStep, paid, customer, token, membership.storeId]);
 
   /** What this till last recorded (FR-STO-9). A failure just shows nothing. */
   const loadRecent = useCallback(async () => {

@@ -1,10 +1,20 @@
 # STATUS
 
 **Project:** BOKPOINTS, a B2B2C loyalty platform for SMEs in Finland / EU.
-**Phase:** MVP, worked through `BOKPOINTS The Way Forward.md` one work package at a time. WP0-WP3 are done, and the rewards catalog (D-138) is in across all three surfaces. **Next up: Build 18 — the basket discount behind the rotating QR (D-133): signed, about 60 seconds, one-time per store, verified online.**
-**Last updated:** 23 Oct 2026, after Build 17 (rewards catalog + redemption). A store's rewards are owner-managed and audited; the till picks from what the customer can afford and the confirm spends the points atomically with the earn — one sale, one key, never below zero. The customer app shows each store's catalog. 87 unit and 232 integration tests green. Migrations 0011-0012 are local only; 0007-0010 still wait on your word for the hosted database.
+**Phase:** MVP, worked through `BOKPOINTS The Way Forward.md` one work package at a time. WP0-WP3, the rewards catalog, and A's review hardening are done. **Next up: the basket discount behind the rotating QR (D-133): signed, about 60 seconds, one-time per store, verified online.**
+**Last updated:** 23 Oct 2026, after the review-hardening build (D-143 to D-145). Reversals are recorder-only for 15 minutes (owners and managers after), reason required, branch-limited — and a full void restores the reward's points. The reward limit counts Helsinki days and is race-proof. The hosted Supabase database is fully migrated (0007-0013, applied through the session pooler because the direct host is IPv6-only). The owner portal signs out on idle; the customer app's session lives in secure storage. 87 unit and 240 integration tests green.
 
 ## Done
+
+- **Review hardening (D-143 to D-145).** From A's list: the reversal policy (recorder +
+  15 minutes, or owner/manager; reason required; branch-limited; a full void restores the
+  reward's points — migration 0013 widens the sign check), the Helsinki local day for the
+  reward limit, the balance-row lock that makes the limit race-proof, the picker projecting
+  the purchase's earn, the hosted migrations applied and verified (0007-0013 via the session
+  pooler — the direct DB host is IPv6-only), the email check's 5-second timeout, the
+  production startup guard for `SUPABASE_SECRET_KEY`, the owner portal's idle sign-out, and
+  the customer session moved to secure storage with Android chunking. 87 unit and 240
+  integration tests green (8 new).
 
 - **Build 17 — rewards catalog and redemption (D-142).** `store_rewards` (migration 0012,
   local only): name, points cost, optional per-customer-per-day limit, active flag; owners
@@ -234,7 +244,7 @@
   read the audit log. Live: register → award 25 → adjust +5 → list → audit line →
   clawback 40 → −35.
 
-**Tests: 87 unit, 232 integration, all passing.**
+**Tests: 87 unit, 240 integration, all passing.**
 
 ## In progress
 

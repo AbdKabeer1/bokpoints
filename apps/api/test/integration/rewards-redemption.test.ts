@@ -295,7 +295,7 @@ describe('the rewards catalog (D-138)', () => {
     expect(redeems.rows[0].n).toBe(1);
   });
 
-  it('reversing the sale returns the earned points but keeps the reward', async () => {
+  it('a full void restores the reward points as well (D-143)', async () => {
     const reward = await createReward({ name: 'Free coffee', pointsCost: 3 });
     const rewardId = reward.json().rewardId;
     await award('seed-5', { customerId, amountCents: 1000 });
@@ -305,28 +305,30 @@ describe('the rewards catalog (D-138)', () => {
       amountCents: 500,
       redeemRewardId: rewardId,
     });
-    const { saleId } = taken.json();
+    const { saleId, entryId } = taken.json();
 
     const reversal = await inject(
       'POST',
       `/v1/stores/${storeId}/sales/${saleId}/reversal`,
       'cashier@test.dev',
-      {},
+      { reason: 'whole sale cancelled' },
     );
     expect(reversal.statusCode).toBe(200);
+    expect(reversal.json()).toMatchObject({ reversedPoints: -5, restoredPoints: 3, balance: 10 });
 
-    const balance = await inject(
-      'GET',
-      `/v1/stores/${storeId}/customers/${customerId}/balance`,
-      'cashier@test.dev',
-    );
-    expect(balance.json().balance).toBe(7); // 10 - 3: the reward stands
-
-    const redeems = await pool.query(
-      "SELECT count(*)::int AS n FROM points_ledger_entries WHERE type = 'redeem' AND store_id = $1",
+    // The redeem entry keeps its place in the ledger; a positive reversal
+    // names it, and the returned points sit in a fresh batch.
+    const restore = await pool.query(
+      "SELECT points, reversal_of FROM points_ledger_entries WHERE type = 'reversal' AND points > 0 AND store_id = $1",
       [storeId],
     );
-    expect(redeems.rows[0].n).toBe(1);
+    expect(restore.rows[0]).toMatchObject({ points: 3, reversal_of: expect.any(String) });
+    expect(restore.rows[0].reversal_of).not.toBe(entryId); // it names the redeem, not the earn
+
+    const batches = await pool.query(
+      'SELECT count(*)::int AS n FROM points_batches WHERE remaining_points = 3',
+    );
+    expect(batches.rows[0].n).toBe(1);
   });
 
   it('the customer app lists the active catalog, and only theirs to see', async () => {

@@ -155,7 +155,7 @@ describe('reversing a sale (D-131)', () => {
       'POST',
       `/v1/stores/${storeId}/sales/${saleId}/reversal`,
       'cashier@test.dev',
-      {},
+      { reason: 'customer changed their mind' },
     );
     expect(res.statusCode).toBe(200);
     expect(res.json()).toMatchObject({ reversedPoints: -12, balance: 0 });
@@ -185,13 +185,15 @@ describe('reversing a sale (D-131)', () => {
   it('refuses to reverse the same sale twice', async () => {
     const confirmed = await award('rev-2', { customerId, amountCents: 500 });
     const { saleId } = confirmed.json();
-    await inject('POST', `/v1/stores/${storeId}/sales/${saleId}/reversal`, 'cashier@test.dev', {});
+    await inject('POST', `/v1/stores/${storeId}/sales/${saleId}/reversal`, 'cashier@test.dev', {
+      reason: 'customer changed their mind',
+    });
 
     const again = await inject(
       'POST',
       `/v1/stores/${storeId}/sales/${saleId}/reversal`,
       'cashier@test.dev',
-      {},
+      { reason: 'customer changed their mind' },
     );
     expect(again.statusCode).toBe(409);
     expect(again.json()).toEqual({
@@ -215,7 +217,7 @@ describe('reversing a sale (D-131)', () => {
       'POST',
       `/v1/stores/${storeId}/sales/${saleId}/reversal`,
       'cashier@test.dev',
-      {},
+      { reason: 'customer changed their mind' },
     );
     expect(res.statusCode).toBe(409);
     expect(res.json()).toEqual({
@@ -231,7 +233,7 @@ describe('reversing a sale (D-131)', () => {
       'POST',
       `/v1/stores/${storeId}/sales/${randomUUID()}/reversal`,
       'cashier@test.dev',
-      {},
+      { reason: 'customer changed their mind' },
     );
     expect(unknown.statusCode).toBe(404);
 
@@ -253,7 +255,7 @@ describe('reversing a sale (D-131)', () => {
       'POST',
       `/v1/stores/${otherStore}/sales/${randomUUID()}/reversal`,
       'stranger@test.dev',
-      {},
+      { reason: 'customer changed their mind' },
     );
     expect(outsider.statusCode).toBe(403);
   });
