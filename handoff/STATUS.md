@@ -6,6 +6,15 @@
 
 ## Done
 
+- **Discount, reversal, QR and device decisions (D-129 to D-135).** Recorded in
+  `docs/DECISIONS.md` and applied to the PRD and FRD: points on the amount actually paid
+  (D-129), the store funds its own discounts and the platform never settles (D-130), one
+  automatic discount per sale with no stacking (D-131), POS refunds and voids write a
+  bounded, idempotent reversal tied to the sale (D-132, supersedes D-013 for POS), a
+  discount needs a rotating one-time QR proof verified online with no offline discounts
+  (D-133), plain-ID NFC cards are identification-only (D-134), and devices get their own
+  revocable, scoped credentials (D-135). The FRD gained FR-CHK-8/9, FR-SAL-4/5, FR-DEV
+  and AC-19 to AC-22, and the parked list shrank accordingly.
 - **WP0 — security fixes (Way Forward section 4).** (1) *Invite takeover, high:* the
   invite route used the upsert helper written for the bootstrap script, which overwrites
   name, admin flag and Supabase link — an owner could invite another store's owner or a
@@ -190,16 +199,27 @@ starting the next.
    edit, pause, simulate, with audit entries; a capability for managing rules (admin gets
    none); points from matching rules add up under a per-sale ceiling; admin store creation
    makes the first rule an optional template.
-2. **WP3 — sale record and quote-then-confirm**, with the one basket threshold discount.
-3. **WP4 — cashier screen:** quote, payment taken, confirm with the amount actually paid,
-   sound and visual on a successful read.
-4. **WP5 — owner screen:** rules with the simulator, plus adjustments and the store audit
+2. **WP3 — sale record and quote-then-confirm.** The sale records the amount before
+   discount, the discount with its rule version, and the amount actually paid; points are
+   earned on the amount paid (D-129). One automatic basket threshold discount, no stacking
+   (D-131), funded by the store (D-130). The ledger gains `sale_id` and the `reversal_of`
+   hook for POS refunds (D-132).
+3. **Rotating QR before any discount is enabled** (D-133): signed, about 60 seconds,
+   one-time per store, verified online. Static `CUS-` codes keep earning points; no
+   discount is awarded offline.
+4. **WP4 — cashier screen:** quote, payment taken, confirm with the amount actually paid,
+   sound and visual on a successful read, and a clear "discount needs a fresh scan" path.
+5. **WP5 — owner screen:** rules with the simulator, plus adjustments and the store audit
    log — this is where Build 6B (the store and admin panels) lands (D-128).
-5. **WP6 — customer app:** each store's rules in plain language, and the session moved to
+6. **WP6 — customer app:** each store's rules in plain language, and the session moved to
    secure storage.
-6. **WP7 — pilot readiness:** domain and email sender, email invitations (retiring the
+7. **WP7 — pilot readiness:** domain and email sender, email invitations (retiring the
    Supabase-id field), subscription billing and the pricing meter, terms and privacy,
    signage and a scanner list. **WP8 — the pilot:** two or three stores, about four weeks.
+
+Built with the POS adapter, once a pilot store names its POS: refunds and voids as
+bounded, idempotent reversals (D-132) and per-device credentials in `cashier_devices`
+(D-135). WP3 lays the hooks so neither needs a rewrite.
 
 Not scheduled by the plan of record but still MVP — raise with A before it slips:
 
