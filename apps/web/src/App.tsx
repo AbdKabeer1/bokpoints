@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ApiError, getMe, type Me } from './api';
 import { assuranceLevel, onAuthChange, signOut, supabase } from './auth';
 import { Login } from './Login';
+import { Splash } from './Splash';
 import { Mfa } from './Mfa';
 import { StorePicker } from './StorePicker';
 import { Till } from './Till';
@@ -14,6 +15,7 @@ type Phase =
   | { kind: 'unreachable'; message: string };
 
 export function App() {
+  const [introDone, setIntroDone] = useState(false);
   const [phase, setPhase] = useState<Phase>({ kind: 'loading' });
   const [chosenStoreId, setChosenStoreId] = useState<string | null>(null);
 
@@ -55,6 +57,10 @@ export function App() {
     setChosenStoreId(null);
     setPhase({ kind: 'signed-out' });
   }, []);
+
+  if (!introDone) {
+    return <Splash tagline="Store Portal" onDone={() => setIntroDone(true)} />;
+  }
 
   switch (phase.kind) {
     case 'loading':

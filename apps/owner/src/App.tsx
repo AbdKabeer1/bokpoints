@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ApiError, getMe, type Membership, type Me } from './api';
 import { assuranceLevel, onAuthChange, signOut, supabase } from './auth';
 import { Login } from './Login';
+import { Splash } from './Splash';
 import { Mfa } from './Mfa';
 import { StorePicker } from './StorePicker';
 import { RulesScreen } from './screens/Rules';
@@ -51,6 +52,7 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 export function App() {
+  const [introDone, setIntroDone] = useState(false);
   const [phase, setPhase] = useState<Phase>({ kind: 'loading' });
   const [chosenStoreId, setChosenStoreId] = useState<string | null>(null);
   const [idleWarn, setIdleWarn] = useState(false);
@@ -119,6 +121,10 @@ export function App() {
       window.clearInterval(timer);
     };
   }, [phase.kind, handleSignOut]);
+
+  if (!introDone) {
+    return <Splash tagline="Merchant Platform" onDone={() => setIntroDone(true)} />;
+  }
 
   switch (phase.kind) {
     case 'loading':
