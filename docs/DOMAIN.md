@@ -56,11 +56,11 @@ Namecheap → Domain List → `omapointii.store` → **Advanced DNS**.
 
 | Type | Name | Value | Purpose |
 | --- | --- | --- | --- |
-| `CNAME` | `app` | `cname.vercel-dns.com` | Customer app |
-| `CNAME` | `till` | `cname.vercel-dns.com` | Cashier till |
-| `CNAME` | `portal` | `cname.vercel-dns.com` | Merchant dashboard |
-| `CNAME` | `admin` | `cname.vercel-dns.com` | Platform admin |
-| `CNAME` | `api` | `<service>.up.railway.app` | API |
+| `CNAME` | `app` | `753ea011d3ebc182.vercel-dns-017.com` | Customer app → poket-app |
+| `CNAME` | `till` | `2cccdb5e6f410060.vercel-dns-017.com` | Cashier till → poket-till |
+| `CNAME` | `portal` | `fd1b652cd8b26067.vercel-dns-017.com` | Merchant dashboard → poket-portal |
+| `CNAME` | `admin` | `d3f2a3f9cd747820.vercel-dns-017.com` | Platform admin → poket-admin |
+| `CNAME` | `api` | `<service>.up.railway.app` (after Railway) | API |
 | `TXT` | `@` (or `mail`) | Mailtrap SPF record | Email authentication |
 | `CNAME` | Mailtrap DKIM names (2) | Mailtrap values | Email signing |
 | `TXT` | `_dmarc` | `v=DMARC1; p=none; rua=mailto:dmarc@omapointii.store` | Start in monitor mode |
