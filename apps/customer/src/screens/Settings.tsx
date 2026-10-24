@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ApiError, updateMe, type Me } from '../lib/api';
-import { colors, layout } from '../lib/theme';
+import { colors, fonts, layout } from '../lib/theme';
 
 interface SettingsProps {
   token: string;
@@ -12,8 +12,8 @@ interface SettingsProps {
 }
 
 /**
- * The customer's settings: their name, the language they read the app in,
- * and the way out. The choices save straight to their profile.
+ * Name, language and the way out. Saves straight to the customer's profile;
+ * nothing here needs a password.
  */
 export function SettingsScreen({ token, me, onSaved, onBack, onSignOut }: SettingsProps) {
   const [name, setName] = useState(me.customer.name);
@@ -47,43 +47,51 @@ export function SettingsScreen({ token, me, onSaved, onBack, onSignOut }: Settin
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <Pressable onPress={onBack} hitSlop={12}>
-        <Text style={styles.back}>‹ Back</Text>
+        <Text style={styles.back}>← Back</Text>
       </Pressable>
 
+      <Text style={styles.eyebrow}>YOUR ACCOUNT</Text>
       <Text style={styles.title}>Settings</Text>
       <Text style={styles.email}>{me.customer.email}</Text>
 
-      <Text style={styles.label}>Your name</Text>
-      <Pressable style={styles.nameBox}>
-        <NameInput value={name} onChange={setName} disabled={saving} />
-      </Pressable>
+      <View style={styles.card}>
+        <Text style={styles.label}>Your name</Text>
+        <TextInput
+          value={name}
+          onChangeText={setName}
+          placeholder="Your name"
+          placeholderTextColor={colors.muted}
+          editable={!saving}
+          style={styles.input}
+        />
 
-      <Text style={styles.label}>Language</Text>
-      <View style={styles.langRow}>
+        <Text style={styles.label}>Language</Text>
+        <View style={styles.langRow}>
+          <Pressable
+            style={[styles.langChip, language === 'fi' && styles.langChipOn]}
+            onPress={() => setLanguage('fi')}
+          >
+            <Text style={[styles.langText, language === 'fi' && styles.langTextOn]}>Suomi</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.langChip, language === 'en' && styles.langChipOn]}
+            onPress={() => setLanguage('en')}
+          >
+            <Text style={[styles.langText, language === 'en' && styles.langTextOn]}>English</Text>
+          </Pressable>
+        </View>
+
+        {error !== null && <Text style={styles.error}>{error}</Text>}
+        {saved && error === null && <Text style={styles.saved}>Saved.</Text>}
+
         <Pressable
-          style={[styles.langChip, language === 'fi' && styles.langChipOn]}
-          onPress={() => setLanguage('fi')}
+          style={[styles.saveButton, saving && styles.saveButtonBusy]}
+          onPress={() => void save()}
+          disabled={saving}
         >
-          <Text style={[styles.langText, language === 'fi' && styles.langTextOn]}>Suomi</Text>
-        </Pressable>
-        <Pressable
-          style={[styles.langChip, language === 'en' && styles.langChipOn]}
-          onPress={() => setLanguage('en')}
-        >
-          <Text style={[styles.langText, language === 'en' && styles.langTextOn]}>English</Text>
+          <Text style={styles.saveText}>{saving ? 'Saving…' : 'Save'}</Text>
         </Pressable>
       </View>
-
-      {error !== null && <Text style={styles.error}>{error}</Text>}
-      {saved && !error && <Text style={styles.saved}>Saved.</Text>}
-
-      <Pressable
-        style={[styles.saveButton, saving && styles.saveButtonBusy]}
-        onPress={() => void save()}
-        disabled={saving}
-      >
-        <Text style={styles.saveText}>{saving ? 'Saving…' : 'Save'}</Text>
-      </Pressable>
 
       <Pressable style={styles.signOutBox} onPress={onSignOut} hitSlop={8}>
         <Text style={styles.signOutText}>Sign out of Poket</Text>
@@ -97,27 +105,6 @@ export function SettingsScreen({ token, me, onSaved, onBack, onSignOut }: Settin
   );
 }
 
-/** A plain text input styled like the app's fields. */
-function NameInput({
-  value,
-  onChange,
-  disabled,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  disabled: boolean;
-}) {
-  return (
-    <TextInput
-      value={value}
-      onChangeText={onChange}
-      placeholder="Your name"
-      editable={!disabled}
-      style={styles.nameInput}
-    />
-  );
-}
-
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
@@ -125,108 +112,136 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: layout.screen,
-    paddingTop: 64,
-    paddingBottom: 40,
+    paddingTop: 58,
+    paddingBottom: 44,
   },
   back: {
-    color: colors.gold,
-    fontSize: 15,
-    fontWeight: '600',
+    fontFamily: fonts.bodyBold,
+    color: colors.terracottaInk,
+    fontSize: 13,
     marginBottom: 18,
+  },
+  eyebrow: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 10,
+    letterSpacing: 1.4,
+    color: colors.muted,
   },
   title: {
-    fontSize: 24,
-    fontWeight: '800',
+    fontFamily: fonts.display,
+    fontSize: 34,
     color: colors.text,
+    marginTop: 4,
   },
   email: {
+    fontFamily: fonts.body,
     color: colors.muted,
-    fontSize: 14,
-    marginTop: 4,
+    fontSize: 12,
+    marginTop: 3,
     marginBottom: 20,
   },
-  label: {
-    color: colors.muted,
-    fontSize: 13,
-    fontWeight: '600',
-    marginBottom: 6,
-  },
-  nameBox: {
+  card: {
     backgroundColor: colors.card,
-    borderRadius: 12,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: colors.line,
-    paddingHorizontal: 14,
-    marginBottom: 18,
+    padding: 18,
   },
-  nameInput: {
-    color: colors.text,
-    fontSize: 15,
+  label: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 10,
+    letterSpacing: 1.1,
+    textTransform: 'uppercase',
+    color: colors.muted,
+    marginBottom: 7,
+    marginTop: 14,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: colors.lineStrong,
+    borderRadius: 14,
+    paddingHorizontal: 14,
     paddingVertical: 12,
+    fontFamily: fonts.body,
+    fontSize: 15,
+    color: colors.text,
+    backgroundColor: colors.card,
   },
   langRow: {
     flexDirection: 'row',
     gap: 8,
-    marginBottom: 20,
   },
   langChip: {
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: colors.lineStrong,
     backgroundColor: colors.card,
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 9,
+    minHeight: 40,
+    justifyContent: 'center',
   },
   langChipOn: {
-    borderColor: colors.gold,
-    backgroundColor: colors.card,
+    borderColor: colors.espresso,
+    backgroundColor: colors.espresso,
   },
   langText: {
+    fontFamily: fonts.bodySemi,
     color: colors.muted,
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 13,
   },
   langTextOn: {
-    color: colors.gold,
+    color: colors.onEspresso,
   },
   error: {
-    color: colors.gold,
-    fontSize: 14,
-    marginBottom: 12,
+    fontFamily: fonts.bodyMedium,
+    color: colors.terracottaInk,
+    fontSize: 12.5,
+    marginTop: 14,
   },
   saved: {
-    color: colors.muted,
-    fontSize: 14,
-    marginBottom: 12,
+    fontFamily: fonts.bodySemi,
+    color: colors.greenDark,
+    fontSize: 12.5,
+    marginTop: 14,
   },
   saveButton: {
-    backgroundColor: colors.gold,
-    borderRadius: 12,
+    backgroundColor: colors.espresso,
+    borderRadius: 16,
     alignItems: 'center',
-    paddingVertical: 14,
-    marginBottom: 24,
+    paddingVertical: 15,
+    marginTop: 20,
+    minHeight: 50,
+    justifyContent: 'center',
   },
   saveButtonBusy: {
     opacity: 0.6,
   },
   saveText: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '700',
+    color: colors.onEspresso,
+    fontFamily: fonts.bodyBold,
+    fontSize: 14.5,
   },
   signOutBox: {
+    marginTop: 22,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#EBCBBE',
+    backgroundColor: colors.terracottaSoft,
     alignItems: 'center',
-    paddingVertical: 12,
-    marginBottom: 16,
+    paddingVertical: 14,
   },
   signOutText: {
-    color: colors.gold,
-    fontSize: 15,
-    fontWeight: '600',
+    color: colors.terracottaInk,
+    fontFamily: fonts.bodyBold,
+    fontSize: 13.5,
   },
   fine: {
+    fontFamily: fonts.body,
     color: colors.muted,
-    fontSize: 12,
+    fontSize: 11,
+    lineHeight: 17,
     textAlign: 'center',
+    marginTop: 22,
   },
 });

@@ -20,8 +20,8 @@ import {
   type StoreSummary,
 } from '../lib/api';
 import { formatDate, typeLabel } from '../lib/format';
-import { colors, formatPoints, layout } from '../lib/theme';
-import { Card, Pill, SegmentBar, StoreAvatar } from '../components/ui';
+import { colors, fonts, formatPoints, layout } from '../lib/theme';
+import { Card, Pill, storeTint } from '../components/ui';
 
 interface StoreHistoryProps {
   token: string;
@@ -34,13 +34,13 @@ const TONES: Record<string, 'green' | 'amber' | 'grey' | 'info' | 'danger'> = {
   redeem: 'amber',
   expire: 'grey',
   adjust: 'info',
-  reversal: 'danger',
+  clawback: 'danger',
 };
 
 /**
- * One store, as the customer sees it: the balance, the rewards within reach,
- * the rotating discount code, whether the store may send news, and every
- * entry with the balance after it (FR-CUS-3).
+ * One store, as the customer sees it: painted in the store's own colour, the
+ * balance in the display face, rewards within reach, the rotating discount
+ * code, store-news consent, and every entry with the balance after it.
  */
 export function StoreHistory({ token, store, onBack }: StoreHistoryProps) {
   const [history, setHistory] = useState<History | null>(null);
@@ -117,32 +117,40 @@ export function StoreHistory({ token, store, onBack }: StoreHistoryProps) {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <Pressable onPress={onBack} hitSlop={12}>
-        <Text style={styles.back}>‹ Your stores</Text>
+        <Text style={styles.back}>← Your stores</Text>
       </Pressable>
 
-      <View style={styles.head}>
-        <StoreAvatar name={store.name} color={store.brandColor} size={52} />
-        <View style={{ flex: 1 }}>
-          <Text style={styles.title}>{store.name}</Text>
-          <Text style={styles.balanceLine}>points here</Text>
-        </View>
-        <View style={{ alignItems: 'flex-end' }}>
-          <Text style={styles.balance}>{formatPoints(balance)}</Text>
-        </View>
+      <View style={[styles.hero, { backgroundColor: storeTint(store.brandColor) }]}>
+        <Text style={styles.heroEyebrow}>POINTS AT</Text>
+        <Text style={styles.heroName}>{store.name}</Text>
+        <Text style={styles.heroBalance}>{formatPoints(balance)}</Text>
+        <Text style={styles.heroPoints}>points to spend here</Text>
+
+        {store.nextReward !== null && (
+          <View style={styles.heroProgress}>
+            <View style={styles.heroSegments}>
+              {Array.from({ length: 10 }, (_, index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.heroSegment,
+                    index <
+                      Math.round(
+                        Math.min(1, balance / store.nextReward!.pointsCost) * 10,
+                      ) && styles.heroSegmentOn,
+                  ]}
+                />
+              ))}
+            </View>
+            <Text style={styles.heroCaption}>
+              {balance} of {store.nextReward.pointsCost} · {store.nextReward.name}
+            </Text>
+          </View>
+        )}
       </View>
 
-      {store.nextReward !== null && (
-        <Card style={{ marginBottom: 16 }}>
-          <SegmentBar
-            value={balance}
-            total={store.nextReward.pointsCost}
-            label={`${balance} of ${store.nextReward.pointsCost} · ${store.nextReward.name}`}
-          />
-        </Card>
-      )}
-
       {rewards !== null && rewards.length > 0 && (
-        <Card style={{ padding: 0, marginBottom: 16 }}>
+        <Card style={{ padding: 0, marginBottom: 14 }}>
           <Text style={styles.cardLabel}>Rewards here</Text>
           {rewards.map((reward, index) => {
             const ready = balance >= reward.pointsCost;
@@ -168,10 +176,10 @@ export function StoreHistory({ token, store, onBack }: StoreHistoryProps) {
         </Card>
       )}
 
-      <Card style={{ marginBottom: 16 }}>
+      <Card style={{ marginBottom: 14 }}>
         <View style={styles.consentRow}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.consentName}>News and offers from {store.name}</Text>
+            <Text style={styles.consentName}>News from {store.name}</Text>
             <Text style={styles.consentBody}>
               {consent
                 ? 'On. Messages arrive in your Poket inbox.'
@@ -182,26 +190,26 @@ export function StoreHistory({ token, store, onBack }: StoreHistoryProps) {
             value={consent}
             onValueChange={(next) => void toggleConsent(next)}
             disabled={consentBusy}
-            trackColor={{ false: colors.line, true: colors.green }}
-            thumbColor="#ffffff"
+            trackColor={{ false: colors.lineStrong, true: colors.green }}
+            thumbColor="#FFFCF6"
           />
         </View>
       </Card>
 
       {proof !== null && proof.active && (
         <View style={styles.proofCard}>
-          <Text style={styles.proofTitle}>Discount code</Text>
+          <Text style={styles.proofEyebrow}>ONE-TIME CODE</Text>
+          <Text style={styles.proofTitle}>A discount at the till</Text>
           <View style={styles.proofQr}>
             <QRCode
               value={proof.proof}
               size={148}
-              color={colors.text}
-              backgroundColor={colors.card}
+              color="#1A1712"
+              backgroundColor="#FFFCF6"
             />
           </View>
           <Text style={styles.proofHint}>
-            Show it at the till — works once, for{' '}
-            {secondsLeft > 0 ? `${secondsLeft} s` : 'a moment'} longer
+            Works once, for {secondsLeft > 0 ? `${secondsLeft} s` : 'a moment'} longer
           </Text>
           <Pressable onPress={() => void refreshProof()} hitSlop={8}>
             <Text style={styles.proofRefresh}>Get a fresh code</Text>
@@ -215,16 +223,14 @@ export function StoreHistory({ token, store, onBack }: StoreHistoryProps) {
       <Text style={styles.cardLabel}>History</Text>
 
       {history === null && error === null ? (
-        <ActivityIndicator color={colors.green} style={styles.spinner} />
+        <ActivityIndicator color={colors.saffron} style={styles.spinner} />
       ) : history !== null && history.entries.length === 0 ? (
         <Text style={styles.empty}>No entries yet.</Text>
       ) : (
         history?.entries.map((entry) => (
           <View key={entry.id} style={styles.row}>
             <View style={styles.rowText}>
-              <View style={styles.rowTitleLine}>
-                <Pill label={typeLabel(entry.type)} tone={TONES[entry.type] ?? 'grey'} />
-              </View>
+              <Pill label={typeLabel(entry.type)} tone={TONES[entry.type] ?? 'grey'} />
               <Text style={styles.date}>{formatDate(entry.createdAt)}</Text>
             </View>
             <View style={styles.rowNumbers}>
@@ -252,43 +258,74 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: layout.screen,
-    paddingTop: 60,
-    paddingBottom: 40,
+    paddingTop: 58,
+    paddingBottom: 44,
   },
   back: {
-    color: colors.green,
-    fontSize: 14,
-    fontWeight: '600',
+    fontFamily: fonts.bodyBold,
+    color: colors.terracottaInk,
+    fontSize: 13,
     marginBottom: 16,
   },
-  head: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 16,
+  hero: {
+    borderRadius: 26,
+    padding: 20,
+    marginBottom: 14,
   },
-  title: {
-    fontSize: 22,
-    fontWeight: '800',
+  heroEyebrow: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 9.5,
+    letterSpacing: 1.5,
+    color: colors.muted,
+  },
+  heroName: {
+    fontFamily: fonts.display,
+    fontSize: 26,
     color: colors.text,
-    letterSpacing: -0.4,
+    marginTop: 5,
   },
-  balanceLine: {
+  heroBalance: {
+    fontFamily: fonts.display,
+    fontSize: 54,
+    lineHeight: 60,
+    color: colors.text,
+    marginTop: 10,
+  },
+  heroPoints: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.muted,
+    marginTop: -2,
+  },
+  heroProgress: {
+    marginTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(26,23,18,0.12)',
+    paddingTop: 12,
+  },
+  heroSegments: {
+    flexDirection: 'row',
+    gap: 3,
+    height: 8,
+  },
+  heroSegment: {
+    flex: 1,
+    borderRadius: 2,
+    backgroundColor: 'rgba(26,23,18,0.12)',
+  },
+  heroSegmentOn: {
+    backgroundColor: colors.espresso,
+  },
+  heroCaption: {
+    fontFamily: fonts.body,
     fontSize: 11,
     color: colors.muted,
-    marginTop: 1,
-  },
-  balance: {
-    fontSize: 30,
-    fontWeight: '800',
-    color: colors.text,
-    letterSpacing: -1,
-    fontVariant: ['tabular-nums'],
+    marginTop: 8,
   },
   cardLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.8,
+    fontFamily: fonts.bodyBold,
+    fontSize: 9.5,
+    letterSpacing: 1.4,
     textTransform: 'uppercase',
     color: colors.muted,
     padding: 16,
@@ -299,18 +336,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 13,
   },
   rowLine: {
     borderBottomWidth: 1,
     borderBottomColor: colors.line,
   },
   rewardName: {
+    fontFamily: fonts.bodyBold,
     fontSize: 14,
-    fontWeight: '600',
     color: colors.text,
   },
   rewardCost: {
+    fontFamily: fonts.body,
     fontSize: 11,
     color: colors.muted,
     marginTop: 2,
@@ -321,11 +359,12 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   consentName: {
+    fontFamily: fonts.bodyBold,
     fontSize: 13,
-    fontWeight: '700',
     color: colors.text,
   },
   consentBody: {
+    fontFamily: fonts.body,
     fontSize: 11,
     color: colors.muted,
     marginTop: 2,
@@ -333,42 +372,54 @@ const styles = StyleSheet.create({
   },
   proofCard: {
     backgroundColor: colors.card,
-    borderRadius: 16,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: colors.line,
     alignItems: 'center',
-    padding: 18,
-    marginBottom: 16,
+    padding: 20,
+    marginBottom: 14,
+  },
+  proofEyebrow: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 9.5,
+    letterSpacing: 1.4,
+    color: colors.saffronInk,
   },
   proofTitle: {
+    fontFamily: fonts.display,
+    fontSize: 20,
     color: colors.text,
-    fontSize: 15,
-    fontWeight: '700',
-    marginBottom: 10,
+    marginTop: 4,
+    marginBottom: 12,
   },
   proofQr: {
     padding: 10,
-    borderRadius: 12,
+    borderRadius: 16,
     backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.line,
   },
   proofHint: {
+    fontFamily: fonts.body,
     color: colors.muted,
     fontSize: 12,
-    marginTop: 10,
+    marginTop: 12,
     textAlign: 'center',
   },
   proofRefresh: {
-    color: colors.green,
-    fontSize: 13,
-    fontWeight: '700',
-    marginTop: 8,
+    fontFamily: fonts.bodyBold,
+    color: colors.terracottaInk,
+    fontSize: 12,
+    marginTop: 9,
   },
   proofError: {
+    fontFamily: fonts.body,
     color: colors.muted,
     fontSize: 12,
-    marginBottom: 16,
+    marginBottom: 14,
   },
   empty: {
+    fontFamily: fonts.body,
     color: colors.muted,
     fontSize: 14,
   },
@@ -379,53 +430,52 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.card,
-    borderRadius: 12,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.line,
-    padding: 13,
+    padding: 14,
     marginBottom: 8,
   },
   rowText: {
     flex: 1,
-  },
-  rowTitleLine: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    gap: 5,
   },
   date: {
+    fontFamily: fonts.body,
     color: colors.muted,
     fontSize: 11,
-    marginTop: 3,
   },
   rowNumbers: {
     alignItems: 'flex-end',
   },
   points: {
-    fontSize: 15,
-    fontWeight: '800',
+    fontFamily: fonts.display,
+    fontSize: 18,
     fontVariant: ['tabular-nums'],
   },
   positive: {
     color: colors.greenDark,
   },
   negative: {
-    color: colors.danger,
+    color: colors.terracottaInk,
   },
   after: {
+    fontFamily: fonts.body,
     color: colors.muted,
     fontSize: 10,
-    marginTop: 2,
+    marginTop: 3,
   },
   error: {
+    fontFamily: fonts.bodySemi,
     color: colors.danger,
-    fontSize: 13,
+    fontSize: 12,
     marginBottom: 12,
   },
   fine: {
+    fontFamily: fonts.body,
     fontSize: 11,
     lineHeight: 17,
     color: colors.muted,
-    marginTop: 16,
+    marginTop: 18,
   },
 });

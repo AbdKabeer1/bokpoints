@@ -1,8 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useFonts } from 'expo-font';
+import { Fraunces_600SemiBold, Fraunces_700Bold } from '@expo-google-fonts/fraunces';
+import {
+  Manrope_400Regular,
+  Manrope_500Medium,
+  Manrope_600SemiBold,
+  Manrope_700Bold,
+  Manrope_800ExtraBold,
+} from '@expo-google-fonts/manrope';
 import { getMe, type Me } from './src/lib/api';
 import { hasConfig, onAuthChange, signOut, supabase } from './src/lib/session';
-import { colors } from './src/lib/theme';
+import { colors, fonts } from './src/lib/theme';
 import { Home } from './src/screens/Home';
 import { Onboarding } from './src/screens/Onboarding';
 import { SignIn } from './src/screens/SignIn';
@@ -21,6 +30,17 @@ export function App() {
   // lands straight on their QR afterwards, so the brand never flashes a
   // half-built screen.
   const [introDone, setIntroDone] = useState(false);
+  // The fonts are part of the look: hold the splash until they are ready so
+  // the first screen never flashes a fallback face.
+  const [fontsLoaded, fontError] = useFonts({
+    Fraunces_600SemiBold,
+    Fraunces_700Bold,
+    Manrope_400Regular,
+    Manrope_500Medium,
+    Manrope_600SemiBold,
+    Manrope_700Bold,
+    Manrope_800ExtraBold,
+  });
   const handleIntroDone = useCallback(() => setIntroDone(true), []);
   const inFlight = useRef<Promise<void> | null>(null);
 
@@ -88,7 +108,7 @@ export function App() {
 
   // The intro and the session check run together: whichever finishes last
   // decides what appears, and the splash never cuts off mid-animation.
-  if (!introDone || phase.kind === 'loading') {
+  if (!introDone || (!fontsLoaded && fontError === null) || phase.kind === 'loading') {
     return <Splash onDone={handleIntroDone} />;
   }
 
@@ -124,28 +144,28 @@ const styles = StyleSheet.create({
     padding: 32,
   },
   title: {
-    fontSize: 22,
-    fontWeight: '800',
-    letterSpacing: 2,
+    fontFamily: fonts.display,
+    fontSize: 30,
     color: colors.text,
     marginBottom: 12,
   },
   muted: {
+    fontFamily: fonts.body,
     color: colors.muted,
     fontSize: 15,
-    lineHeight: 22,
+    lineHeight: 23,
     textAlign: 'center',
   },
   primary: {
     marginTop: 22,
-    backgroundColor: colors.green,
-    borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 28,
+    backgroundColor: colors.espresso,
+    borderRadius: 16,
+    paddingVertical: 15,
+    paddingHorizontal: 30,
   },
   primaryText: {
-    color: colors.onGreen,
-    fontWeight: '700',
+    color: colors.onEspresso,
+    fontFamily: fonts.bodyBold,
     fontSize: 15,
   },
   secondary: {
@@ -154,7 +174,7 @@ const styles = StyleSheet.create({
   },
   secondaryText: {
     color: colors.muted,
+    fontFamily: fonts.bodySemi,
     fontSize: 14,
-    fontWeight: '600',
   },
 });

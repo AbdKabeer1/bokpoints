@@ -46,9 +46,12 @@ describe('typeLabel', () => {
 });
 
 describe('normalizeCode', () => {
-  it('keeps six digits and drops everything else', () => {
+  // Supabase's OTP length is a project setting (6 to 10), so the field must
+  // not truncate an 8-digit code to six and disable the button forever.
+  it('keeps 6-10 digits and drops everything else', () => {
     expect(normalizeCode(' 12a34 56 ')).toBe('123456');
-    expect(normalizeCode('1234567')).toBe('123456');
+    expect(normalizeCode('12345678')).toBe('12345678');
+    expect(normalizeCode('1234567890123')).toBe('1234567890');
     expect(normalizeCode('')).toBe('');
   });
 });

@@ -14,7 +14,7 @@ import {
   View,
 } from 'react-native';
 import { sendEmailCode, verifyEmailCode } from '../lib/session';
-import { colors, layout } from '../lib/theme';
+import { colors, fonts, layout } from '../lib/theme';
 import { normalizeCode } from '../lib/format';
 
 const BENEFITS = [
@@ -219,7 +219,7 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
                 disabled={buttonDisabled}
               >
                 {busy ? (
-                  <ActivityIndicator color={colors.onGreen} />
+                  <ActivityIndicator color={colors.onEspresso} />
                 ) : (
                   <Text style={styles.buttonText}>Continue with email</Text>
                 )}
@@ -278,7 +278,7 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
                 disabled={buttonDisabled}
               >
                 {busy ? (
-                  <ActivityIndicator color={colors.onGreen} />
+                  <ActivityIndicator color={colors.onEspresso} />
                 ) : (
                   <Text style={styles.buttonText}>Sign in</Text>
                 )}
@@ -338,40 +338,39 @@ const styles = StyleSheet.create({
     marginBottom: 34,
   },
   mark: {
-    width: 34,
-    height: 34,
-    borderRadius: 11,
-    backgroundColor: colors.green,
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: colors.espresso,
     alignItems: 'center',
     justifyContent: 'center',
   },
   markText: {
-    color: colors.onGreen,
-    fontSize: 18,
-    fontWeight: '800',
+    color: colors.saffron,
+    fontFamily: fonts.display,
+    fontSize: 19,
   },
   wordmark: {
     color: colors.ink,
-    fontSize: 19,
-    fontWeight: '800',
-    letterSpacing: -0.3,
+    fontFamily: fonts.display,
+    fontSize: 24,
   },
   headline: {
     color: colors.ink,
-    fontSize: 34,
-    lineHeight: 40,
-    fontWeight: '800',
-    letterSpacing: -0.5,
+    fontFamily: fonts.display,
+    fontSize: 38,
+    lineHeight: 43,
   },
   lede: {
     color: colors.muted,
-    fontSize: 16,
+    fontFamily: fonts.body,
+    fontSize: 15,
     lineHeight: 24,
     marginTop: 12,
   },
   emailStrong: {
     color: colors.ink,
-    fontWeight: '700',
+    fontFamily: fonts.bodyBold,
   },
   benefits: {
     marginTop: 26,
@@ -386,65 +385,68 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: colors.green,
+    backgroundColor: colors.saffron,
     alignItems: 'center',
     justifyContent: 'center',
   },
   tickText: {
-    color: colors.onGreen,
-    fontSize: 13,
-    fontWeight: '900',
+    color: colors.espresso,
+    fontFamily: fonts.bodyExtra,
+    fontSize: 12,
   },
   benefitText: {
     color: colors.text,
-    fontSize: 15,
+    fontFamily: fonts.bodyMedium,
+    fontSize: 14.5,
   },
   label: {
     color: colors.muted,
-    fontSize: 13,
-    fontWeight: '600',
+    fontFamily: fonts.bodyBold,
+    fontSize: 10,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
     marginTop: 30,
     marginBottom: 8,
   },
   input: {
-    borderWidth: 1.5,
-    borderColor: colors.line,
-    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.lineStrong,
+    borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: 15,
     fontSize: 16,
+    fontFamily: fonts.body,
     color: colors.text,
-    backgroundColor: colors.background,
+    backgroundColor: colors.card,
   },
   inputFocused: {
-    borderColor: colors.green,
+    borderColor: colors.saffron,
   },
   codeInput: {
-    fontSize: 26,
-    letterSpacing: 10,
+    fontFamily: fonts.display,
+    fontSize: 28,
+    letterSpacing: 9,
     textAlign: 'center',
-    fontWeight: '700',
   },
   button: {
     marginTop: 22,
-    backgroundColor: colors.green,
-    borderRadius: 14,
+    backgroundColor: colors.espresso,
+    borderRadius: 16,
     paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 54,
   },
   buttonPressed: {
-    backgroundColor: colors.greenDark,
+    backgroundColor: colors.espressoSoft,
   },
   buttonDisabled: {
     opacity: 0.4,
   },
   buttonText: {
-    color: colors.onGreen,
-    fontWeight: '700',
-    fontSize: 16,
-    letterSpacing: 0.2,
+    color: colors.onEspresso,
+    fontFamily: fonts.bodyBold,
+    fontSize: 15.5,
   },
   links: {
     marginTop: 18,
@@ -452,29 +454,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   link: {
-    color: colors.green,
-    fontSize: 14,
-    fontWeight: '600',
+    color: colors.terracottaInk,
+    fontFamily: fonts.bodySemi,
+    fontSize: 13,
   },
   linkMuted: {
     color: colors.muted,
   },
   fineprint: {
     color: colors.muted,
-    fontSize: 13,
+    fontFamily: fonts.body,
+    fontSize: 12,
     lineHeight: 19,
     marginTop: 20,
   },
   errorBox: {
     marginTop: 14,
-    backgroundColor: colors.dangerSoft,
-    borderRadius: 12,
-    paddingVertical: 10,
+    backgroundColor: colors.terracottaSoft,
+    borderRadius: 14,
+    paddingVertical: 11,
     paddingHorizontal: 14,
   },
   errorText: {
-    color: colors.danger,
-    fontSize: 14,
-    lineHeight: 20,
+    color: colors.terracottaInk,
+    fontFamily: fonts.bodyMedium,
+    fontSize: 13,
+    lineHeight: 19,
   },
 });

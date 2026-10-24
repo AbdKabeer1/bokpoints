@@ -7,12 +7,12 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import { colors, formatPoints, layout } from '../lib/theme';
+import { colors, fonts, formatPoints, layout } from '../lib/theme';
 
 /**
- * The handful of pieces the customer screens share: a card, a status pill,
- * a segmented progress bar, a store avatar and a section title. Keeping them
- * here stops the screens drifting apart as they change.
+ * Shared pieces for the customer screens: paper cards, pills, the segmented
+ * progress bar, store avatars. Fraunces speaks for numbers and headlines;
+ * Manrope does the reading.
  */
 
 export function Card({
@@ -55,16 +55,16 @@ type Tone = 'green' | 'amber' | 'grey' | 'info' | 'danger';
 
 const TONES: Record<Tone, { bg: string; fg: string; dot: string }> = {
   green: { bg: colors.greenSoft, fg: colors.greenDark, dot: colors.green },
-  amber: { bg: colors.amberSoft, fg: colors.amberInk, dot: colors.amber },
-  grey: { bg: '#eff2f0', fg: colors.muted, dot: colors.muted },
+  amber: { bg: colors.saffronSoft, fg: colors.saffronInk, dot: colors.saffron },
+  grey: { bg: colors.sageSoft, fg: colors.muted, dot: colors.sage },
   info: { bg: colors.infoSoft, fg: colors.info, dot: colors.info },
-  danger: { bg: colors.dangerSoft, fg: colors.danger, dot: colors.danger },
+  danger: { bg: colors.terracottaSoft, fg: colors.terracottaInk, dot: colors.terracotta },
 };
 
 /** A dot plus a word, never colour alone (brief §2). */
 export function Pill({
   label,
-  tone = 'green',
+  tone = 'amber',
   dot = true,
 }: {
   label: string;
@@ -81,21 +81,21 @@ export function Pill({
 }
 
 /**
- * Segmented progress, borrowed from the dashboards. `total` is the reward's
- * cost; the last segment fills only when the reward is actually reached.
+ * Segmented progress, borrowed from the dashboards but warmed up: saffron
+ * for points, forest when the thing is done.
  */
 export function SegmentBar({
   value,
   total,
   segments = 10,
   label,
-  tone = 'green',
+  tone = 'saffron',
 }: {
   value: number;
   total: number;
   segments?: number;
   label?: string;
-  tone?: 'green' | 'amber';
+  tone?: 'saffron' | 'forest';
 }) {
   const ratio = total <= 0 ? 1 : Math.min(1, Math.max(0, value / total));
   const filled = Math.round(ratio * segments);
@@ -114,7 +114,7 @@ export function SegmentBar({
             style={[
               styles.segment,
               index < filled && {
-                backgroundColor: tone === 'amber' ? colors.amber : colors.green,
+                backgroundColor: tone === 'forest' ? colors.green : colors.saffron,
               },
             ]}
           />
@@ -130,7 +130,32 @@ export function SegmentBar({
   );
 }
 
-/** A store's identity: initials on its own colour, or Poket green. */
+const parseHex = (hex: string): [number, number, number] | null => {
+  const match = /^#([0-9a-f]{6})$/i.exec(hex.trim());
+  if (match?.[1] === undefined) return null;
+  const value = Number.parseInt(match[1], 16);
+  return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
+};
+
+/** A colour mixed with a base: keeps a store's identity inside our palette. */
+const mix = (hex: string, base: string, baseShare: number): string => {
+  const a = parseHex(hex);
+  const b = parseHex(base);
+  if (a === null || b === null) return base;
+  const channel = (index: 0 | 1 | 2) =>
+    Math.round((b[index] ?? 0) * baseShare + (a[index] ?? 0) * (1 - baseShare));
+  return `rgb(${channel(0)}, ${channel(1)}, ${channel(2)})`;
+};
+
+/** A pale wash of the store's colour for a large surface. */
+export const storeTint = (color?: string | null, strength = 0.22): string =>
+  color === null || color === undefined ? colors.tint : mix(color, colors.background, 1 - strength);
+
+/** The store's colour, deepened so text sits on it comfortably. */
+export const storeDeep = (color?: string | null): string =>
+  color === null || color === undefined ? colors.espresso : mix(color, colors.espresso, 0.32);
+
+/** A store's identity: initials on its own colour, or espresso. */
 export function StoreAvatar({
   name,
   color,
@@ -154,26 +179,18 @@ export function StoreAvatar({
         {
           width: size,
           height: size,
-          borderRadius: Math.round(size * 0.28),
-          backgroundColor: color ?? colors.greenDark,
+          borderRadius: Math.round(size * 0.32),
+          backgroundColor: storeDeep(color),
         },
       ]}
     >
-      <Text style={[styles.avatarText, { fontSize: Math.round(size * 0.36) }]}>{initials}</Text>
+      <Text style={[styles.avatarText, { fontSize: Math.round(size * 0.34) }]}>{initials}</Text>
     </View>
   );
 }
 
-export function Balance({
-  value,
-  size = 28,
-}: {
-  value: number;
-  size?: number;
-}) {
-  return (
-    <Text style={[styles.balance, { fontSize: size }]}>{formatPoints(value)}</Text>
-  );
+export function Balance({ value, size = 30 }: { value: number; size?: number }) {
+  return <Text style={[styles.balance, { fontSize: size }]}>{formatPoints(value)}</Text>;
 }
 
 const styles = StyleSheet.create({
@@ -188,25 +205,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: 10,
-    marginTop: 20,
-    marginBottom: 10,
+    marginTop: 24,
+    marginBottom: 12,
   },
   sectionTitle: {
-    fontSize: 17,
-    fontWeight: '800',
+    fontFamily: fonts.display,
+    fontSize: 23,
     color: colors.text,
-    letterSpacing: -0.2,
   },
   sectionSub: {
-    fontSize: 11,
+    fontFamily: fonts.body,
+    fontSize: 12,
     color: colors.muted,
-    marginTop: 2,
+    marginTop: 3,
   },
   sectionAction: {
+    fontFamily: fonts.bodyBold,
     fontSize: 12,
-    fontWeight: '700',
-    color: colors.green,
-    paddingBottom: 2,
+    color: colors.terracottaInk,
+    paddingBottom: 3,
   },
   pill: {
     flexDirection: 'row',
@@ -214,7 +231,7 @@ const styles = StyleSheet.create({
     gap: 5,
     borderRadius: 999,
     paddingHorizontal: 9,
-    paddingVertical: 3,
+    paddingVertical: 4,
     alignSelf: 'flex-start',
   },
   pillDot: {
@@ -223,31 +240,34 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   pillText: {
-    fontSize: 11,
-    fontWeight: '700',
+    fontFamily: fonts.bodyBold,
+    fontSize: 10.5,
+    letterSpacing: 0.1,
   },
   segments: {
     flexDirection: 'row',
     gap: 3,
-    height: 8,
+    height: 9,
   },
   segment: {
     flex: 1,
-    borderRadius: 2,
-    backgroundColor: colors.line,
+    borderRadius: 3,
+    backgroundColor: '#E9E0CE',
   },
   segmentCaption: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 6,
+    marginTop: 7,
   },
   segmentText: {
-    fontSize: 10,
+    fontFamily: fonts.bodyMedium,
+    fontSize: 10.5,
     color: colors.muted,
     flex: 1,
   },
   segmentPercent: {
-    fontSize: 10,
+    fontFamily: fonts.bodySemi,
+    fontSize: 10.5,
     color: colors.muted,
     fontVariant: ['tabular-nums'],
   },
@@ -256,14 +276,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   avatarText: {
-    color: '#ffffff',
-    fontWeight: '800',
-    letterSpacing: 0.3,
+    color: '#FFFCF6',
+    fontFamily: fonts.bodyExtra,
   },
   balance: {
-    fontWeight: '800',
+    fontFamily: fonts.display,
     color: colors.text,
-    letterSpacing: -0.8,
-    fontVariant: ['tabular-nums'],
   },
 });

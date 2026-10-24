@@ -6,6 +6,15 @@
 
 ## Done
 
+- **Build 21b — the customer app's visual voice (D-150).** Left the flat white-and-green for a
+  warm editorial system: cream canvas, paper cards, an espresso code card, saffron points and
+  progress, terracotta expiry, and the store's colour as a pale wash. Fraunces (display) and
+  Manrope (UI) bundled locally. Home, My code, Inbox, Profile, store detail and Settings all
+  moved over; the floating tab bar replaces the flat one. Merchant surfaces keep the brief's
+  palette. Also fixed the sign-in code length (Supabase issues 8 digits, the app assumed 6) and
+  the CORS allow-list that blocked the app's own API calls. 87 unit and 273 integration tests
+  green.
+
 - **Build 21 — the interface rebuild (D-148, D-149).** Built from `docs/ui/UIdesign_brief.md`,
   with A's later additions as the scoped override. Owner: sidebar shell with grouped nav,
   store-and-role switcher, connection chip and account menu; Home with a 30-day chart (new

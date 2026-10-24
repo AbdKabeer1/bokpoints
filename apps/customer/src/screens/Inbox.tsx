@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { markNotificationRead, type Notification } from '../lib/api';
 import { formatDate } from '../lib/format';
-import { colors } from '../lib/theme';
+import { colors, fonts } from '../lib/theme';
 import { Card, StoreAvatar } from '../components/ui';
 
 interface InboxProps {
@@ -53,9 +53,7 @@ export function Inbox({ token, notifications, onRefresh, onChanged }: InboxProps
     <>
       <View style={styles.header}>
         <View>
-          <Text style={styles.brand}>
-            Poket<Text style={styles.brandDot}>.</Text>
-          </Text>
+          <Text style={styles.eyebrow}>FROM YOUR STORES</Text>
           <Text style={styles.title}>Inbox</Text>
         </View>
         <Pressable
@@ -100,7 +98,7 @@ export function Inbox({ token, notifications, onRefresh, onChanged }: InboxProps
                 <StoreAvatar
                   name={message.storeName}
                   color={message.storeBrandColor}
-                  size={36}
+                  size={38}
                 />
                 <View style={{ flex: 1 }}>
                   <View style={styles.itemMeta}>
@@ -111,10 +109,7 @@ export function Inbox({ token, notifications, onRefresh, onChanged }: InboxProps
                 </View>
                 {message.readAt === null && <View style={styles.dot} />}
               </View>
-              <Text
-                style={styles.body}
-                numberOfLines={expanded ? undefined : 2}
-              >
+              <Text style={styles.body} numberOfLines={expanded ? undefined : 2}>
                 {message.body}
               </Text>
               {expanded && (
@@ -129,7 +124,7 @@ export function Inbox({ token, notifications, onRefresh, onChanged }: InboxProps
       )}
 
       <Text style={styles.fine}>
-        Store news is on only for the stores you chose. Change that under Profile → Store news.
+        Store news is on only for the stores you chose. Change that under You → Store news.
       </Text>
     </>
   );
@@ -140,23 +135,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 6,
+    marginBottom: 8,
   },
-  brand: {
-    fontSize: 22,
-    fontWeight: '800',
-    letterSpacing: -0.6,
-    color: colors.text,
-  },
-  brandDot: {
-    color: colors.green,
+  eyebrow: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 10,
+    letterSpacing: 1.4,
+    color: colors.muted,
   },
   title: {
-    fontSize: 26,
-    fontWeight: '800',
-    letterSpacing: -0.5,
+    fontFamily: fonts.display,
+    fontSize: 34,
     color: colors.text,
-    marginTop: 2,
+    marginTop: 4,
   },
   refresh: {
     paddingVertical: 8,
@@ -165,42 +156,45 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   refreshText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.green,
+    fontFamily: fonts.bodyBold,
+    fontSize: 12,
+    color: colors.terracottaInk,
   },
   sub: {
+    fontFamily: fonts.body,
     fontSize: 12,
     color: colors.muted,
-    marginBottom: 14,
+    marginBottom: 16,
   },
   error: {
+    fontFamily: fonts.bodySemi,
     color: colors.danger,
-    fontSize: 13,
+    fontSize: 12,
     marginBottom: 10,
   },
   emptyTitle: {
-    fontSize: 15,
-    fontWeight: '700',
+    fontFamily: fonts.display,
+    fontSize: 20,
     color: colors.text,
   },
   emptyBody: {
+    fontFamily: fonts.body,
     fontSize: 13,
-    lineHeight: 19,
+    lineHeight: 20,
     color: colors.muted,
-    marginTop: 4,
+    marginTop: 5,
   },
   item: {
     backgroundColor: colors.card,
-    borderRadius: 14,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: colors.line,
-    padding: 13,
-    marginBottom: 9,
+    padding: 14,
+    marginBottom: 10,
   },
   itemUnread: {
-    borderColor: '#cfe7da',
-    backgroundColor: '#fbfefc',
+    borderColor: '#EBCBBE',
+    backgroundColor: '#FFFAF4',
   },
   itemTop: {
     flexDirection: 'row',
@@ -214,44 +208,48 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   store: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.6,
+    fontFamily: fonts.bodyBold,
+    fontSize: 9,
+    letterSpacing: 1,
     textTransform: 'uppercase',
     color: colors.muted,
   },
   time: {
+    fontFamily: fonts.body,
     fontSize: 10,
     color: colors.muted,
   },
   itemTitle: {
+    fontFamily: fonts.bodyBold,
     fontSize: 14,
-    fontWeight: '700',
     color: colors.text,
-    marginTop: 2,
+    marginTop: 3,
   },
   dot: {
     width: 7,
     height: 7,
     borderRadius: 4,
-    backgroundColor: colors.green,
-    marginTop: 4,
+    backgroundColor: colors.terracotta,
+    marginTop: 5,
   },
   body: {
+    fontFamily: fonts.body,
     fontSize: 13,
     lineHeight: 19,
     color: colors.text,
-    marginTop: 8,
+    marginTop: 9,
   },
   sent: {
+    fontFamily: fonts.body,
     fontSize: 10,
     color: colors.muted,
     marginTop: 8,
   },
   fine: {
+    fontFamily: fonts.body,
     fontSize: 11,
     lineHeight: 17,
     color: colors.muted,
-    marginTop: 16,
+    marginTop: 18,
   },
 });
