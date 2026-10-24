@@ -30,8 +30,8 @@ export function CounterSignScreen({ token, storeId }: { token: string; storeId: 
 
   return (
     <section>
-      <div className="sectionhead">
-        <h2>Counter sign</h2>
+      <div className="pagehead">
+        <h1>Counter sign</h1>
         <button className="ghost" type="button" onClick={() => window.print()}>
           Print
         </button>

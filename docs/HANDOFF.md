@@ -2,7 +2,7 @@
 
 Living document. Update it at the end of every working session (see `AGENT.md`, section 14). The newest information goes at the top of "Current state" and in the session log. Keep it short and accurate: someone with no memory of earlier sessions must be able to pick up from here.
 
-Last updated: 23 Oct 2026, after WP0 and WP1 of `BOKPOINTS The Way Forward.md`. Phase: **build, WP2 next.**
+Last updated: 24 Oct 2026, after Build 21 (the interface rebuild from the UI brief). Earlier: after WP0 and WP1 of `BOKPOINTS The Way Forward.md`. Phase: **build, WP2 next.**
 The Way Forward is the plan of record (D-128): WP0 security and WP1 documents are done; WP2 (store-owned earning rules) starts next.
 
 ## 1. Read these first, in this order
@@ -148,6 +148,7 @@ Newest first. One entry per session. Keep each entry to a few lines.
 
 | Session    | What was done                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | State at the end                                                                                                                              | Next                                                           |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Build 21   | The interface rebuild from `docs/ui/UIdesign_brief.md` (D-148, D-149). **Owner portal** — new shell (sidebar with grouped navigation, store-and-role switcher, connection chip, account menu with sign-out), new **Home** (stat strip, a 30-day loyalty chart from a new daily series on the reports endpoint, needs-attention, setup checklist, recent activity, last campaign, plan placeholder), new **Campaigns** (compose, audience of consenting customers, send, reach and opened counts), **Notifications** (computed from rules, rewards, staff and consent), **Support & FAQ**, **Plan and billing**, and a rewritten Settings index; every existing screen moved onto the new page header and tokens. **Customer app** — new design tokens and shared pieces (card, pill, segmented bar, store avatar), Home rebuilt around the code, total points, one card per store with the balance and a bar to the next reward, an **Inbox** of campaigns, a **Profile** tab (identity, settings, per-store news consent, help, sign out) and a bottom bar (Home, My code, Inbox, Profile); store detail gained rewards readiness, consent and pill-styled history. **Till** — connection chip and a segmented bar toward the next reward on the customer card. **API** — campaigns and deliveries (migration `0016`, applied locally and hosted), campaign list/send/audience, customer inbox/read, per-store consent, store brand colour and next reward in the stores call, and the 30-day series | 87 unit and 273 integration tests pass (9 new: 8 campaign tests, the stores payload and the 30-day series). Typecheck, lint and the four builds pass | Build 22: the platform admin console (store list endpoint + app), then offline awarding |
 | Build 20   | The interface-completion pass (D-147): every panel, every user. **Owner portal** — new tabs: **Reports** (customers so far, new in 30 days, visits, points issued/redeemed/expired — new `GET .../reports/summary`, one read query, `audit.view`), **Branches** (list + add: `GET`/`POST .../branches`, `store.manage`, audited `branch.create`), **Store profile** (name, address, contacts, and the **brand colour** — migration `0015` adds `stores.brand_color`; the customer app paints the store's page with it: the first D-139 slice), **Counter sign** (a printable, brand-coloured table tent; the QR is a placeholder until the store finder ships), **Settings** (the honest placeholders: billing needs Stripe, email invitations need the sender, the logo needs image storage). **Customers** rows gained **History** — a detail panel with the balance and the last hundred entries (new `GET .../customers/:customerId/history`, `customers.list`). **Customer app** — a **Settings** screen: name, language (fi/en), sign out, with the privacy tools noted as coming | 87 unit and 264 integration tests pass (6 new: profile read/update/audit + bad colour refused, branch add + access, customer detail + access, reports maths + access). Lint and tsc clean; all three builds succeed. Hosted database at `0015` | Build 21: the admin console (the fourth app) — its endpoints exist, the store list does not yet |
 | Build 19   | The basket discount behind the rotating QR (D-133, D-146; migration `0014`, applied locally and to the hosted database). **The rule**: one per store (`discount_rules`, unique on store) — a basket threshold with a fixed amount or a percent off, active/paused, edited in place by owners and managers under the new `discount.manage` capability, audited `discount.set` with what it replaced. **The code**: the customer app requests a proof per store from `POST /v1/customer/stores/:storeId/discount-proof`; the API signs an HMAC-SHA256 token (customer + store + instant + one-time jti) with a key derived from the Supabase secret key; it lives 60 seconds and is shown as a rotating QR with a countdown and a refresh button. **The till**: a discount-code field under the quote — `POST .../discount-proof/verify` is a dry run (fresh, theirs, unused, threshold met → what it takes off); a valid check shows "their code takes €X off — they pay €Y" and the payment step prefills the discounted sum. **The confirm consumes it**: the award request carries the proof; the ledger checks it again, inserts the jti (the primary key — a replay is `PROOF_ALREADY_USED` and rolls back), writes `discount_cents` on the sale, refuses a paid amount above the discounted total, and the points follow what was actually paid. **The maths** lives in shared (`discountFor`): threshold on the whole basket, discount capped at the basket. Refusals read in plain words at the till (unknown, expired, used, other customer, other store, below threshold). There is no offline discount | 87 unit and 258 integration tests pass (18 new: rule CRUD + access + audit + pause, proof issuance and binding, dry-run verification including threshold and wrong-store, non-consuming quotes, the confirm's discount on the sale, jti replay refusal, idempotent replay receipt, paid-above-discounted refusal, expired / wrong-customer / wrong-store proofs, percent maths). Lint and tsc clean; all three builds succeed. Hosted database migrated to `0014` | WP7 — pilot readiness, or offline awarding (build step 8) — A's call |
 | Build 18   | Review hardening from A's list (D-143 to D-145). **Reversal policy**: only the sale's own cashier may reverse it within 15 minutes of recording; owners and managers after that; the reason is required (schema + ledger); a branch-limited member may only reverse their own branch's sales; and a **full void restores the reward's points** — the sale's redeem entries each get a positive `reversal` naming them (the sign CHECK was widened, migration `0013`, since a reversal now points either way), the returned points sit in a fresh batch with a fresh expiry, and a cancelled whole sale leaves the customer exactly where they started. **Daily limit**: counts the store's local day — `Europe/Helsinki` — computed in SQL on both sides, not UTC. **Race**: every balance-changing path (`redeem`, `adjust`, clawback, reversal) now locks the customer's balance row `FOR UPDATE` before touching batches, so two tills cannot both pass the limit check and the lock order cannot deadlock against an adjustment — proven by a three-way parallel-confirm test where exactly one gets through. **Same-purchase redemption stays** (D-145), and the till picker now takes the purchase's `paidCents` and projects the earn with the quote's engine, so its chips match the confirm exactly. **Infra**: migrations `0007`–`0013` applied to the hosted Supabase database through the session pooler (the direct host is IPv6-only) and verified there; the email-verification check got a 5-second timeout and fails closed; production refuses to start without `SUPABASE_SECRET_KEY`; the owner portal got the till's 15-minute idle sign-out with the one-minute warning; the customer app's session moved from AsyncStorage to `expo-secure-store` (web uses browser storage, native the keystore, Android's 2 KB limit handled by chunking) | 87 unit and 240 integration tests pass (8 new: own-sale reversal, another cashier refused, window expiry with owner allowed, reason required, branch limits, Helsinki-midnight limit, three-way redemption race, picker projection). Lint and tsc clean; all three builds succeed | The basket discount behind the rotating QR (D-133) |
@@ -188,10 +189,10 @@ here.
 | Audit trail | Exists | Written on every action; readable in the portal |
 | Language switch (Finnish / English) | Missing | Hardcoded English everywhere |
 | Idle sign-out | Exists | 15 minutes, with a one-minute warning the cashier can cancel by touching the screen |
-| Help and contact | Missing | |
+| Help and contact | Exists | Build 21: owner Support & FAQ; customer Profile help |
 | Accessibility pass | Partial | Contrast and sizes chosen well; no audit done |
-| Consent capture at sign-up | Missing | No marketing choice is recorded anywhere yet |
-| Notifications | v1.1 | Out |
+| Consent capture | Exists | Build 21: per-store store-news consent in the customer app, off by default (FR-PRV-2) |
+| Notifications | Exists | Build 21: in-app campaigns, inbox, read receipts and a computed owner notifications page |
 
 ### Cashier screen (till, `apps/web`)
 
@@ -210,12 +211,15 @@ here.
 | Reward picker and redemption | Exists | Build 17: chips in the payment step, affordable ones only, per-customer daily limit; redemption rides the confirm under one idempotency key |
 | Points and discount preview | Exists | Points per rule since Build 15; the discount quote and its rotating-code check since Build 19 |
 | Recent awards | Exists | The cashier's own latest awards at this till (new endpoint `GET /v1/stores/:storeId/awards/recent`) |
+| Connection status and reward progress | Exists | Build 21: online/synced chip in the top bar; a segmented bar toward the next reward on the customer card |
 | Offline mode and sync | Missing | Largest remaining till item |
 
 ### Store dashboard (owner portal, `apps/owner`)
 
 | Component | State | Note |
 | --- | --- | --- |
+| Home overview | Exists | Build 21: 30-day stats and chart, needs-attention, setup checklist, recent activity, last campaign |
+| Campaigns (in-app) | Exists | Build 21: compose, consent-aware audience, send, reach and opened counts; no email/SMS |
 | Rule builder (four types), simulator, history | Exists | Build 14 |
 | Manual adjustment with reason | Exists | |
 | Customer list and search | Exists | |
@@ -231,15 +235,16 @@ here.
 | Store profile (name, logo, address, contact) | Exists | Build 20: name, address, contacts and brand colour; the logo waits for image storage |
 | Store page editor: brand image and colours, offerings | Partial | Build 20: the brand colour and offerings (rules + rewards) are editable; the logo waits for image storage |
 | Counter QR sign | Exists | Build 20: a printable sign in the store's colour; the QR links into the app when the store finder ships |
-| Billing: plan, usage, invoices, warnings, contact | Placeholder | Build 20's Settings says plainly it starts with the platform's billing |
-| Store settings | Placeholder | Build 20: profile is live; billing and invitations show what they need |
+| Billing: plan, usage, invoices, warnings, contact | Placeholder | Build 21: Plan and billing says plainly what waits for the provider |
+| Notifications and support | Exists | Build 21: computed notices and a Support & FAQ page |
+| Store settings | Exists | Build 21: an index of store, account, help and the honest placeholders |
 
 ### Customer app (`apps/customer`)
 
 | Component | State | Note |
 | --- | --- | --- |
 | Sign-up and sign-in (one-time code) | Exists | |
-| My code (QR) | Partial | Shown; no brightness boost |
+| My code (QR) | Partial | Build 21: a dedicated tab with a large code and a brightness hint; no automatic brightness control |
 | Stores and balances | Exists | |
 | Store detail with history | Exists | Earned, redeemed, expired |
 | Expiring soon | Exists | From `/v1/customer/me/expiring` |
@@ -247,10 +252,11 @@ here.
 | Rewards per store | Exists | Build 17: read-only list on the store page, cheapest first |
 | Levels display (tier and progress) | Missing | In the pilot (D-140) |
 | Referral tab (invite link, tracked reward) | Missing | In the pilot (D-140); per-person limits required |
-| Profile and settings (name, email, language, consent, sign out) | Missing | |
+| Profile and settings (name, email, language, consent, sign out) | Exists | Build 21: Profile tab, per-store news consent, Settings, sign out |
 | Privacy tools (download my data, delete my account) | Missing | Needs the two API endpoints too |
-| Help and contact | Missing | |
-| Offers, notifications, NFC card | v1.1 | Out |
+| Help and contact | Exists | Build 21: owner Support & FAQ; customer Profile help |
+| Offers and notifications | Exists | Build 21: Inbox with campaign messages and read state |
+| NFC card | v1.1 | Out |
 
 ### Platform admin console
 

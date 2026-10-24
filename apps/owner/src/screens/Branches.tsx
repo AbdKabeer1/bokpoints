@@ -38,8 +38,8 @@ export function BranchesScreen({ token, storeId }: { token: string; storeId: str
 
   return (
     <section>
-      <div className="sectionhead">
-        <h2>Branches</h2>
+      <div className="pagehead">
+        <h1>Branches</h1>
       </div>
 
       <p className="muted">

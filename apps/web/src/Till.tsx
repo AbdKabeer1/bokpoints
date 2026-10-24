@@ -21,6 +21,28 @@ import { formatCents, formatDate, isEmail, normalizeScan, parseAmountToCents } f
 import { ScanCamera } from './ScanCamera';
 import { playScanOk } from './sound';
 
+/** "Online · 14:10" or "Offline · 3 waiting" for the top bar. */
+function useConnection(): { online: boolean; time: string } {
+  const [online, setOnline] = useState(() => navigator.onLine);
+  const [time, setTime] = useState(() => new Date());
+  useEffect(() => {
+    const up = () => setOnline(true);
+    const down = () => setOnline(false);
+    window.addEventListener('online', up);
+    window.addEventListener('offline', down);
+    const timer = window.setInterval(() => setTime(new Date()), 30_000);
+    return () => {
+      window.removeEventListener('online', up);
+      window.removeEventListener('offline', down);
+      window.clearInterval(timer);
+    };
+  }, []);
+  return {
+    online,
+    time: time.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+  };
+}
+
 interface TillProps {
   token: string;
   staffEmail: string;
@@ -98,6 +120,10 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
   const [registerError, setRegisterError] = useState<string | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [recent, setRecent] = useState<RecentAwards['entries'] | null>(null);
+  // The store's catalog for the progress bar, loaded as soon as a customer is
+  // known — before the amount — so the card can show the next reward.
+  const [catalog, setCatalog] = useState<TillReward[] | null>(null);
+  const connection = useConnection();
   const [flashOk, setFlashOk] = useState(false);
   const [idleWarn, setIdleWarn] = useState(false);
 
@@ -195,6 +221,26 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
       window.clearTimeout(timer);
     };
   }, [inPayStep, paid, customer, token, membership.storeId]);
+
+  // The customer card's progress toward the next reward (brief §4.1).
+  useEffect(() => {
+    if (customer === null) {
+      setCatalog(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const result = await availableRewards(token, membership.storeId, customer.customerId);
+        if (!cancelled) setCatalog(result.rewards);
+      } catch {
+        if (!cancelled) setCatalog(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [customer, token, membership.storeId]);
 
   /** What this till last recorded (FR-STO-9). A failure just shows nothing. */
   const loadRecent = useCallback(async () => {
@@ -402,6 +448,11 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
     return `Earns ${preview.points} points${at}${until}.`;
   };
 
+  const nextReward =
+    catalog === null || customer === null
+      ? null
+      : (catalog.find((reward) => reward.pointsCost > customer.balance) ?? null);
+
   return (
     <main className="till">
       {idleWarn && (
@@ -421,7 +472,11 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
           </p>
         </div>
         <div className="who">
-          <span className="muted">{staffEmail}</span>
+          <span className={connection.online ? 'statuschip' : 'statuschip offline'}>
+            <span className="statusdot" aria-hidden="true" />
+            {connection.online ? 'Online' : 'Offline'} · synced {connection.time}
+          </span>
+          <span className="muted whoemail">{staffEmail}</span>
           <button className="ghost small" type="button" onClick={onSignOut}>
             Sign out
           </button>
@@ -581,6 +636,36 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
             <p className="eyebrow">Customer</p>
             <p className="big">{customer.firstName || 'New customer'}</p>
             <p className="muted">{customer.balance} points at this store</p>
+
+            {nextReward !== null && (
+              <div className="rewardprogress">
+                <div
+                  className="segbar"
+                  role="progressbar"
+                  aria-label={`${customer.balance} of ${nextReward.pointsCost} points toward ${nextReward.name}`}
+                  aria-valuemin={0}
+                  aria-valuemax={nextReward.pointsCost}
+                  aria-valuenow={Math.min(customer.balance, nextReward.pointsCost)}
+                >
+                  {Array.from({ length: 10 }, (_, index) => (
+                    <span
+                      key={index}
+                      className={
+                        index <
+                        Math.round(
+                          Math.min(1, customer.balance / nextReward.pointsCost) * 10,
+                        )
+                          ? 'on'
+                          : ''
+                      }
+                    />
+                  ))}
+                </div>
+                <p className="muted small">
+                  {customer.balance} of {nextReward.pointsCost} · {nextReward.name}
+                </p>
+              </div>
+            )}
 
             {membership.locationId === null && membership.branches.length > 1 && (
               <>

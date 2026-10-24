@@ -57,8 +57,8 @@ export function ProfileScreen({ token, storeId }: { token: string; storeId: stri
 
   return (
     <section>
-      <div className="sectionhead">
-        <h2>Store profile</h2>
+      <div className="pagehead">
+        <h1>Store profile</h1>
       </div>
 
       <p className="muted">

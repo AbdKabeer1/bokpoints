@@ -21,8 +21,8 @@ export function PeopleScreen({ token, storeId }: { token: string; storeId: strin
 
   return (
     <section>
-      <div className="sectionhead">
-        <h2>People</h2>
+      <div className="pagehead">
+        <h1>People</h1>
       </div>
 
       {error !== null && <p className="error">{error}</p>}

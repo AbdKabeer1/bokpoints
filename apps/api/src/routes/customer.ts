@@ -5,9 +5,14 @@ import {
   customerExpiringResponseSchema,
   customerHistoryResponseSchema,
   customerMeResponseSchema,
+  customerNotificationParamsSchema,
+  customerNotificationsResponseSchema,
   customerStoreRewardsResponseSchema,
   customerStoresResponseSchema,
   discountProofIssueResponseSchema,
+  notificationReadResponseSchema,
+  storeConsentRequestSchema,
+  storeConsentResponseSchema,
   storeIdParamsSchema,
   updateCustomerRequestSchema,
 } from '@bokpoints/shared';
@@ -22,6 +27,11 @@ import {
   provisionCustomer,
   updateCustomerProfile,
 } from '../db/customers.js';
+import {
+  customerNotifications,
+  markNotificationRead,
+  setStoreConsent,
+} from '../db/campaigns.js';
 import type { CustomerProfile } from '../db/customers.js';
 import { issueDiscountProof, proofExpiresAt } from '../db/discount-proof.js';
 import { discountRules } from '../db/schema.js';
@@ -319,6 +329,149 @@ export const customerRoutes: FastifyPluginAsyncZod<CustomerRouteOptions> = async
 
       const rewards = await customerStoreRewards(db, request.params.storeId);
       return reply.send({ rewards });
+    },
+  );
+
+  /**
+   * The customer's inbox: campaign messages from their stores, inside the
+   * app (D-148). Only their own deliveries, never another customer's.
+   */
+  app.get(
+    '/v1/customer/me/notifications',
+    {
+      config: { rateLimit: rateLimit ?? { max: 120, timeWindow: '1 minute' } },
+      schema: {
+        response: {
+          200: customerNotificationsResponseSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+          409: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const principal = await resolve(request.headers.authorization);
+      if (principal === null) {
+        return reply
+          .code(401)
+          .send({ error: { code: 'INVALID_TOKEN', message: 'That access token is not valid' } });
+      }
+
+      const customer = await provision(principal);
+      if (customer instanceof CustomerError) {
+        return reply
+          .code(customerErrorStatus(customer.code))
+          .send({ error: { code: customer.code, message: customer.message } });
+      }
+
+      const inbox = await customerNotifications(db, customer.id);
+      return reply.send({
+        unread: inbox.unread,
+        notifications: inbox.notifications.map((entry) => ({
+          ...entry,
+          createdAt: entry.createdAt.toISOString(),
+          readAt: entry.readAt === null ? null : entry.readAt.toISOString(),
+        })),
+      });
+    },
+  );
+
+  app.post(
+    '/v1/customer/me/notifications/:notificationId/read',
+    {
+      config: { rateLimit: rateLimit ?? { max: 120, timeWindow: '1 minute' } },
+      schema: {
+        params: customerNotificationParamsSchema,
+        response: {
+          200: notificationReadResponseSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+          404: apiErrorSchema,
+          409: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const principal = await resolve(request.headers.authorization);
+      if (principal === null) {
+        return reply
+          .code(401)
+          .send({ error: { code: 'INVALID_TOKEN', message: 'That access token is not valid' } });
+      }
+
+      const customer = await provision(principal);
+      if (customer instanceof CustomerError) {
+        return reply
+          .code(customerErrorStatus(customer.code))
+          .send({ error: { code: customer.code, message: customer.message } });
+      }
+
+      const marked = await markNotificationRead(
+        db,
+        customer.id,
+        request.params.notificationId,
+      );
+      if (marked === null) {
+        return reply
+          .code(404)
+          .send({ error: { code: 'NOTIFICATION_NOT_FOUND', message: 'That message is not yours' } });
+      }
+
+      return reply.send({ id: marked.id, readAt: marked.readAt.toISOString() });
+    },
+  );
+
+  /**
+   * FR-PRV-2: store news is off until the customer says yes, per store.
+   * A store the customer is not linked to answers 404.
+   */
+  app.patch(
+    '/v1/customer/me/stores/:storeId/consent',
+    {
+      config: { rateLimit: rateLimit ?? { max: 60, timeWindow: '1 minute' } },
+      schema: {
+        params: storeIdParamsSchema,
+        body: storeConsentRequestSchema,
+        response: {
+          200: storeConsentResponseSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+          404: apiErrorSchema,
+          409: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const principal = await resolve(request.headers.authorization);
+      if (principal === null) {
+        return reply
+          .code(401)
+          .send({ error: { code: 'INVALID_TOKEN', message: 'That access token is not valid' } });
+      }
+
+      const customer = await provision(principal);
+      if (customer instanceof CustomerError) {
+        return reply
+          .code(customerErrorStatus(customer.code))
+          .send({ error: { code: customer.code, message: customer.message } });
+      }
+
+      const saved = await setStoreConsent(
+        db,
+        customer.id,
+        request.params.storeId,
+        request.body.marketingConsent,
+      );
+      if (!saved) {
+        return reply.code(404).send({
+          error: { code: 'STORE_NOT_FOUND', message: 'You have no history at that store' },
+        });
+      }
+
+      return reply.send({
+        storeId: request.params.storeId,
+        marketingConsent: request.body.marketingConsent,
+      });
     },
   );
 

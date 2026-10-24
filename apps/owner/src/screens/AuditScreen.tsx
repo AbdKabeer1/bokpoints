@@ -32,9 +32,9 @@ export function AuditScreen({ token, storeId }: { token: string; storeId: string
 
   return (
     <section>
-      <div className="sectionhead">
+      <div className="pagehead">
         <div>
-          <h2>Audit</h2>
+          <h1>Audit</h1>
           <p className="muted">What was done, by whom, and why — newest first.</p>
         </div>
       </div>

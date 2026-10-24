@@ -90,8 +90,8 @@ export function RewardsScreen({ token, storeId }: { token: string; storeId: stri
 
   return (
     <section>
-      <div className="sectionhead">
-        <h2>Rewards</h2>
+      <div className="pagehead">
+        <h1>Rewards</h1>
       </div>
 
       <p className="muted">

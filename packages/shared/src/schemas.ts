@@ -300,6 +300,15 @@ export const storeCustomerHistoryResponseSchema = z.object({
   entries: z.array(storeCustomerHistoryEntrySchema),
 });
 
+/** One day of the store's last thirty, for the overview chart (Helsinki days). */
+export const storeReportsSeriesPointSchema = z.object({
+  /** `YYYY-MM-DD`, in Europe/Helsinki. */
+  date: z.string(),
+  issued: z.number().int(),
+  redeemed: z.number().int(),
+  visits: z.number().int(),
+});
+
 export const storeReportsResponseSchema = z.object({
   customers: z.number().int(),
   newCustomers30d: z.number().int(),
@@ -307,6 +316,8 @@ export const storeReportsResponseSchema = z.object({
   pointsRedeemed30d: z.number().int(),
   pointsExpired30d: z.number().int(),
   visits30d: z.number().int(),
+  /** The last thirty days, oldest first, including days with no trade. */
+  series: z.array(storeReportsSeriesPointSchema),
 });
 
 export const identifyResponseSchema = z.object({
@@ -542,6 +553,14 @@ export const customerStoreSchema = z.object({
   name: z.string(),
   balance: z.number().int(),
   lastActivityAt: z.string(),
+  /** The store's brand colour, so the app can paint its card (D-139). Null = Poket green. */
+  brandColor: z.string().nullable(),
+  /** Whether this customer accepts store news in the app (FR-PRV-2). */
+  marketingConsent: z.boolean(),
+  /** The cheapest active reward above the balance, or the best one to work toward. */
+  nextReward: z
+    .object({ name: z.string(), pointsCost: z.number().int() })
+    .nullable(),
 });
 
 export const customerStoresResponseSchema = z.object({
@@ -744,4 +763,76 @@ export const ruleSimulateResponseSchema = z.object({
   reason: z.string().optional(),
   breakdown: z.array(pointsBreakdownEntrySchema),
   rulesSource: z.enum(['store', 'draft']),
+});
+
+/* ── Campaigns and in-app notifications (D-148) ─────────────────────────── */
+
+/**
+ * A store's message to its customers. Short on purpose: one title and one
+ * paragraph, the shape of a phone notification. Email and SMS are not
+ * offered until a sender exists.
+ */
+export const campaignCreateRequestSchema = z.object({
+  title: z.string().trim().min(1).max(80),
+  body: z.string().trim().min(1).max(300),
+});
+
+export const campaignRowSchema = z.object({
+  id: z.string().uuid(),
+  title: z.string(),
+  body: z.string(),
+  status: z.string(),
+  /** How many customers the message was delivered to. */
+  recipients: z.number().int(),
+  /** How many of those opened it in the app. */
+  opened: z.number().int(),
+  createdAt: z.string(),
+});
+
+export const campaignsResponseSchema = z.object({
+  campaigns: z.array(campaignRowSchema),
+});
+
+/** Who a campaign would reach, before it is sent. */
+export const campaignAudienceSchema = z.object({
+  /** Customers linked to this store. */
+  linked: z.number().int(),
+  /** Of those, the ones who accept store news in the app (FR-PRV-2). */
+  optedIn: z.number().int(),
+});
+
+/** One campaign as the customer's inbox reads it. */
+export const customerNotificationSchema = z.object({
+  id: z.string().uuid(),
+  storeId: z.string().uuid(),
+  storeName: z.string(),
+  storeBrandColor: z.string().nullable(),
+  title: z.string(),
+  body: z.string(),
+  createdAt: z.string(),
+  readAt: z.string().nullable(),
+});
+
+export const customerNotificationsResponseSchema = z.object({
+  unread: z.number().int(),
+  notifications: z.array(customerNotificationSchema),
+});
+
+export const customerNotificationParamsSchema = z.object({
+  notificationId: z.string().uuid(),
+});
+
+export const notificationReadResponseSchema = z.object({
+  id: z.string().uuid(),
+  readAt: z.string(),
+});
+
+/** The customer's answer to "may this store send me news in the app?". */
+export const storeConsentRequestSchema = z.object({
+  marketingConsent: z.boolean(),
+});
+
+export const storeConsentResponseSchema = z.object({
+  storeId: z.string().uuid(),
+  marketingConsent: z.boolean(),
 });

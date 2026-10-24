@@ -1,10 +1,22 @@
 # STATUS
 
 **Project:** BOKPOINTS, a B2B2C loyalty platform for SMEs in Finland / EU.
-**Phase:** MVP, worked through `BOKPOINTS The Way Forward.md` one work package at a time. WP0-WP3 are complete, and the interface-completion pass (D-147) has put a real panel in front of every user: the cashier's till, the customer app with settings, and the owner portal with reports, customer detail, branches, store profile, counter sign and honest placeholders for billing and invitations. **Next up: Build 21 — the admin console (the platform's own app).**
-**Last updated:** 24 Oct 2026, after Build 20 (the interface pass). The owner portal now shows the numbers a shop asks for, the customers' stories, its branches, its profile with a brand colour that reaches the customer app, and a printable counter sign. The hosted database is at migration 0015. 87 unit and 264 integration tests green.
+**Phase:** MVP, worked through `BOKPOINTS The Way Forward.md` one work package at a time. WP0-WP3 are complete, and the interface-completion pass (D-147) has put a real panel in front of every user: the cashier's till, the customer app with settings, and the owner portal with reports, customer detail, branches, store profile, counter sign and honest placeholders for billing and invitations. **Next up: Build 22 — the admin console (the platform's own app).**
+**Last updated:** 24 Oct 2026, after Build 21 (the interface rebuild from the UI brief). The owner portal has a real shell, an overview built from live data, campaigns, notifications, support and a billing placeholder; the customer app has a code-first home, an inbox, a profile and per-store news consent; the till shows its connection and the customer's next reward. The hosted database is at migration 0016. 87 unit and 273 integration tests green.
 
 ## Done
+
+- **Build 21 — the interface rebuild (D-148, D-149).** Built from `docs/ui/UIdesign_brief.md`,
+  with A's later additions as the scoped override. Owner: sidebar shell with grouped nav,
+  store-and-role switcher, connection chip and account menu; Home with a 30-day chart (new
+  daily series on `reports/summary`), needs-attention, setup checklist and recent activity;
+  Campaigns (compose → consent-aware audience → send → reach/opened); Notifications; Support
+  & FAQ; Plan and billing; Settings index. Customer: new tokens and shared pieces, a
+  code-first Home with per-store progress bars and brand colours, an Inbox, a Profile tab
+  with per-store news consent and sign-out, a bottom bar, and a restyled store detail. Till:
+  connection chip and reward progress. Campaigns are in-app only and reach only customers
+  who opted in (D-149); migration `0016` adds `campaigns` and `campaign_deliveries` and is
+  applied locally and to the hosted database. 87 unit and 273 integration tests green.
 
 - **Build 20 — the interface-completion pass (D-147).** Owner portal: Reports (30-day
   numbers), customer History panels, Branches (list + add), Store profile with the brand

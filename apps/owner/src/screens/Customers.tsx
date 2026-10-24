@@ -37,8 +37,8 @@ export function CustomersScreen({ token, storeId }: { token: string; storeId: st
 
   return (
     <section>
-      <div className="sectionhead">
-        <h2>Customers</h2>
+      <div className="pagehead">
+        <h1>Customers</h1>
         {registerOpen ? (
           <button className="ghost" type="button" onClick={() => setRegisterOpen(false)}>
             Close

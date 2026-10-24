@@ -30,8 +30,8 @@ export function ReportsScreen({ token, storeId }: { token: string; storeId: stri
 
   return (
     <section>
-      <div className="sectionhead">
-        <h2>Reports</h2>
+      <div className="pagehead">
+        <h1>Reports</h1>
       </div>
 
       <p className="muted">The last thirty days at this store, and every customer so far.</p>

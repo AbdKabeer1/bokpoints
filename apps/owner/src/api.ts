@@ -16,6 +16,10 @@ import {
   rewardEditRequestSchema,
   branchCreateRequestSchema,
   branchesResponseSchema,
+  campaignAudienceSchema,
+  campaignCreateRequestSchema,
+  campaignRowSchema,
+  campaignsResponseSchema,
   discountRuleResponseSchema,
   discountRuleRowSchema,
   discountRuleSetRequestSchema,
@@ -298,6 +302,34 @@ export const getCustomerHistory = (token: string, storeId: string, customerId: s
     token,
   });
 
+/* ── Campaigns (D-148): in-app messages to this store's customers ──────── */
+
+export const listCampaigns = (token: string, storeId: string) =>
+  request(campaignsResponseSchema, {
+    method: 'GET',
+    path: `/v1/stores/${storeId}/campaigns`,
+    token,
+  });
+
+export const getCampaignAudience = (token: string, storeId: string) =>
+  request(campaignAudienceSchema, {
+    method: 'GET',
+    path: `/v1/stores/${storeId}/campaigns/audience`,
+    token,
+  });
+
+export const sendCampaign = (
+  token: string,
+  storeId: string,
+  body: { title: string; body: string },
+) =>
+  request(campaignRowSchema, {
+    method: 'POST',
+    path: `/v1/stores/${storeId}/campaigns`,
+    token,
+    body: campaignCreateRequestSchema.parse(body),
+  });
+
 /* ── Audit ─────────────────────────────────────────────────────────────── */
 
 export const listAudit = (token: string, storeId: string, limit = '50', action?: string) =>
@@ -321,3 +353,5 @@ export type Branch = Awaited<ReturnType<typeof getBranches>>['branches'][number]
 export type Profile = Awaited<ReturnType<typeof getProfile>>;
 export type CustomerHistory = Awaited<ReturnType<typeof getCustomerHistory>>;
 export type Simulation = Awaited<ReturnType<typeof simulateRules>>;
+export type Campaign = Awaited<ReturnType<typeof listCampaigns>>['campaigns'][number];
+export type Audience = Awaited<ReturnType<typeof getCampaignAudience>>;

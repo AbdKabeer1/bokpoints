@@ -5,6 +5,12 @@ import { Login } from './Login';
 import { Splash } from './Splash';
 import { Mfa } from './Mfa';
 import { StorePicker } from './StorePicker';
+import { Shell, type Tab } from './Shell';
+import { HomeScreen } from './screens/Home';
+import { CampaignsScreen } from './screens/Campaigns';
+import { NotificationsScreen } from './screens/Notifications';
+import { BillingScreen } from './screens/Billing';
+import { SupportScreen } from './screens/Support';
 import { RulesScreen } from './screens/Rules';
 import { CustomersScreen } from './screens/Customers';
 import { PeopleScreen } from './screens/People';
@@ -24,39 +30,12 @@ type Phase =
   | { kind: 'ready'; token: string; me: Me }
   | { kind: 'unreachable'; message: string };
 
-type Tab =
-  | 'rules'
-  | 'customers'
-  | 'rewards'
-  | 'discount'
-  | 'reports'
-  | 'branches'
-  | 'profile'
-  | 'sign'
-  | 'people'
-  | 'audit'
-  | 'settings';
-
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'reports', label: 'Reports' },
-  { id: 'rules', label: 'Rules' },
-  { id: 'customers', label: 'Customers' },
-  { id: 'rewards', label: 'Rewards' },
-  { id: 'discount', label: 'Discount' },
-  { id: 'branches', label: 'Branches' },
-  { id: 'profile', label: 'Store profile' },
-  { id: 'sign', label: 'Counter sign' },
-  { id: 'people', label: 'People' },
-  { id: 'audit', label: 'Audit' },
-  { id: 'settings', label: 'Settings' },
-];
-
 export function App() {
   const [introDone, setIntroDone] = useState(false);
   const [phase, setPhase] = useState<Phase>({ kind: 'loading' });
   const [chosenStoreId, setChosenStoreId] = useState<string | null>(null);
   const [idleWarn, setIdleWarn] = useState(false);
-  const [tab, setTab] = useState<Tab>('rules');
+  const [tab, setTab] = useState<Tab>('home');
 
   const refresh = useCallback(async () => {
     const { data } = await supabase.auth.getSession();
@@ -180,67 +159,61 @@ export function App() {
       }
 
       return (
-        <div className="portal">
-          {idleWarn && (
-            <p className="idlewarn" role="status">
-              Signing out in a minute — touch the screen to stay signed in.
-            </p>
+        <Shell
+          me={phase.me}
+          membership={membership}
+          active={tab}
+          attention={0}
+          campaigns={0}
+          avatarColor="#075c38"
+          idleWarning={idleWarn}
+          onNavigate={setTab}
+          onSwitchStore={(storeId) => setChosenStoreId(storeId)}
+          onSignOut={() => void handleSignOut()}
+        >
+          {tab === 'home' && (
+            <HomeScreen token={phase.token} storeId={membership.storeId} onNavigate={setTab} />
           )}
-          <header className="topbar">
-            <div>
-              <p className="brand">
-                <span className="brand-word">Poket</span>
-                <span className="brand-tag">Merchant Platform</span>
-              </p>
-              <p className="store">{membership.storeName}</p>
-            </div>
-            <div className="who">
-              <span className="muted">{phase.me.staff.email}</span>
-              <button className="ghost small" type="button" onClick={() => void handleSignOut()}>
-                Sign out
-              </button>
-            </div>
-          </header>
-
-          <nav className="tabs" aria-label="Sections">
-            {TABS.map((entry) => (
-              <button
-                key={entry.id}
-                type="button"
-                className={entry.id === tab ? 'tab active' : 'tab'}
-                onClick={() => setTab(entry.id)}
-              >
-                {entry.label}
-              </button>
-            ))}
-          </nav>
-
-          <main className="workspace">
-            {tab === 'rules' && (
-              <RulesScreen token={phase.token} storeId={membership.storeId} />
-            )}
-            {tab === 'customers' && (
-              <CustomersScreen token={phase.token} storeId={membership.storeId} />
-            )}
-            {tab === 'rewards' && (
-              <RewardsScreen token={phase.token} storeId={membership.storeId} />
-            )}
-            {tab === 'discount' && (
-              <DiscountScreen token={phase.token} storeId={membership.storeId} />
-            )}
-            {tab === 'reports' && <ReportsScreen token={phase.token} storeId={membership.storeId} />}
-            {tab === 'branches' && (
-              <BranchesScreen token={phase.token} storeId={membership.storeId} />
-            )}
-            {tab === 'profile' && <ProfileScreen token={phase.token} storeId={membership.storeId} />}
-            {tab === 'sign' && (
-              <CounterSignScreen token={phase.token} storeId={membership.storeId} />
-            )}
-            {tab === 'people' && <PeopleScreen token={phase.token} storeId={membership.storeId} />}
-            {tab === 'audit' && <AuditScreen token={phase.token} storeId={membership.storeId} />}
-            {tab === 'settings' && <SettingsScreen />}
-          </main>
-        </div>
+          {tab === 'rules' && (
+            <RulesScreen token={phase.token} storeId={membership.storeId} />
+          )}
+          {tab === 'customers' && (
+            <CustomersScreen token={phase.token} storeId={membership.storeId} />
+          )}
+          {tab === 'rewards' && (
+            <RewardsScreen token={phase.token} storeId={membership.storeId} />
+          )}
+          {tab === 'discount' && (
+            <DiscountScreen token={phase.token} storeId={membership.storeId} />
+          )}
+          {tab === 'campaigns' && (
+            <CampaignsScreen token={phase.token} storeId={membership.storeId} />
+          )}
+          {tab === 'reports' && (
+            <ReportsScreen token={phase.token} storeId={membership.storeId} />
+          )}
+          {tab === 'branches' && (
+            <BranchesScreen token={phase.token} storeId={membership.storeId} />
+          )}
+          {tab === 'profile' && (
+            <ProfileScreen token={phase.token} storeId={membership.storeId} />
+          )}
+          {tab === 'sign' && (
+            <CounterSignScreen token={phase.token} storeId={membership.storeId} />
+          )}
+          {tab === 'people' && <PeopleScreen token={phase.token} storeId={membership.storeId} />}
+          {tab === 'audit' && <AuditScreen token={phase.token} storeId={membership.storeId} />}
+          {tab === 'notifications' && (
+            <NotificationsScreen
+              token={phase.token}
+              storeId={membership.storeId}
+              onNavigate={setTab}
+            />
+          )}
+          {tab === 'billing' && <BillingScreen onNavigate={setTab} />}
+          {tab === 'support' && <SupportScreen onNavigate={setTab} />}
+          {tab === 'settings' && <SettingsScreen onNavigate={setTab} />}
+        </Shell>
       );
     }
   }

@@ -14,6 +14,7 @@ import type { CustomerSessionResolver, SessionResolver } from './auth/session.js
 import type { Database } from './db/client.js';
 import { adminRoutes } from './routes/admin.js';
 import { auditRoutes } from './routes/audit.js';
+import { campaignRoutes } from './routes/campaigns.js';
 import { customerRoutes } from './routes/customer.js';
 import { meRoutes } from './routes/me.js';
 import { staffRoutes } from './routes/staff.js';
@@ -169,6 +170,11 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       rateLimit: options.rateLimit,
     });
     await app.register(auditRoutes, {
+      db: options.db,
+      sessionResolver: options.sessionResolver,
+      rateLimit: options.rateLimit,
+    });
+    await app.register(campaignRoutes, {
       db: options.db,
       sessionResolver: options.sessionResolver,
       rateLimit: options.rateLimit,

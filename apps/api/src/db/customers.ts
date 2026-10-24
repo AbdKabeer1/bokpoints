@@ -299,36 +299,76 @@ export interface CustomerStoreSummary {
   name: string;
   balance: number;
   lastActivityAt: Date;
+  brandColor: string | null;
+  marketingConsent: boolean;
+  /** The cheapest active reward the balance has not reached yet. */
+  nextReward: { name: string; pointsCost: number } | null;
 }
 
 /**
- * Every store the customer has ever had an entry at, newest activity first
- * (FR-CUS-2). A store that expired to zero stays visible: the customer's
- * history there still matters.
+ * Every store the customer is linked to, newest activity first (FR-CUS-2).
+ * A store that expired to zero stays visible: the customer's history there
+ * still matters. Each row carries the store's brand colour, the customer's
+ * consent choice and the next reward to work toward, so the home screen
+ * needs one call rather than three.
  */
 export async function customerStores(
   db: Database,
   customerId: string,
 ): Promise<CustomerStoreSummary[]> {
-  return db
-    .select({
-      storeId: pointsLedgerEntries.storeId,
-      name: stores.name,
-      balance: sql<number>`coalesce(max(${pointsBalances.balance}), 0)`,
-      lastActivityAt: sql<Date>`max(${pointsLedgerEntries.createdAt})`,
-    })
-    .from(pointsLedgerEntries)
-    .innerJoin(stores, eq(stores.id, pointsLedgerEntries.storeId))
-    .leftJoin(
-      pointsBalances,
-      and(
-        eq(pointsBalances.customerId, pointsLedgerEntries.customerId),
-        eq(pointsBalances.storeId, pointsLedgerEntries.storeId),
-      ),
+  const result = await db.execute(sql`
+    WITH relevant AS (
+      SELECT store_id FROM customer_store_links WHERE customer_id = ${customerId}
+      UNION
+      SELECT store_id FROM points_ledger_entries WHERE customer_id = ${customerId}
     )
-    .where(eq(pointsLedgerEntries.customerId, customerId))
-    .groupBy(pointsLedgerEntries.storeId, stores.name)
-    .orderBy(desc(sql`max(${pointsLedgerEntries.createdAt})`));
+    SELECT
+      rel.store_id AS "storeId",
+      s.name AS "name",
+      s.brand_color AS "brandColor",
+      coalesce(link.marketing_consent, false) AS "marketingConsent",
+      coalesce(b.balance, 0)::int AS "balance",
+      coalesce(last_entry.last_at, link.joined_at, s.created_at) AS "lastActivityAt",
+      reward.name AS "nextRewardName",
+      reward.points_cost AS "nextRewardPointsCost"
+    FROM relevant AS rel
+    INNER JOIN stores AS s ON s.id = rel.store_id
+    LEFT JOIN customer_store_links AS link
+      ON link.store_id = rel.store_id AND link.customer_id = ${customerId}
+    LEFT JOIN points_balances AS b
+      ON b.customer_id = ${customerId} AND b.store_id = rel.store_id
+    LEFT JOIN LATERAL (
+      SELECT max(entry.created_at) AS last_at
+      FROM points_ledger_entries AS entry
+      WHERE entry.customer_id = ${customerId} AND entry.store_id = rel.store_id
+    ) AS last_entry ON true
+    LEFT JOIN LATERAL (
+      SELECT r.name, r.points_cost
+      FROM store_rewards AS r
+      WHERE r.store_id = rel.store_id
+        AND r.active = true
+        AND r.points_cost > coalesce(b.balance, 0)
+      ORDER BY r.points_cost ASC
+      LIMIT 1
+    ) AS reward ON true
+    ORDER BY coalesce(last_entry.last_at, link.joined_at, s.created_at) DESC
+  `);
+
+  return (result.rows as Record<string, unknown>[]).map((row) => ({
+    storeId: String(row.storeId),
+    name: String(row.name),
+    balance: Number(row.balance ?? 0),
+    lastActivityAt: new Date(row.lastActivityAt as string),
+    brandColor: row.brandColor === null ? null : String(row.brandColor),
+    marketingConsent: Boolean(row.marketingConsent),
+    nextReward:
+      row.nextRewardName === null || row.nextRewardName === undefined
+        ? null
+        : {
+            name: String(row.nextRewardName),
+            pointsCost: Number(row.nextRewardPointsCost ?? 0),
+          },
+  }));
 }
 
 export interface CustomerHistoryEntry {

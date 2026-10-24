@@ -1,13 +1,8 @@
 /**
- * One small palette and a few shared styles, so the screens do not drift.
- *
- * The customer app is white and green: white space first, one confident
- * green for actions and the brand mark, near-black text, and soft mint
- * surfaces for quiet cards. Green reads as "points, growth, money" without
- * shouting, and white keeps the QR and the balances legible in a hand.
- *
- * The `gold` names are kept as aliases so every existing screen picks up the
- * new brand in one place instead of being rethemed screen by screen.
+ * The customer app's design tokens, taken from the same list as the web
+ * surfaces (UIdesign brief §2), so a store's card and the merchant's
+ * dashboard speak the same language. White space comes first; a store's own
+ * brand colour is the only colour that varies.
  */
 export const colors = {
   background: '#ffffff',
@@ -15,23 +10,37 @@ export const colors = {
   card: '#ffffff',
   text: '#0f1512',
   ink: '#0f1512',
-  muted: '#5f6b64',
-  line: '#e3eae5',
+  muted: '#5f6f66',
+  line: '#e3ebe6',
+  lineStrong: '#d4ded8',
 
   green: '#0b7a4b',
   greenDark: '#075c38',
-  greenSoft: '#e7f6ee',
+  greenSoft: '#e8f4ee',
   onGreen: '#ffffff',
+
+  amber: '#b98a1b',
+  amberSoft: '#fbf1d9',
+  amberInk: '#6b5000',
 
   danger: '#b42318',
   dangerSoft: '#fdecea',
 
-  // Legacy names: the brand is now green.
+  info: '#2b5fb4',
+  infoSoft: '#e8f0fb',
+
+  // Legacy names: the brand is green.
   gold: '#0b7a4b',
-  goldSoft: '#e7f6ee',
+  goldSoft: '#e8f4ee',
 };
 
 export const layout = {
-  screen: 24,
+  screen: 20,
   radius: 18,
+  cardRadius: 16,
+  gap: 12,
+  tabBar: 74,
 };
+
+/** Money, dates and numbers the Finnish way, without a library. */
+export const formatPoints = (value: number): string => value.toLocaleString('fi-FI');

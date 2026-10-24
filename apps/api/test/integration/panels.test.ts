@@ -184,6 +184,14 @@ describe('the reports panel', () => {
       visits30d: 1,
     });
 
+    // The overview chart: one row per Helsinki day, oldest first, with
+    // today's trade in the last row.
+    const series = got.json().series as { date: string; issued: number; redeemed: number; visits: number }[];
+    expect(series).toHaveLength(30);
+    const today = series[29] ?? { date: '', issued: 0, redeemed: 0, visits: 0 };
+    expect(today).toMatchObject({ issued: 12, redeemed: 0, visits: 1 });
+    expect(today.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+
     // A cashier reads reports too? No — the reports are the owner's panel.
     const refused = await inject(
       'GET',

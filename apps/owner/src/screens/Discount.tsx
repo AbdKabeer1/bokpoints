@@ -91,8 +91,8 @@ export function DiscountScreen({ token, storeId }: { token: string; storeId: str
 
   return (
     <section>
-      <div className="sectionhead">
-        <h2>Discount</h2>
+      <div className="pagehead">
+        <h1>Discount</h1>
       </div>
 
       <p className="muted">

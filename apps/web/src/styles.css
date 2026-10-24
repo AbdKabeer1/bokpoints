@@ -777,3 +777,77 @@ select:focus {
     animation-delay: 0ms !important;
   }
 }
+
+/* ── Build 21: connection chip and reward progress on the customer card ── */
+
+.who {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.statuschip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border: 1px solid #39514a;
+  border-radius: 999px;
+  padding: 4px 10px;
+  color: #dbe8e1;
+  background: rgba(255, 255, 255, 0.05);
+  white-space: nowrap;
+}
+
+.statusdot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #6ee7a8;
+  box-shadow: 0 0 0 3px rgba(110, 231, 168, 0.18);
+}
+
+.statuschip.offline {
+  color: #f4d9a6;
+  border-color: #5c4a28;
+}
+
+.statuschip.offline .statusdot {
+  background: #e0a33a;
+  box-shadow: 0 0 0 3px rgba(224, 163, 58, 0.18);
+}
+
+.rewardprogress {
+  margin: 4px 0 14px;
+}
+
+.segbar {
+  display: flex;
+  gap: 3px;
+  height: 8px;
+  margin-bottom: 6px;
+}
+
+.segbar span {
+  flex: 1;
+  border-radius: 2px;
+  background: var(--line-strong);
+}
+
+.segbar span.on {
+  background: var(--green);
+}
+
+.rewardprogress .small {
+  font-size: 0.82rem;
+  margin: 0;
+}
+
+@media (max-width: 560px) {
+  .whoemail {
+    display: none;
+  }
+}

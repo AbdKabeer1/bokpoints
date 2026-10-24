@@ -227,6 +227,29 @@ describe('GET /v1/customer/me/stores', () => {
     expect(stores[0]).toMatchObject({ balance: 0 });
     expect(stores[1]).toMatchObject({ balance: 10 });
     expect(typeof stores[0]?.lastActivityAt).toBe('string');
+    // D-148: the app paints the card and the progress bar from the same call.
+    expect(stores[1]).toMatchObject({ brandColor: null, marketingConsent: false, nextReward: null });
+  });
+
+  it('names the cheapest reward above the balance, and the store colour', async () => {
+    const customerId = await makeCustomer('rewards@test.dev');
+    const storeId = await makeStore('Kahvila C');
+    await addEntry(customerId, storeId, 'earn', 120, '2026-10-21T10:00:00Z');
+    await pool.query("UPDATE stores SET brand_color = '#124b7a' WHERE id = $1", [storeId]);
+    await pool.query(
+      `INSERT INTO store_rewards (store_id, name, points_cost, active)
+       VALUES ($1, 'Free coffee', 300, true), ($1, 'Cake', 700, true), ($1, 'Paused tea', 150, false)`,
+      [storeId],
+    );
+
+    const res = await get('/v1/customer/me/stores', 'rewards@test.dev');
+    expect(res.statusCode).toBe(200);
+    const store = res.json().stores[0] as Record<string, unknown>;
+    expect(store).toMatchObject({
+      brandColor: '#124b7a',
+      balance: 120,
+      nextReward: { name: 'Free coffee', pointsCost: 300 },
+    });
   });
 
   it('is empty for a customer with no activity', async () => {

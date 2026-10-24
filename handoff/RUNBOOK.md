@@ -17,6 +17,15 @@ Check Postgres is up:
 pg_isready -h localhost -U postgres
 ```
 
+## Database
+
+```bash
+pnpm db:migrate               # local DATABASE_URL, applies every migration in order
+```
+
+Migration `0016` adds `campaigns` and `campaign_deliveries` (Build 21). Both the local
+and hosted databases are at `0016`.
+
 ## Setup
 
 ```bash
@@ -33,6 +42,7 @@ environment.
 pnpm dev                      # API on http://127.0.0.1:3000 and the Cashier screen on http://localhost:5173
 ALLOW_DEV_AUTH=true pnpm dev  # with the development session resolver (local API testing)
 pnpm build                    # build packages/shared, apps/api, apps/web and apps/customer
+pnpm --filter @bokpoints/owner build   # the owner portal (not in the root build)
 pnpm --filter @bokpoints/customer dev:web   # customer app on http://localhost:8081 (separate terminal)
 ```
 

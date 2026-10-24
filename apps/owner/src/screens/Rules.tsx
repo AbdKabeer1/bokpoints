@@ -91,10 +91,10 @@ export function RulesScreen({ token, storeId }: { token: string; storeId: string
 
   return (
     <section>
-      <div className="sectionhead">
+      <div className="pagehead">
         <div>
-          <h2>How points are calculated</h2>
-          <p className="muted">
+          <h1>Rules</h1>
+          <p className="sub">
             {activeCount === 0
               ? 'No rule is active: the till is not awarding points.'
               : `${activeCount} active rule${activeCount === 1 ? '' : 's'}. A purchase matches every rule it qualifies for, and the totals add up.`}

@@ -1217,6 +1217,51 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
              WHERE store_id = ${storeId} AND created_at > now() - interval '30 days') AS visits_30d
       `);
       const row = (result.rows[0] ?? {}) as Record<string, number | null>;
+
+      // The overview chart reads one row per Helsinki day, gaps included,
+      // so the bars line up with the dates under them.
+      const seriesResult = await db.execute(sql`
+        WITH days AS (
+          SELECT generate_series(
+            (now() AT TIME ZONE 'Europe/Helsinki')::date - 29,
+            (now() AT TIME ZONE 'Europe/Helsinki')::date,
+            interval '1 day'
+          )::date AS day
+        ),
+        earned AS (
+          SELECT (created_at AT TIME ZONE 'Europe/Helsinki')::date AS day,
+                 sum(points)::int AS points
+          FROM points_ledger_entries
+          WHERE store_id = ${storeId} AND type = 'earn' AND points > 0
+            AND created_at > now() - interval '32 days'
+          GROUP BY 1
+        ),
+        redeemed AS (
+          SELECT (created_at AT TIME ZONE 'Europe/Helsinki')::date AS day,
+                 (-sum(points))::int AS points
+          FROM points_ledger_entries
+          WHERE store_id = ${storeId} AND type = 'redeem'
+            AND created_at > now() - interval '32 days'
+          GROUP BY 1
+        ),
+        visited AS (
+          SELECT (created_at AT TIME ZONE 'Europe/Helsinki')::date AS day,
+                 count(*)::int AS visits
+          FROM sales
+          WHERE store_id = ${storeId} AND created_at > now() - interval '32 days'
+          GROUP BY 1
+        )
+        SELECT to_char(days.day, 'YYYY-MM-DD') AS date,
+               coalesce(earned.points, 0) AS issued,
+               coalesce(redeemed.points, 0) AS redeemed,
+               coalesce(visited.visits, 0) AS visits
+        FROM days
+        LEFT JOIN earned ON earned.day = days.day
+        LEFT JOIN redeemed ON redeemed.day = days.day
+        LEFT JOIN visited ON visited.day = days.day
+        ORDER BY days.day
+      `);
+
       return reply.send({
         customers: Number(row.customers ?? 0),
         newCustomers30d: Number(row.new_customers_30d ?? 0),
@@ -1224,6 +1269,12 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
         pointsRedeemed30d: Number(row.points_redeemed_30d ?? 0),
         pointsExpired30d: Number(row.points_expired_30d ?? 0),
         visits30d: Number(row.visits_30d ?? 0),
+        series: (seriesResult.rows as Record<string, unknown>[]).map((point) => ({
+          date: String(point.date),
+          issued: Number(point.issued ?? 0),
+          redeemed: Number(point.redeemed ?? 0),
+          visits: Number(point.visits ?? 0),
+        })),
       });
     },
   );

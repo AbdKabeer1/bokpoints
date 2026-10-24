@@ -657,3 +657,52 @@ export const auditLogEntries = pgTable(
     index('audit_log_entries_created_idx').on(t.createdAt),
   ],
 ).enableRLS();
+
+/**
+ * In-app campaigns (D-148). A store writes one short message and Poket
+ * delivers it inside the customer app to every linked customer who has
+ * opted in to store news. There is no email or SMS sender yet, so this is
+ * the only channel; a delivery row is the customer's copy.
+ */
+export const campaigns = pgTable(
+  'campaigns',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    storeId: uuid('store_id')
+      .notNull()
+      .references(() => stores.id),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    // Sending is immediate in this build; the value leaves room for a
+    // scheduled state when a worker exists.
+    status: text('status').notNull().default('sent'),
+    // How many customers the message went to, kept so the list stays true
+    // even after a customer leaves the store.
+    recipients: integer('recipients').notNull().default(0),
+    createdBy: uuid('created_by').references(() => staffUsers.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('campaigns_store_idx').on(t.storeId, t.createdAt),
+    check('campaigns_status_check', sql`${t.status} in ('sent')`),
+  ],
+).enableRLS();
+
+export const campaignDeliveries = pgTable(
+  'campaign_deliveries',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    campaignId: uuid('campaign_id')
+      .notNull()
+      .references(() => campaigns.id, { onDelete: 'cascade' }),
+    customerId: uuid('customer_id')
+      .notNull()
+      .references(() => customers.id, { onDelete: 'cascade' }),
+    readAt: timestamp('read_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('campaign_deliveries_unique').on(t.campaignId, t.customerId),
+    index('campaign_deliveries_customer_idx').on(t.customerId, t.createdAt),
+  ],
+).enableRLS();

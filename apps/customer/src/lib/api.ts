@@ -22,6 +22,23 @@ export interface StoreSummary {
   name: string;
   balance: number;
   lastActivityAt: string;
+  /** The store's own colour; null means Poket green. */
+  brandColor: string | null;
+  /** Store news is off until the customer turns it on (FR-PRV-2). */
+  marketingConsent: boolean;
+  /** The cheapest active reward the balance has not reached yet. */
+  nextReward: { name: string; pointsCost: number } | null;
+}
+
+export interface Notification {
+  id: string;
+  storeId: string;
+  storeName: string;
+  storeBrandColor: string | null;
+  title: string;
+  body: string;
+  createdAt: string;
+  readAt: string | null;
 }
 
 export interface HistoryEntry {
@@ -123,3 +140,26 @@ export const getDiscountProof = (token: string, storeId: string) =>
 
 export const getExpiring = (token: string) =>
   request<{ windowDays: number; items: ExpiringItem[] }>('/v1/customer/me/expiring', token);
+
+/** The customer's inbox: campaign messages from their stores (D-148). */
+export const getNotifications = (token: string) =>
+  request<{ unread: number; notifications: Notification[] }>(
+    '/v1/customer/me/notifications',
+    token,
+  );
+
+export const markNotificationRead = (token: string, notificationId: string) =>
+  request<{ id: string; readAt: string }>(
+    `/v1/customer/me/notifications/${notificationId}/read`,
+    token,
+    'POST',
+  );
+
+/** Store news consent, per store (FR-PRV-2). */
+export const setStoreConsent = (token: string, storeId: string, marketingConsent: boolean) =>
+  request<{ storeId: string; marketingConsent: boolean }>(
+    `/v1/customer/me/stores/${storeId}/consent`,
+    token,
+    'PATCH',
+    { marketingConsent },
+  );
