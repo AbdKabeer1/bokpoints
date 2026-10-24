@@ -24,10 +24,13 @@ earned.
 
 ## Where the build is
 
-Build-order steps 1 and 2 of `AGENT.md` section 13 are done: the repo and the points
-engine, the ledger schema, the transactional write path, and the award endpoint with
-the Supabase session resolver. Step 3 (auth, roles, branches) is built but not yet run against the live Supabase project; the store and staff setup endpoints are not started. Steps 4 to 9 are not started. The full breakdown, and
-which acceptance criteria are covered, is in `docs/HANDOFF.md`.
+WP0–WP3 plus the four product surfaces are built: customer app (`apps/customer`),
+cashier till (`apps/web`), merchant dashboard (`apps/owner`) and platform admin
+(`apps/admin`). The UI systems live in `DESIGN.md`; product truth in `PRODUCT.md`;
+canonical build state and the next work are in `docs/HANDOFF.md`. Funding-dependent
+pieces remain honest placeholders: billing provider, email sender/domain, image storage,
+Finnish UI, and abuse flags. Next visual input is A's reference-image set; next major
+technical risk is offline awarding.
 
 ## The invariants that must never break
 

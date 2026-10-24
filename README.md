@@ -23,9 +23,9 @@ TypeScript everywhere, one pnpm monorepo. The locked stack and the reasons for i
 
 | Layer | Choice |
 | --- | --- |
-| Repo | pnpm monorepo: `apps/api`, `apps/web`, `apps/customer`, `packages/shared` |
+| Repo | pnpm monorepo: `apps/api`, `apps/web`, `apps/owner`, `apps/admin`, `apps/customer`, `packages/shared` |
 | Customer app | Expo (React Native) with web export |
-| Store dashboard, Cashier screen, admin | One React + Vite web app, installable as a PWA |
+| Staff web apps | React + Vite: cashier till (`apps/web`), merchant dashboard (`apps/owner`), platform console (`apps/admin`) |
 | API | Node + Fastify, Zod validation, versioned (`/v1`) |
 | Database | PostgreSQL 17, Drizzle ORM and Drizzle migrations |
 | Auth | Supabase Auth (email one-time codes for customers, password plus MFA for staff) |
@@ -137,8 +137,10 @@ token.
 ```
 apps/
   api/            Fastify API, Drizzle schema and migrations, ledger write path
-  web/            Store dashboard, Cashier screen, admin (not built yet)
-  customer/       Expo customer app (not built yet)
+  web/            Poket Store Portal — cashier till (:5173)
+  owner/          Poket Merchant Platform — store owner/manager dashboard (:5174)
+  admin/          Poket Platform Admin — platform control room (:5175)
+  customer/       Expo customer app, native + web (:8081)
 packages/
   shared/         Points engine, expiry, FIFO, balance rules, permissions
   config/         Shared tsconfig, eslint and prettier config

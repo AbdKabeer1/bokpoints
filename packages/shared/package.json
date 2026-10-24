@@ -9,7 +9,8 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    }
+    },
+    "./ui/console.css": "./ui/console.css"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",

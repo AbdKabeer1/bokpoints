@@ -54,17 +54,25 @@ environment.
 ```bash
 pnpm dev                      # API on http://127.0.0.1:3000 and the Cashier screen on http://localhost:5173
 ALLOW_DEV_AUTH=true pnpm dev  # with the development session resolver (local API testing)
-pnpm build                    # build packages/shared, apps/api, apps/web and apps/customer
-pnpm --filter @bokpoints/owner build   # the owner portal (not in the root build)
+pnpm build                    # build shared, API, till, owner, admin and customer
 pnpm --filter @bokpoints/customer dev:web   # customer app on http://localhost:8081 (separate terminal)
 ```
 
-`pnpm dev` runs every workspace's dev script in parallel: the API (hot reload)
-and Vite. The customer app is excluded because Expo's dev server is interactive;
+`pnpm dev` runs every workspace's `dev` script in parallel: API (:3000), till
+(:5173), merchant dashboard (:5174), and platform admin (:5175). The customer app is excluded because Expo's dev server is interactive;
 start it with the command above. The screen calls the API through Vite's `/v1` proxy, so the browser sees
 one origin and no CORS setup is needed. `apps/api/.env` supplies the API's
 settings; `apps/web/.env` supplies the Supabase URL and publishable key (copy
 `apps/web/.env.example` and fill it in, or the screen cannot sign in).
+
+### App URLs
+
+| App | URL | Demo account |
+| --- | --- | --- |
+| Cashier till | http://localhost:5173 | `cashier@bk.test` / `BokpointsDemo3!` + authenticator |
+| Merchant dashboard | http://localhost:5174 | `owner@bk.test` / `BokpointsDemo2!` + authenticator |
+| Platform admin | http://localhost:5175 | `admin@bk.test` / `BokpointsDemo1!` + authenticator |
+| Customer app | http://localhost:8081 | `customer-demo@bk.test` + generated code |
 
 ### The Cashier screen
 
@@ -196,6 +204,12 @@ curl http://127.0.0.1:3000/v1/health
 | `POST` | `/v1/admin/stores/{storeId}/customers/{customerId}/clawback` | Admin: remove points, may go below zero, marks fraud review |
 | `GET` | `/v1/stores/{storeId}/audit` | Owner/manager: store audit log, newest first |
 | `GET` | `/v1/admin/audit` | Admin: audit log across stores |
+| `GET` | `/v1/admin/stores` | Admin console: stores with status, plan, customers and last activity |
+| `GET` | `/v1/admin/stores/{storeId}` | Admin console: store readiness, counts, staff, subscription and recent audit |
+| `POST` | `/v1/admin/stores/{storeId}/status` | Suspend, pause or reactivate with a required audited reason |
+| `GET` | `/v1/admin/support?query=` | Support search by store, customer name/email or Poket code |
+| `GET` | `/v1/admin/analytics` | Platform totals: stores, customers, awards, redemptions and outstanding points |
+| `GET` | `/v1/admin/subscriptions` | Plans and payment stages; empty before billing is connected |
 | `GET` | `/v1/stores/{storeId}/customers/{customerId}/balance` | Balance at that store |
 | `POST` | `/v1/admin/stores` | Admin: create the store with its points rule, branches and first owner |
 | `POST` | `/v1/stores/{storeId}/staff` | Owner/manager: invite staff, optionally limited to one branch |

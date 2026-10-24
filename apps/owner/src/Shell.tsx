@@ -2,10 +2,13 @@ import { useEffect, useState, type ReactNode } from 'react';
 import {
   BarChart3,
   Bell,
+  ChevronDown,
   CreditCard,
   Gift,
   House,
   LifeBuoy,
+  Menu,
+  MoreHorizontal,
   MapPin,
   Megaphone,
   Percent,
@@ -204,7 +207,7 @@ export function Shell({
               {membership.locationName === null ? ' · all branches' : ` · ${membership.locationName}`}
             </span>
           </span>
-          <span aria-hidden="true">⌄</span>
+          <ChevronDown size={15} strokeWidth={1.9} aria-hidden="true" />
         </button>
 
         {menu === 'store' && (
@@ -285,7 +288,7 @@ export function Shell({
                 {roleLabel} · {membership.storeName}
               </span>
             </span>
-            <span aria-hidden="true">⋯</span>
+            <MoreHorizontal size={17} strokeWidth={1.9} aria-hidden="true" />
           </button>
 
           {menu === 'user' && (
@@ -329,7 +332,7 @@ export function Shell({
             aria-expanded={navOpen}
             onClick={() => setNavOpen((open) => !open)}
           >
-            ☰
+            <Menu size={18} strokeWidth={2} aria-hidden="true" />
           </button>
           <div className="crumbs">
             <span>{membership.storeName}</span>

@@ -1,10 +1,20 @@
 # STATUS
 
 **Project:** BOKPOINTS, a B2B2C loyalty platform for SMEs in Finland / EU.
-**Phase:** MVP, worked through `BOKPOINTS The Way Forward.md` one work package at a time. WP0-WP3 are complete, and the interface-completion pass (D-147) has put a real panel in front of every user: the cashier's till, the customer app with settings, and the owner portal with reports, customer detail, branches, store profile, counter sign and honest placeholders for billing and invitations. **Next up: Build 22 — the admin console (the platform's own app).**
-**Last updated:** 24 Oct 2026, after Build 21 (the interface rebuild from the UI brief). The owner portal has a real shell, an overview built from live data, campaigns, notifications, support and a billing placeholder; the customer app has a code-first home, an inbox, a profile and per-store news consent; the till shows its connection and the customer's next reward. The hosted database is at migration 0016. 87 unit and 273 integration tests green.
+**Phase:** MVP, worked through `BOKPOINTS The Way Forward.md` one work package at a time. WP0-WP3 are complete, and the interface-completion pass (D-147) has put a real interface in front of every user: customer app, cashier till, merchant dashboard and platform-admin console. **Next up:** apply A's incoming dashboard reference images across all four surfaces, then offline awarding.
+**Last updated:** 24 Oct 2026, after Build 22 (platform admin console). The four surfaces are live: code-first customer wallet, cashier till, merchant dashboard, and platform control room with store triage, support search and reasoned suspension. The hosted database is at migration 0016. 87 unit and 283 integration tests green.
 
 ## Done
+
+- **Build 22 — Poket Platform Admin (D-153).** New `apps/admin` on :5175, sharing the
+  merchant shell and tokens with a permanent red Platform admin label and All stores
+  scope. Screens: Stores + platform stat strip and filters; store detail with readiness,
+  counts, staff/rules/billing/audit tabs and reasoned suspend/reactivate; Subscriptions;
+  read-only Support search by store, customer or Poket code; Safety; platform Audit;
+  Settings. New API endpoints: admin store list/detail/status, support search, analytics,
+  subscriptions. Root build now includes owner and admin. Impeccable detector: 0 findings
+  in `apps/admin/src`. 87 unit + 283 integration tests green; typecheck, lint and all six
+  builds pass.
 
 - **Build 21c — merchant finish with Impeccable (D-152).** Lucide icons across the owner
   shell; Reports rebuilt as a stat strip plus the shared 30-day chart; Helsinki date
@@ -43,7 +53,7 @@
   with per-store news consent and sign-out, a bottom bar, and a restyled store detail. Till:
   connection chip and reward progress. Campaigns are in-app only and reach only customers
   who opted in (D-149); migration `0016` adds `campaigns` and `campaign_deliveries` and is
-  applied locally and to the hosted database. 87 unit and 273 integration tests green.
+  applied locally and to the hosted database. 87 unit and 283 integration tests green.
 
 - **Build 20 — the interface-completion pass (D-147).** Owner portal: Reports (30-day
   numbers), customer History panels, Branches (list + add), Store profile with the brand

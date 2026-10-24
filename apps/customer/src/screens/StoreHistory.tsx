@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
-import { Feather } from '@expo/vector-icons';
+import Feather from '@expo/vector-icons/Feather';
 import {
   getDiscountProof,
   getHistory,

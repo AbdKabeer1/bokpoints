@@ -836,3 +836,138 @@ export const storeConsentResponseSchema = z.object({
   storeId: z.string().uuid(),
   marketingConsent: z.boolean(),
 });
+
+/* ── Platform admin console (brief §4.3) ────────────────────────────────── */
+
+export const adminStoreRowSchema = z.object({
+  storeId: z.string().uuid(),
+  name: z.string(),
+  status: z.string(),
+  plan: z.string().nullable(),
+  customers: z.number().int(),
+  /** Last ledger entry at this store, or null before the first award. */
+  lastActivityAt: z.string().nullable(),
+  createdAt: z.string(),
+});
+
+export const adminStoresResponseSchema = z.object({
+  stores: z.array(adminStoreRowSchema),
+});
+
+export const adminStoresQuerySchema = z.object({
+  status: z.enum(['active', 'paused', 'suspended', 'invited', 'setup', 'offboarded']).optional(),
+  query: z.string().trim().max(120).optional(),
+});
+
+export const adminStoreStaffSchema = z.object({
+  memberId: z.string().uuid(),
+  name: z.string(),
+  email: z.string(),
+  role: z.string(),
+  status: z.string(),
+  locationName: z.string().nullable(),
+});
+
+export const adminStoreDetailSchema = z.object({
+  store: z.object({
+    storeId: z.string().uuid(),
+    name: z.string(),
+    status: z.string(),
+    plan: z.string().nullable(),
+    address: z.string().nullable(),
+    contactName: z.string().nullable(),
+    contactEmail: z.string().nullable(),
+    brandColor: z.string().nullable(),
+    maxPointsPerSale: z.number().int().nullable(),
+    createdAt: z.string(),
+  }),
+  subscription: z
+    .object({
+      plan: z.string(),
+      status: z.string(),
+      currentPeriodEnd: z.string().nullable(),
+    })
+    .nullable(),
+  counts: z.object({
+    customers: z.number().int(),
+    staff: z.number().int(),
+    activeRules: z.number().int(),
+    activeRewards: z.number().int(),
+    branches: z.number().int(),
+    awards30d: z.number().int(),
+    redemptions30d: z.number().int(),
+    /** The sum of every customer's balance at this store. */
+    outstandingPoints: z.number().int(),
+  }),
+  /** The onboarding readiness card: what a working store has. */
+  readiness: z.object({
+    owner: z.boolean(),
+    rule: z.boolean(),
+    reward: z.boolean(),
+    cashier: z.boolean(),
+  }),
+  staff: z.array(adminStoreStaffSchema),
+  recent: z.array(auditEntrySchema),
+});
+
+export const adminStoreStatusRequestSchema = z.object({
+  status: z.enum(['active', 'paused', 'suspended']),
+  /** Why the store's access changes; lands in the audit log. */
+  reason: z.string().trim().min(3).max(500),
+});
+
+export const adminStoreStatusResponseSchema = z.object({
+  storeId: z.string().uuid(),
+  status: z.string(),
+});
+
+export const adminSupportQuerySchema = z.object({
+  query: z.string().trim().min(2).max(200),
+});
+
+export const adminSupportResponseSchema = z.object({
+  stores: z.array(
+    z.object({
+      storeId: z.string().uuid(),
+      name: z.string(),
+      status: z.string(),
+    }),
+  ),
+  customers: z.array(
+    z.object({
+      customerId: z.string().uuid(),
+      email: z.string(),
+      name: z.string(),
+      createdAt: z.string(),
+      balances: z.array(
+        z.object({
+          storeId: z.string().uuid(),
+          storeName: z.string(),
+          balance: z.number().int(),
+        }),
+      ),
+    }),
+  ),
+});
+
+export const adminAnalyticsResponseSchema = z.object({
+  stores: z.number().int(),
+  activeStores: z.number().int(),
+  customers: z.number().int(),
+  awards30d: z.number().int(),
+  redemptions30d: z.number().int(),
+  outstandingPoints: z.number().int(),
+});
+
+export const adminSubscriptionRowSchema = z.object({
+  storeId: z.string().uuid(),
+  storeName: z.string(),
+  plan: z.string(),
+  status: z.string(),
+  currentPeriodEnd: z.string().nullable(),
+  firstFailedPaymentAt: z.string().nullable(),
+});
+
+export const adminSubscriptionsResponseSchema = z.object({
+  subscriptions: z.array(adminSubscriptionRowSchema),
+});

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { Feather } from '@expo/vector-icons';
+import Feather from '@expo/vector-icons/Feather';
 import { ApiError, updateMe, type Me } from '../lib/api';
 import { colors, fonts, layout } from '../lib/theme';
 
