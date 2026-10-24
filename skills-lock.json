@@ -7,6 +7,12 @@
       "skillPath": "profound/claude-code-discoverability-auditor/SKILL.md",
       "computedHash": "d4e3cbf0dec028572dba5349595a74ed407848a3362339871bb509f2ec18eb54"
     },
+    "cold-email": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "skillPath": "skills/cold-email/SKILL.md",
+      "computedHash": "04df3a3569e02bab321ddbf4723a3a9ce59ebb224500ddd8705e272d3ff16d51"
+    },
     "mailtrap-email-integration": {
       "source": "affaan-m/ecc",
       "sourceType": "github",
