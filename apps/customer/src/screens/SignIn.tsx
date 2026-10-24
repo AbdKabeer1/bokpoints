@@ -24,7 +24,7 @@ const BENEFITS = [
 ];
 
 /**
- * Email one-time code, in two steps: address, then the six digits from the
+ * Email one-time code, in two steps: address, then the code from the
  * inbox (FR-AUTH-1). No password, no second factor for customers.
  *
  * The layout is one white page with a green action: the wordmark, a plain
@@ -101,7 +101,12 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
       setStep('code');
       setCooldown(30);
     } catch {
-      setError('We could not send the code. Check the address and try again.');
+      // Supabase's own mailer is rate-limited, and a project without a
+      // sender cannot reach every address. A customer who already has a
+      // code must still be able to enter it, so the code step stays open.
+      setError('We could not send a new code just now. If you already have one, enter it below.');
+      setStep('code');
+      setCooldown(30);
     } finally {
       setBusy(false);
     }
@@ -121,7 +126,8 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
     }
   };
 
-  const buttonDisabled = busy || (step === 'email' ? email.trim() === '' : code.length !== 6);
+  const buttonDisabled =
+    busy || (step === 'email' ? email.trim() === '' : code.length < 6);
 
   return (
     <KeyboardAvoidingView
@@ -220,7 +226,7 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
               </Pressable>
 
               <Text style={styles.fineprint}>
-                We email you a 6-digit code. No password to remember, and no app store
+                We email you a one-time code. No password to remember, and no app store
                 needed.
               </Text>
             </>
@@ -230,7 +236,7 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
                 Check your inbox
               </Text>
               <Text style={styles.lede}>
-                We sent a 6-digit code to{' '}
+                We sent a one-time code to{' '}
                 <Text style={styles.emailStrong}>{email.trim().toLowerCase()}</Text>. It can
                 take a minute to arrive.
               </Text>
@@ -244,11 +250,11 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
                 onBlur={() => setFocused(null)}
                 keyboardType="number-pad"
                 autoComplete="one-time-code"
-                maxLength={6}
+                maxLength={10}
                 placeholder="123456"
                 placeholderTextColor={colors.muted}
                 editable={!busy}
-                accessibilityLabel="Six-digit code"
+                accessibilityLabel="Code from the email"
                 returnKeyType="done"
                 onSubmitEditing={() => {
                   if (!buttonDisabled) void verify();

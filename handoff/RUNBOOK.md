@@ -17,6 +17,19 @@ Check Postgres is up:
 pg_isready -h localhost -U postgres
 ```
 
+## Signing in without email (demos and support)
+
+Supabase's built-in mailer is rate-limited and, on a free project, does not reach
+every address. The customer app signs in with an email code, so generate one
+directly instead of waiting for mail:
+
+```bash
+pnpm --filter @bokpoints/api customer:code customer-demo@bk.test
+```
+
+Type the printed code on the app's code screen. It is the same one-time code the
+email would carry, and it expires like any other. Each new code replaces the last.
+
 ## Database
 
 ```bash
@@ -208,6 +221,19 @@ The integration suite rebuilds `bokpoints_test` from the migration files on ever
 It never touches `bokpoints_dev`.
 
 All of these must pass before a change is done.
+
+## Signing in without email (demos and support)
+
+Supabase's built-in mailer is rate-limited and, on a free project, does not reach
+every address. The customer app signs in with an email code, so generate one
+directly instead of waiting for mail:
+
+```bash
+pnpm --filter @bokpoints/api customer:code customer-demo@bk.test
+```
+
+Type the printed code on the app's code screen. It is the same one-time code the
+email would carry, and it expires like any other. Each new code replaces the last.
 
 ## Database
 

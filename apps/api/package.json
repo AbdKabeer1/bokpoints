@@ -13,6 +13,7 @@
     "demo": "tsx --env-file-if-exists=.env scripts/demo.ts",
     "bootstrap:admin": "tsx --env-file-if-exists=.env scripts/bootstrap-admin.ts",
     "staff:login": "tsx --env-file-if-exists=.env scripts/staff-login.ts",
+    "customer:code": "tsx --env-file-if-exists=.env scripts/customer-code.ts",
     "expiry:run": "tsx --env-file-if-exists=.env scripts/expiry-run.ts"
   },
   "dependencies": {

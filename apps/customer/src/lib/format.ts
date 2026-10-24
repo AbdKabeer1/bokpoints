@@ -45,7 +45,11 @@ export function typeLabel(type: string): string {
   return TYPE_LABELS[type] ?? type;
 }
 
-/** The 6-digit code field: digits only, never longer than six. */
+/**
+ * The email code field: digits only. Supabase's OTP length is a project
+ * setting (6 to 10 digits), so the field follows the server rather than
+ * assuming six.
+ */
 export function normalizeCode(raw: string): string {
-  return raw.replace(/\D/g, '').slice(0, 6);
+  return raw.replace(/\D/g, '').slice(0, 10);
 }
