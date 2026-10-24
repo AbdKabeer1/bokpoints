@@ -9,6 +9,10 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   plugins: [react()],
   server: {
+    // Bind every local interface: a dev link must work as 127.0.0.1 and as
+    // localhost, and a taken port must fail loudly instead of moving.
+    host: true,
+    strictPort: true,
     port: 5174,
     proxy: {
       '/v1': 'http://127.0.0.1:3000',
