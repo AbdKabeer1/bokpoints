@@ -35,8 +35,9 @@ needs a Postgres connection.
 
 - **Static apps → Vercel** (free): four projects, each pointing at its `dist/`.
   Custom domains and TLS are automatic.
-- **API → Railway or Render** (about $5/month): one service from `apps/api`, with
-  `pnpm --filter @bokpoints/api build` and `node dist/server.js`.
+- **API → Render** (free to start, Starter about $7/month): the repository carries
+  `render.yaml` as a Blueprint, so the service, env names and health check are read from
+  the repo. Railway is an equivalent alternative when its sign-ups are open.
 - **Database → Supabase** (already live; the hosted project is at migration `0016`).
 
 Alternatives that work unchanged: Cloudflare Pages for the static apps, Fly.io for the
@@ -60,7 +61,7 @@ Namecheap → Domain List → `omapointii.store` → **Advanced DNS**.
 | `CNAME` | `till` | `2cccdb5e6f410060.vercel-dns-017.com` | Cashier till → poket-till |
 | `CNAME` | `portal` | `fd1b652cd8b26067.vercel-dns-017.com` | Merchant dashboard → poket-portal |
 | `CNAME` | `admin` | `d3f2a3f9cd747820.vercel-dns-017.com` | Platform admin → poket-admin |
-| `CNAME` | `api` | `<service>.up.railway.app` (after Railway) | API |
+| `CNAME` | `api` | `<service>.onrender.com` (after Render) | API |
 | `TXT` | `@` (or `mail`) | Mailtrap SPF record | Email authentication |
 | `CNAME` | Mailtrap DKIM names (2) | Mailtrap values | Email signing |
 | `TXT` | `_dmarc` | `v=DMARC1; p=none; rua=mailto:dmarc@omapointii.store` | Start in monitor mode |
@@ -141,7 +142,7 @@ API environment:
 ```bash
 DATABASE_URL=postgresql://...        # Supabase session pooler for IPv4 networks
 CORS_ORIGINS=https://app.omapointii.store,https://till.omapointii.store,https://portal.omapointii.store,https://admin.omapointii.store
-TRUST_PROXY=1                        # Railway/Render/Vercel sit behind a proxy
+TRUST_PROXY=1                        # Render/Vercel sit behind a proxy
 NODE_ENV=production
 ```
 
