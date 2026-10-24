@@ -15,11 +15,11 @@ single domain with paths would make every proxy rule harder.
 
 | Surface | Hostname (example) | What it is |
 | --- | --- | --- |
-| Customer app | `app.example.fi` | Expo web export (`apps/customer/dist`) |
-| Cashier till | `till.example.fi` | `apps/web/dist` |
-| Merchant dashboard | `portal.example.fi` | `apps/owner/dist` |
-| Platform admin | `admin.example.fi` | `apps/admin/dist` |
-| API | `api.example.fi` | `apps/api` (Fastify, long-running process) |
+| Customer app | `app.omapointii.store` | Expo web export (`apps/customer/dist`) |
+| Cashier till | `till.omapointii.store` | `apps/web/dist` |
+| Merchant dashboard | `portal.omapointii.store` | `apps/owner/dist` |
+| Platform admin | `admin.omapointii.store` | `apps/admin/dist` |
+| API | `api.omapointii.store` | `apps/api` (Fastify, long-running process) |
 
 Do not put the admin console on the same hostname as the merchant portal: separate
 origins are a cheap safety boundary, and the admin app already labels itself.
@@ -50,24 +50,26 @@ limits and the rotating-code store are in process memory.
 
 ## 2. DNS
 
-At the registrar (or Cloudflare, if the domain's nameservers point there), create:
+The domain is registered at **Namecheap** and uses **Namecheap BasicDNS**
+(`dns1/dns2.registrar-servers.com`), currently showing the parking page. All records go in
+Namecheap → Domain List → `omapointii.store` → **Advanced DNS**.
 
 | Type | Name | Value | Purpose |
 | --- | --- | --- | --- |
-| `CNAME` | `app` | Vercel's target for that project | Customer app |
-| `CNAME` | `till` | Vercel's target | Cashier till |
-| `CNAME` | `portal` | Vercel's target | Merchant dashboard |
-| `CNAME` | `admin` | Vercel's target | Platform admin |
-| `CNAME` | `api` | Railway/Render hostname | API |
+| `CNAME` | `app` | `cname.vercel-dns.com` | Customer app |
+| `CNAME` | `till` | `cname.vercel-dns.com` | Cashier till |
+| `CNAME` | `portal` | `cname.vercel-dns.com` | Merchant dashboard |
+| `CNAME` | `admin` | `cname.vercel-dns.com` | Platform admin |
+| `CNAME` | `api` | `<service>.up.railway.app` | API |
 | `TXT` | `@` (or `mail`) | Mailtrap SPF record | Email authentication |
 | `CNAME` | Mailtrap DKIM names (2) | Mailtrap values | Email signing |
-| `TXT` | `_dmarc` | `v=DMARC1; p=none; rua=mailto:dmarc@example.fi` | Start in monitor mode |
+| `TXT` | `_dmarc` | `v=DMARC1; p=none; rua=mailto:dmarc@omapointii.store` | Start in monitor mode |
 | `TXT` | `@` | `v=spf1 include:...` | Only one SPF record; merge, never add a second |
 
 Exact CNAME targets appear in the host's dashboard after you add the domain there.
 Add Mailtrap's records exactly as shown; do not "correct" their names.
 
-Wait for DNS propagation before verifying. `dig +short app.example.fi` should answer.
+Wait for DNS propagation before verifying. `dig +short app.omapointii.store` should answer.
 
 ---
 
@@ -76,8 +78,8 @@ Wait for DNS propagation before verifying. `dig +short app.example.fi` should an
 Supabase's built-in mailer is rate-limited and unreliable for real customers. Mailtrap
 Email Sending replaces it.
 
-1. In Mailtrap, **Sending Domains → Add domain**. Use the bare domain (`example.fi`) so
-   both `no-reply@example.fi` and future senders work.
+1. In Mailtrap, **Sending Domains → Add domain**. Use the bare domain (`omapointii.store`) so
+   both `no-reply@omapointii.store` and future senders work.
 2. Add the SPF, DKIM and DMARC records it shows. Verify in Mailtrap. Verification can
    take a few minutes to a few hours.
 3. Create an **API token** (Sending). Keep it in your password manager.
@@ -89,13 +91,13 @@ Email Sending replaces it.
    | Port | `587` |
    | Username | `api` |
    | Password | the Mailtrap API token |
-   | Sender email | `no-reply@example.fi` |
+   | Sender email | `no-reply@omapointii.store` |
    | Sender name | `Poket` |
 
 5. In Supabase → **Authentication → URL Configuration**:
-   - **Site URL:** `https://app.example.fi`
-   - **Redirect URLs:** `https://app.example.fi/**`, `https://portal.example.fi/**`,
-     `https://admin.example.fi/**`, `https://till.example.fi/**`, and keep
+   - **Site URL:** `https://app.omapointii.store`
+   - **Redirect URLs:** `https://app.omapointii.store/**`, `https://portal.omapointii.store/**`,
+     `https://admin.omapointii.store/**`, `https://till.omapointii.store/**`, and keep
      `http://localhost:8081/**` for development.
 6. Edit the email templates. The customer app signs in with a **code**, so the
    Magic Link template must contain `{{ .Token }}` (the six-to-ten digit code), not only
@@ -123,12 +125,12 @@ Each app reads env at build time (Vite) or bundle time (Expo). Production values
 # apps/web, apps/owner, apps/admin
 VITE_SUPABASE_URL=https://<project>.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=<publishable key>
-VITE_API_BASE=https://api.example.fi
+VITE_API_BASE=https://api.omapointii.store
 
 # apps/customer
 EXPO_PUBLIC_SUPABASE_URL=https://<project>.supabase.co
 EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<publishable key>
-EXPO_PUBLIC_API_BASE=https://api.example.fi
+EXPO_PUBLIC_API_BASE=https://api.omapointii.store
 ```
 
 Local development keeps `VITE_API_BASE` empty (the Vite proxy handles `/v1`) and the
@@ -138,7 +140,7 @@ API environment:
 
 ```bash
 DATABASE_URL=postgresql://...        # Supabase session pooler for IPv4 networks
-CORS_ORIGINS=https://app.example.fi,https://till.example.fi,https://portal.example.fi,https://admin.example.fi
+CORS_ORIGINS=https://app.omapointii.store,https://till.omapointii.store,https://portal.omapointii.store,https://admin.omapointii.store
 TRUST_PROXY=1                        # Railway/Render/Vercel sit behind a proxy
 NODE_ENV=production
 ```
@@ -158,7 +160,7 @@ proof store in memory. One instance only until that moves to Postgres or Redis.
 
 1. API first: deploy, set env, run migrations against the production database
    (`pnpm db:migrate` with the production `DATABASE_URL`), check
-   `curl https://api.example.fi/v1/health`.
+   `curl https://api.omapointii.store/v1/health`.
 2. The four static apps with `VITE_API_BASE` / `EXPO_PUBLIC_API_BASE` set.
 3. DNS and TLS, then Supabase URLs and SMTP.
 4. Smoke test in this order:

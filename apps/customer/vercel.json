@@ -1,0 +1,7 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "buildCommand": "pnpm --filter @bokpoints/customer build",
+  "outputDirectory": "dist",
+  "installCommand": "pnpm install"
+}
