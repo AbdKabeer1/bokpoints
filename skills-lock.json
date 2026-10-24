@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "ai-seo": {
+      "source": "sickn33/agentic-awesome-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ai-seo/SKILL.md",
+      "computedHash": "b41c7f893e96eb96023ab049b372eb0c446a32efc275e440f7da924b151a0cd0"
+    },
     "claude-code-discoverability-auditor": {
       "source": "retieedra-profound/skills-marketing-library",
       "sourceType": "github",
