@@ -44,3 +44,4 @@ apps/customer/expo-env.d.ts
 # Skill installs are committed under .agents/; the OpenCode mirrors are machine-local.
 .opencode/skills/mailtrap-email-integration
 .opencode/skills/claude-code-discoverability-auditor
+render-secrets.txt
