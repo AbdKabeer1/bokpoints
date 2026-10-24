@@ -1,4 +1,23 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import {
+  BarChart3,
+  Bell,
+  CreditCard,
+  Gift,
+  House,
+  LifeBuoy,
+  MapPin,
+  Megaphone,
+  Percent,
+  Printer,
+  ScrollText,
+  Settings,
+  SlidersHorizontal,
+  Store,
+  UserCog,
+  Users,
+  type LucideIcon,
+} from 'lucide-react';
 import type { Membership, Me } from './api';
 
 /**
@@ -28,45 +47,45 @@ export type Tab =
 interface NavItem {
   id: Tab;
   label: string;
-  icon: string;
+  icon: LucideIcon;
 }
 
 export const NAV: { label: string; items: NavItem[] }[] = [
   {
     label: 'Overview',
-    items: [{ id: 'home', label: 'Home', icon: '▦' }],
+    items: [{ id: 'home', label: 'Home', icon: House }],
   },
   {
     label: 'Program',
     items: [
-      { id: 'rules', label: 'Rules', icon: '⌁' },
-      { id: 'rewards', label: 'Rewards', icon: '✦' },
-      { id: 'discount', label: 'Discount', icon: '%' },
-      { id: 'campaigns', label: 'Campaigns', icon: '◈' },
+      { id: 'rules', label: 'Rules', icon: SlidersHorizontal },
+      { id: 'rewards', label: 'Rewards', icon: Gift },
+      { id: 'discount', label: 'Discount', icon: Percent },
+      { id: 'campaigns', label: 'Campaigns', icon: Megaphone },
     ],
   },
   {
     label: 'Customers',
-    items: [{ id: 'customers', label: 'Customers', icon: '◎' }],
+    items: [{ id: 'customers', label: 'Customers', icon: Users }],
   },
   {
     label: 'Store',
     items: [
-      { id: 'profile', label: 'Store profile', icon: '▧' },
-      { id: 'branches', label: 'Branches', icon: '⌂' },
-      { id: 'people', label: 'People', icon: '♙' },
-      { id: 'sign', label: 'Counter sign', icon: '▤' },
+      { id: 'profile', label: 'Store profile', icon: Store },
+      { id: 'branches', label: 'Branches', icon: MapPin },
+      { id: 'people', label: 'People', icon: UserCog },
+      { id: 'sign', label: 'Counter sign', icon: Printer },
     ],
   },
   {
     label: 'Account',
     items: [
-      { id: 'reports', label: 'Reports', icon: '◔' },
-      { id: 'audit', label: 'Audit log', icon: '≡' },
-      { id: 'notifications', label: 'Notifications', icon: '♢' },
-      { id: 'billing', label: 'Plan & billing', icon: '▭' },
-      { id: 'support', label: 'Support & FAQ', icon: '?' },
-      { id: 'settings', label: 'Settings', icon: '⚙' },
+      { id: 'reports', label: 'Reports', icon: BarChart3 },
+      { id: 'audit', label: 'Audit log', icon: ScrollText },
+      { id: 'notifications', label: 'Notifications', icon: Bell },
+      { id: 'billing', label: 'Plan & billing', icon: CreditCard },
+      { id: 'support', label: 'Support & FAQ', icon: LifeBuoy },
+      { id: 'settings', label: 'Settings', icon: Settings },
     ],
   },
 ];
@@ -230,7 +249,7 @@ export function Shell({
                   onClick={() => go(item.id)}
                 >
                   <span className="icon" aria-hidden="true">
-                    {item.icon}
+                    <item.icon size={16} strokeWidth={1.9} />
                   </span>
                   {item.label}
                   {count > 0 && (

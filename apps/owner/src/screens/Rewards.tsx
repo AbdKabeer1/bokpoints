@@ -91,51 +91,62 @@ export function RewardsScreen({ token, storeId }: { token: string; storeId: stri
   return (
     <section>
       <div className="pagehead">
-        <h1>Rewards</h1>
+        <div>
+          <h1>Rewards</h1>
+          <p className="sub">
+            What a customer spends points on. The till offers what they can afford and takes the
+            points when the reward is handed over.
+          </p>
+        </div>
       </div>
-
-      <p className="muted">
-        What a customer spends their points on. The till shows the ones a customer can afford and
-        takes the points when the reward is given.
-      </p>
 
       {error !== null && <p className="error">{error}</p>}
       {flash !== null && <p className="flash">{flash}</p>}
 
-      <form className="form" onSubmit={(event) => void handleCreate(event)}>
-        <h3>Add a reward</h3>
-        <label htmlFor="reward-name">Name</label>
-        <input
-          id="reward-name"
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          placeholder="Free coffee"
-          disabled={busy}
-        />
-
-        <label htmlFor="reward-cost">Points it costs</label>
-        <input
-          id="reward-cost"
-          value={cost}
-          onChange={(event) => setCost(event.target.value)}
-          placeholder="100"
-          inputMode="numeric"
-          disabled={busy}
-        />
-
-        <label htmlFor="reward-limit">Per-customer daily limit (optional)</label>
-        <input
-          id="reward-limit"
-          value={limit}
-          onChange={(event) => setLimit(event.target.value)}
-          placeholder="No limit"
-          inputMode="numeric"
-          disabled={busy}
-        />
-
-        <button className="primary" type="submit" disabled={busy || name.trim() === ''}>
-          {busy ? 'Saving…' : 'Add reward'}
-        </button>
+      <form className="panel" onSubmit={(event) => void handleCreate(event)}>
+        <div className="panelhead">
+          <div>
+            <h3>Add a reward</h3>
+            <p className="sub">A short name the cashier and the customer both understand</p>
+          </div>
+        </div>
+        <div className="composer-row">
+          <div>
+            <label htmlFor="reward-name">Name</label>
+            <input
+              id="reward-name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="Free coffee"
+              disabled={busy}
+            />
+          </div>
+          <div>
+            <label htmlFor="reward-cost">Points</label>
+            <input
+              id="reward-cost"
+              value={cost}
+              onChange={(event) => setCost(event.target.value)}
+              placeholder="100"
+              inputMode="numeric"
+              disabled={busy}
+            />
+          </div>
+          <div>
+            <label htmlFor="reward-limit">Daily limit</label>
+            <input
+              id="reward-limit"
+              value={limit}
+              onChange={(event) => setLimit(event.target.value)}
+              placeholder="Optional"
+              inputMode="numeric"
+              disabled={busy}
+            />
+          </div>
+          <button className="primary" type="submit" disabled={busy || name.trim() === ''}>
+            {busy ? 'Saving…' : 'Add reward'}
+          </button>
+        </div>
       </form>
 
       {rewards !== null && rewards.length === 0 && (
@@ -147,8 +158,8 @@ export function RewardsScreen({ token, storeId }: { token: string; storeId: stri
           <thead>
             <tr>
               <th>Name</th>
-              <th>Points</th>
-              <th>Daily limit</th>
+              <th className="num">Points</th>
+              <th className="num">Daily limit</th>
               <th>Status</th>
               <th />
             </tr>
@@ -157,11 +168,11 @@ export function RewardsScreen({ token, storeId }: { token: string; storeId: stri
             {rewards.map((reward) => (
               <tr key={reward.rewardId}>
                 <td>{reward.name}</td>
-                <td>{reward.pointsCost}</td>
-                <td className="muted">{reward.perCustomerPerDayLimit ?? 'No limit'}</td>
+                <td className="num">{reward.pointsCost.toLocaleString('fi-FI')}</td>
+                <td className="num muted">{reward.perCustomerPerDayLimit ?? 'No limit'}</td>
                 <td>
                   <span className={reward.active ? 'chip active' : 'chip pending'}>
-                    {reward.active ? 'Offered' : 'Paused'}
+                    {reward.active ? 'Active' : 'Paused'}
                   </span>
                 </td>
                 <td>

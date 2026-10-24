@@ -58,20 +58,24 @@ export function ProfileScreen({ token, storeId }: { token: string; storeId: stri
   return (
     <section>
       <div className="pagehead">
-        <h1>Store profile</h1>
+        <div>
+          <h1>Store profile</h1>
+          <p className="sub">What customers see in their Poket app</p>
+        </div>
       </div>
-
-      <p className="muted">
-        What your customers see. The brand colour paints your store's page in their app.
-      </p>
 
       {error !== null && <p className="error">{error}</p>}
       {flash !== null && <p className="flash">{flash}</p>}
 
       {profile !== null && (
-        <>
-          <div className="profilepreview" style={{ backgroundColor: brandColor }}>
-            <span>{name || 'Your store'}</span>
+        <div className="panel" style={{ maxWidth: 760 }}>
+          <div className="storepreview">
+            <span className="storepreview-swatch" style={{ backgroundColor: brandColor }} aria-hidden="true" />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <strong>{name || 'Your store'}</strong>
+              <span>{address || 'Add an address so customers can find you'}</span>
+            </div>
+            <span className="pill info">Store page</span>
           </div>
 
           <form className="form" onSubmit={(event) => void handleSave(event)}>
@@ -92,21 +96,26 @@ export function ProfileScreen({ token, storeId }: { token: string; storeId: stri
               disabled={busy}
             />
 
-            <label htmlFor="profile-contact">Contact person</label>
-            <input
-              id="profile-contact"
-              value={contactName}
-              onChange={(event) => setContactName(event.target.value)}
-              disabled={busy}
-            />
-
-            <label htmlFor="profile-email">Contact email</label>
-            <input
-              id="profile-email"
-              value={contactEmail}
-              onChange={(event) => setContactEmail(event.target.value)}
-              disabled={busy}
-            />
+            <div className="formgrid">
+              <div>
+                <label htmlFor="profile-contact">Contact person</label>
+                <input
+                  id="profile-contact"
+                  value={contactName}
+                  onChange={(event) => setContactName(event.target.value)}
+                  disabled={busy}
+                />
+              </div>
+              <div>
+                <label htmlFor="profile-email">Contact email</label>
+                <input
+                  id="profile-email"
+                  value={contactEmail}
+                  onChange={(event) => setContactEmail(event.target.value)}
+                  disabled={busy}
+                />
+              </div>
+            </div>
 
             <label htmlFor="profile-colour">Brand colour</label>
             <div className="colourrow">
@@ -123,14 +132,13 @@ export function ProfileScreen({ token, storeId }: { token: string; storeId: stri
             <button className="primary" type="submit" disabled={busy || name.trim() === ''}>
               {busy ? 'Saving…' : 'Save profile'}
             </button>
+            <p className="muted" style={{ fontSize: 11, marginTop: 12 }}>
+              The logo image arrives with image storage; the colour and name already reach the
+              customer app.
+            </p>
           </form>
-        </>
+        </div>
       )}
-
-      <p className="muted small">
-        The logo image arrives with image storage; the colour and name already reach the
-        customer app.
-      </p>
     </section>
   );
 }

@@ -62,6 +62,20 @@ export function formatTimestamp(iso: string): string {
   })} UTC`;
 }
 
+/** A timestamp as the shop reads it: "1 Sep 2026, 03:00" in Helsinki time. */
+export function formatDateTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Europe/Helsinki',
+  });
+}
+
 /** A light client-side check; the server validates the address properly. */
 export function isEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());

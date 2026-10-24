@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError, getCustomerHistory, type CustomerHistory } from '../api';
 import { ownerMessage } from '../errors';
+import { formatDateTime } from '../format';
 import { euroText } from '../format';
 
 const TYPE_LABELS: Record<string, string> = {
@@ -78,7 +79,7 @@ export function CustomerDetail({ name, customerId, token, storeId, onClose }: Cu
           <tbody>
             {history.entries.map((entry) => (
               <tr key={entry.id}>
-                <td className="muted">{new Date(entry.createdAt).toLocaleString('en-GB')}</td>
+                <td className="muted">{formatDateTime(entry.createdAt)}</td>
                 <td>{TYPE_LABELS[entry.type] ?? entry.type}</td>
                 <td className={entry.points < 0 ? 'negative' : 'positive'}>
                   {entry.points > 0 ? `+${entry.points}` : entry.points}

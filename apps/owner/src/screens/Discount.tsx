@@ -86,36 +86,47 @@ export function DiscountScreen({ token, storeId }: { token: string; storeId: str
 
   const ruleLine = (found: DiscountRule): string =>
     found.kind === 'fixed_cents'
-      ? `${euroText(found.value)} off purchases of ${euroText(found.thresholdCents)} or more`
-      : `${found.value / 1000}% off purchases of ${euroText(found.thresholdCents)} or more`;
+      ? `€${euroText(found.value)} off purchases of €${euroText(found.thresholdCents)} or more`
+      : `${found.value / 1000}% off purchases of €${euroText(found.thresholdCents)} or more`;
 
   return (
     <section>
       <div className="pagehead">
-        <h1>Discount</h1>
+        <div>
+          <h1>Discount</h1>
+          <p className="sub">
+            One basket discount, behind a code the customer shows from their app
+          </p>
+        </div>
       </div>
-
-      <p className="muted">
-        One discount per store: when a customer's basket reaches the threshold, they can spend a
-        code from their app and the discount comes off what they pay. The customer shows a fresh
-        code from their phone each time — it works once, for about a minute.
-      </p>
 
       {error !== null && <p className="error">{error}</p>}
       {flash !== null && <p className="flash">{flash}</p>}
 
       {loaded && rule !== null && (
-        <p>
-          Today: {ruleLine(rule)}{' '}
-          <span className={rule.active ? 'chip active' : 'chip pending'}>
-            {rule.active ? 'Offered' : 'Paused'}
-          </span>
-        </p>
+        <div className="panel" style={{ maxWidth: 640, marginBottom: 16 }}>
+          <div className="panelhead">
+            <div>
+              <h3>Current discount</h3>
+              <p className="sub">Quoted at the till when a fresh code checks out</p>
+            </div>
+            <span className={rule.active ? 'pill active' : 'pill warn'}>
+              <span className="dot" aria-hidden="true" />
+              {rule.active ? 'Active' : 'Paused'}
+            </span>
+          </div>
+          <p style={{ margin: 0, fontSize: 14 }}>{ruleLine(rule)}</p>
+        </div>
       )}
       {loaded && rule === null && <p className="emptynote">No discount set yet.</p>}
 
-      <form className="form" onSubmit={(event) => void handleSave(event)}>
-        <h3>{rule === null ? 'Set the discount' : 'Change the discount'}</h3>
+      <form className="panel" style={{ maxWidth: 640 }} onSubmit={(event) => void handleSave(event)}>
+        <div className="panelhead">
+          <div>
+            <h3>{rule === null ? 'Set the discount' : 'Change the discount'}</h3>
+            <p className="sub">The store funds it; Poket only quotes and records it</p>
+          </div>
+        </div>
 
         <label htmlFor="discount-threshold">Basket reaches (€)</label>
         <input
@@ -127,7 +138,7 @@ export function DiscountScreen({ token, storeId }: { token: string; storeId: str
           disabled={busy}
         />
 
-        <label htmlFor="discount-kind">Kind</label>
+        <label htmlFor="discount-kind">Discount type</label>
         <select
           id="discount-kind"
           value={kind}

@@ -39,17 +39,17 @@ export function BranchesScreen({ token, storeId }: { token: string; storeId: str
   return (
     <section>
       <div className="pagehead">
-        <h1>Branches</h1>
+        <div>
+          <h1>Branches</h1>
+          <p className="sub">
+            The counters of one store. A staff member can be limited to a single branch.
+          </p>
+        </div>
       </div>
-
-      <p className="muted">
-        The counters of one store. The till asks which branch a sale belongs to when there is
-        more than one; a staff member can be limited to a single branch.
-      </p>
 
       {error !== null && <p className="error">{error}</p>}
 
-      <form className="form" onSubmit={(event) => void handleAdd(event)}>
+      <form className="panel" onSubmit={(event) => void handleAdd(event)}>
         <label htmlFor="branch-name">Add a branch</label>
         <div className="inlineform">
           <input
@@ -82,8 +82,9 @@ export function BranchesScreen({ token, storeId }: { token: string; storeId: str
               <tr key={branch.branchId}>
                 <td>{branch.name}</td>
                 <td>
-                  <span className={branch.status === 'active' ? 'chip active' : 'chip pending'}>
-                    {branch.status}
+                  <span className={branch.status === 'active' ? 'pill active' : 'pill warn'}>
+                    <span className="dot" aria-hidden="true" />
+                    {branch.status === 'active' ? 'Active' : 'Paused'}
                   </span>
                 </td>
               </tr>

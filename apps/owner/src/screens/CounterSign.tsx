@@ -31,7 +31,10 @@ export function CounterSignScreen({ token, storeId }: { token: string; storeId: 
   return (
     <section>
       <div className="pagehead">
-        <h1>Counter sign</h1>
+        <div>
+          <h1>Counter sign</h1>
+          <p className="sub">Print it, fold it, put it where customers pay</p>
+        </div>
         <button className="ghost" type="button" onClick={() => window.print()}>
           Print
         </button>
@@ -40,6 +43,7 @@ export function CounterSignScreen({ token, storeId }: { token: string; storeId: 
       {error !== null && <p className="error">{error}</p>}
 
       {name !== null && (
+        <div className="signwrap">
         <div className="sign" style={{ borderTopColor: brandColor }}>
           <p className="sign-eyebrow" style={{ color: brandColor }}>
             Collect points with
@@ -51,6 +55,7 @@ export function CounterSignScreen({ token, storeId }: { token: string; storeId: 
             ))}
           </div>
           <p className="sign-line">Ask at the counter — your points live in the Poket app.</p>
+        </div>
         </div>
       )}
 

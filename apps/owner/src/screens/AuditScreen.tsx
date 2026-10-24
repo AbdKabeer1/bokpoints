@@ -34,7 +34,7 @@ export function AuditScreen({ token, storeId }: { token: string; storeId: string
     <section>
       <div className="pagehead">
         <div>
-          <h1>Audit</h1>
+          <h1>Audit log</h1>
           <p className="muted">What was done, by whom, and why — newest first.</p>
         </div>
       </div>
@@ -110,7 +110,7 @@ export function AuditScreen({ token, storeId }: { token: string; storeId: string
                     '—'
                   ) : (
                     <details>
-                      <summary>view</summary>
+                      <summary>Show</summary>
                       <pre className="detail">
                         {JSON.stringify({ before: entry.before, after: entry.after }, null, 2)}
                       </pre>

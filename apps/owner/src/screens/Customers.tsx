@@ -38,7 +38,13 @@ export function CustomersScreen({ token, storeId }: { token: string; storeId: st
   return (
     <section>
       <div className="pagehead">
-        <h1>Customers</h1>
+        <div>
+          <h1>Customers</h1>
+          <p className="sub">
+            {rows === null ? 'Loading…' : `${rows.length} customer${rows.length === 1 ? '' : 's'}`}
+            {query === '' ? ' · newest first' : ' · matching your search'}
+          </p>
+        </div>
         {registerOpen ? (
           <button className="ghost" type="button" onClick={() => setRegisterOpen(false)}>
             Close
@@ -109,7 +115,7 @@ export function CustomersScreen({ token, storeId }: { token: string; storeId: st
             <tr>
               <th>Name</th>
               <th>Email</th>
-              <th>Points</th>
+              <th className="num">Points</th>
               <th>Status</th>
               <th aria-label="Actions" />
             </tr>
@@ -142,7 +148,7 @@ export function CustomersScreen({ token, storeId }: { token: string; storeId: st
                 <tr key={customer.customerId}>
                   <td>{customer.name}</td>
                   <td className="muted">{customer.email}</td>
-                  <td>{customer.balance}</td>
+                  <td className="num">{customer.balance.toLocaleString('fi-FI')}</td>
                   <td>
                     {customer.pending ? (
                       <span className="chip pending">Not joined yet</span>

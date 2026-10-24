@@ -11,6 +11,7 @@ import {
   type Simulation,
 } from '../api';
 import { ownerMessage } from '../errors';
+import { formatDateTime } from '../format';
 import { euroText, parseAmountToCents, parsePerEuro, perEuroText } from '../format';
 
 interface Definition {
@@ -185,7 +186,7 @@ function RuleCard({
           </p>
           <p className="ruletext">{definitionText(rule.definition as Definition)}</p>
           <p className="muted small">
-            Running from {new Date(rule.effectiveFrom).toLocaleString()}
+            Running from {formatDateTime(rule.effectiveFrom)}
           </p>
         </div>
         <div className="actions">
@@ -487,7 +488,7 @@ function History({ historySorted }: { historySorted: RuleRow[] }) {
             <tr key={row.ruleId}>
               <td>v{row.version}</td>
               <td>{definitionText(row.definition as Definition)}</td>
-              <td>{new Date(row.createdAt).toLocaleString()}</td>
+              <td className="muted">{formatDateTime(row.createdAt)}</td>
             </tr>
           ))}
         </tbody>

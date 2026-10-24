@@ -467,7 +467,9 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
             {membership.storeName}
             <span className="muted">
               {' · '}
-              {membership.locationName ?? (membership.branches.length > 0 ? 'pick a branch' : 'all branches')}
+              {membership.locationName ??
+                (membership.branches.find((branch) => branch.id === branchId)?.name ??
+                  (membership.branches.length > 0 ? 'pick a branch' : 'all branches'))}
             </span>
           </p>
         </div>
@@ -805,7 +807,17 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
                 )}
               </div>
             ) : (
-              <p className={previewError !== null ? 'preview error' : 'preview'}>{previewLine()}</p>
+              <p
+                className={
+                  previewError !== null
+                    ? 'preview error'
+                    : amount.trim() === ''
+                      ? 'preview hint'
+                      : 'preview'
+                }
+              >
+                {previewLine()}
+              </p>
             )}
 
             {paid === null && preview !== null && preview.awarded && (

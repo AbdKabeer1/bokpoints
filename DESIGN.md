@@ -58,6 +58,12 @@ typography:
     fontWeight: 400
     lineHeight: 1.5
     letterSpacing: "normal"
+  data-mono:
+    fontFamily: "'SF Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+    fontSize: "11px"
+    fontWeight: 500
+    lineHeight: 1.4
+    letterSpacing: "0.06em"
 rounded:
   sm: "10px"
   md: "16px"
@@ -203,6 +209,9 @@ there because staff are acting, not browsing.
   when complete, `role="progressbar"` with real values.
 - **Tab bar:** paper pill, four items, active item an espresso capsule with a saffron
   icon and cream label. Icons are Feather line icons, never emoji or text glyphs.
+- **Merchant icons:** Lucide line icons at 16px with a 1.9 stroke in the sidebar and
+  page actions. Customer app icons are Feather at 18px. One family per surface, never
+  mixed, never a text glyph standing in for an icon.
 - **Buttons:** espresso fill with cream text in the customer app; green fill in merchant
   surfaces. Destructive actions are terracotta-tinted, never green.
 - **Merchant panel:** white, 1px `#e3ebe6`, 16px radius, monospace uppercase labels at

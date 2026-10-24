@@ -1868,3 +1868,127 @@ details summary {
     padding: 0;
   }
 }
+
+/* ── Polish pass: compact composers, people, store preview ─────────────── */
+
+.composer-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 0.7fr) minmax(0, 0.8fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.composer-row label {
+  margin-top: 0;
+}
+
+.composer-row .primary {
+  min-height: 40px;
+}
+
+.person {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 600;
+}
+
+.person .avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  font-size: 10px;
+  background: var(--soft);
+  color: var(--green-deep);
+}
+
+.storepreview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 13px 14px;
+  margin-bottom: 16px;
+  background: var(--soft-2);
+}
+
+.storepreview-swatch {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  flex: 0 0 auto;
+}
+
+.storepreview strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.storepreview span {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.formgrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.table th.num,
+.table td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A drawn chevron for the audit disclosure, not a text glyph. */
+details summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  list-style: none;
+}
+
+details summary::-webkit-details-marker {
+  display: none;
+}
+
+details summary::after {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid currentcolor;
+  border-bottom: 1.5px solid currentcolor;
+  transform: rotate(45deg);
+  margin-left: 2px;
+  transition: transform 120ms ease;
+}
+
+details[open] summary::after {
+  transform: rotate(-135deg);
+}
+
+/* The counter sign is an artifact: centre it and give it room. */
+.signwrap {
+  display: grid;
+  place-items: center;
+  padding: 18px 0 4px;
+}
+
+@media (max-width: 760px) {
+  .composer-row,
+  .formgrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* A table that follows a panel gets its own air. */
+.panel + .table,
+.panel + .grid,
+.panel + .statstrip {
+  margin-top: 16px;
+}

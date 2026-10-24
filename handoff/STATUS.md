@@ -6,6 +6,14 @@
 
 ## Done
 
+- **Build 21c — merchant finish with Impeccable (D-152).** Lucide icons across the owner
+  shell; Reports rebuilt as a stat strip plus the shared 30-day chart; Helsinki date
+  formats; compact composers on Rewards, Discount and Branches; People with initials and
+  human labels; right-aligned numbers; a constrained store-profile panel with a store-page
+  preview; centred counter sign; till header names the selected branch; splash overshoot
+  removed. Detector: 0 primary findings (165 advisory merchant-scale notes). 87 unit and
+  273 integration tests green; all four builds pass.
+
 - **Impeccable installed, and its craft floor applied (D-151).** The design skill and
   detector are vendored under `.opencode/` (the platform binary is gitignored and
   downloads on first run). `PRODUCT.md` records durable product truth and `DESIGN.md`
