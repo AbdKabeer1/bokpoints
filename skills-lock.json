@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "skills": {
+    "claude-code-discoverability-auditor": {
+      "source": "retieedra-profound/skills-marketing-library",
+      "sourceType": "github",
+      "skillPath": "profound/claude-code-discoverability-auditor/SKILL.md",
+      "computedHash": "d4e3cbf0dec028572dba5349595a74ed407848a3362339871bb509f2ec18eb54"
+    },
+    "mailtrap-email-integration": {
+      "source": "affaan-m/ecc",
+      "sourceType": "github",
+      "skillPath": "skills/mailtrap-email-integration/SKILL.md",
+      "computedHash": "a9fdbba110d6287fe62d042767d37b4748f1e5710b2e1905a25f39a8bbb139bf"
+    }
+  }
+}

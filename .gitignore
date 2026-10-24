@@ -40,3 +40,7 @@ apps/customer/expo-env.d.ts
 **/.impeccable/live/deferred-svelte-component-accepts.json
 **/.impeccable/live/*.png
 # impeccable-ignore-end
+
+# Skill installs are committed under .agents/; the OpenCode mirrors are machine-local.
+.opencode/skills/mailtrap-email-integration
+.opencode/skills/claude-code-discoverability-auditor

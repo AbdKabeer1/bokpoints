@@ -30,6 +30,12 @@ pnpm --filter @bokpoints/api customer:code customer-demo@bk.test
 Type the printed code on the app's code screen. It is the same one-time code the
 email would carry, and it expires like any other. Each new code replaces the last.
 
+## Domain, hosting and email
+
+The launch runbook is [`docs/DOMAIN.md`](../docs/DOMAIN.md): subdomain map, DNS records,
+Mailtrap sending-domain verification, Supabase SMTP and auth URLs, production env vars,
+deploy order and the smoke test. Read it before pointing a real domain at the apps.
+
 ## Database
 
 ```bash
