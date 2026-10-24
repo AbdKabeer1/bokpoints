@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { ApiError, updateMe, type Me } from '../lib/api';
 import { colors, fonts, layout } from '../lib/theme';
 
@@ -46,11 +47,11 @@ export function SettingsScreen({ token, me, onSaved, onBack, onSignOut }: Settin
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Pressable onPress={onBack} hitSlop={12}>
-        <Text style={styles.back}>← Back</Text>
+      <Pressable onPress={onBack} hitSlop={12} style={styles.backRow}>
+        <Feather name="arrow-left" size={16} color={colors.terracottaInk} />
+        <Text style={styles.back}>Back</Text>
       </Pressable>
 
-      <Text style={styles.eyebrow}>YOUR ACCOUNT</Text>
       <Text style={styles.title}>Settings</Text>
       <Text style={styles.email}>{me.customer.email}</Text>
 
@@ -115,17 +116,17 @@ const styles = StyleSheet.create({
     paddingTop: 58,
     paddingBottom: 44,
   },
+  backRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 18,
+    alignSelf: 'flex-start',
+  },
   back: {
     fontFamily: fonts.bodyBold,
     color: colors.terracottaInk,
     fontSize: 13,
-    marginBottom: 18,
-  },
-  eyebrow: {
-    fontFamily: fonts.bodyBold,
-    fontSize: 10,
-    letterSpacing: 1.4,
-    color: colors.muted,
   },
   title: {
     fontFamily: fonts.display,

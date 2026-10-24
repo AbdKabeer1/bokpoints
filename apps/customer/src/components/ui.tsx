@@ -151,9 +151,48 @@ const mix = (hex: string, base: string, baseShare: number): string => {
 export const storeTint = (color?: string | null, strength = 0.22): string =>
   color === null || color === undefined ? colors.tint : mix(color, colors.background, 1 - strength);
 
-/** The store's colour, deepened so text sits on it comfortably. */
-export const storeDeep = (color?: string | null): string =>
-  color === null || color === undefined ? colors.espresso : mix(color, colors.espresso, 0.32);
+/**
+ * The store's colour, deepened and desaturated so a raw brand colour (a pure
+ * blue, a neon green) still belongs on warm paper. Saturation is capped and
+ * lightness fixed, which is what makes arbitrary colours sit together.
+ */
+export const storeDeep = (color?: string | null): string => {
+  if (color === null || color === undefined) return colors.espresso;
+  const rgb = parseHex(color);
+  if (rgb === null) return colors.espresso;
+  const [r, g, b] = rgb;
+  const max = Math.max(r, g, b) / 255;
+  const min = Math.min(r, g, b) / 255;
+  let hue = 0;
+  const lightness = (max + min) / 2;
+  const delta = max - min;
+  if (delta !== 0) {
+    if (max === r / 255) hue = ((g - b) / 255 / delta) % 6;
+    else if (max === g / 255) hue = (b - r) / 255 / delta + 2;
+    else hue = (r - g) / 255 / delta + 4;
+    hue *= 60;
+    if (hue < 0) hue += 360;
+  }
+  const saturation = Math.min(0.42, delta === 0 ? 0 : delta / (1 - Math.abs(2 * lightness - 1)));
+  const targetLightness = 0.34;
+  const c = (1 - Math.abs(2 * targetLightness - 1)) * saturation;
+  const x = c * (1 - Math.abs(((hue / 60) % 2) - 1));
+  const m = targetLightness - c / 2;
+  const [r1, g1, b1] =
+    hue < 60
+      ? [c, x, 0]
+      : hue < 120
+        ? [x, c, 0]
+        : hue < 180
+          ? [0, c, x]
+          : hue < 240
+            ? [0, x, c]
+            : hue < 300
+              ? [x, 0, c]
+              : [c, 0, x];
+  const to = (value: number) => Math.round((value + m) * 255);
+  return `rgb(${to(r1)}, ${to(g1)}, ${to(b1)})`;
+};
 
 /** A store's identity: initials on its own colour, or espresso. */
 export function StoreAvatar({

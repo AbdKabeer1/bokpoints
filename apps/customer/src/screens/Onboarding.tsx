@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { updateMe, type Me } from '../lib/api';
-import { colors, layout } from '../lib/theme';
+import { colors, fonts, layout } from '../lib/theme';
 
 interface OnboardingProps {
   token: string;
@@ -113,44 +113,50 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: colors.card,
-    borderRadius: layout.radius,
+    borderRadius: layout.cardRadius,
     padding: 24,
     borderWidth: 1,
     borderColor: colors.line,
   },
   brand: {
-    color: colors.gold,
-    fontWeight: '800',
-    letterSpacing: 3,
-    fontSize: 12,
-    marginBottom: 8,
+    color: colors.terracottaInk,
+    fontFamily: fonts.bodyBold,
+    letterSpacing: 2,
+    fontSize: 10,
+    textTransform: 'uppercase',
+    marginBottom: 10,
   },
   title: {
-    fontSize: 24,
-    fontWeight: '800',
+    fontFamily: fonts.display,
+    fontSize: 30,
     color: colors.text,
     marginBottom: 8,
   },
   muted: {
     color: colors.muted,
-    fontSize: 15,
+    fontFamily: fonts.body,
+    fontSize: 14,
     lineHeight: 21,
   },
   label: {
     color: colors.muted,
-    fontSize: 13,
+    fontFamily: fonts.bodyBold,
+    fontSize: 10,
+    letterSpacing: 1.1,
+    textTransform: 'uppercase',
     marginTop: 18,
-    marginBottom: 6,
+    marginBottom: 7,
   },
   input: {
     borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: 12,
+    borderColor: colors.lineStrong,
+    borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 13,
     fontSize: 16,
+    fontFamily: fonts.body,
     color: colors.text,
-    backgroundColor: '#fbfaf6',
+    backgroundColor: colors.card,
   },
   row: {
     flexDirection: 'row',
@@ -159,26 +165,26 @@ const styles = StyleSheet.create({
   choice: {
     flex: 1,
     borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: 12,
+    borderColor: colors.lineStrong,
+    borderRadius: 14,
     paddingVertical: 12,
     alignItems: 'center',
   },
   choiceActive: {
-    borderColor: colors.gold,
-    backgroundColor: colors.goldSoft,
+    borderColor: colors.espresso,
+    backgroundColor: colors.saffronSoft,
   },
   choiceText: {
     color: colors.muted,
-    fontWeight: '600',
+    fontFamily: fonts.bodySemi,
   },
   choiceTextActive: {
-    color: colors.text,
+    color: colors.espresso,
   },
   button: {
     marginTop: 22,
-    backgroundColor: '#f5b301',
-    borderRadius: 12,
+    backgroundColor: colors.espresso,
+    borderRadius: 16,
     paddingVertical: 15,
     alignItems: 'center',
   },
@@ -186,13 +192,14 @@ const styles = StyleSheet.create({
     opacity: 0.45,
   },
   buttonText: {
-    color: '#1c1400',
-    fontWeight: '800',
-    fontSize: 16,
+    color: colors.onEspresso,
+    fontFamily: fonts.bodyBold,
+    fontSize: 15.5,
   },
   error: {
-    color: colors.danger,
+    color: colors.terracottaInk,
+    fontFamily: fonts.bodyMedium,
     marginTop: 12,
-    fontSize: 14,
+    fontSize: 13,
   },
 });

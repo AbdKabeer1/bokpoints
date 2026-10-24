@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
+import { Feather } from '@expo/vector-icons';
 import {
   getDiscountProof,
   getHistory,
@@ -116,12 +117,12 @@ export function StoreHistory({ token, store, onBack }: StoreHistoryProps) {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Pressable onPress={onBack} hitSlop={12}>
-        <Text style={styles.back}>← Your stores</Text>
+      <Pressable onPress={onBack} hitSlop={12} style={styles.backRow}>
+        <Feather name="arrow-left" size={16} color={colors.terracottaInk} />
+        <Text style={styles.back}>Your stores</Text>
       </Pressable>
 
       <View style={[styles.hero, { backgroundColor: storeTint(store.brandColor) }]}>
-        <Text style={styles.heroEyebrow}>POINTS AT</Text>
         <Text style={styles.heroName}>{store.name}</Text>
         <Text style={styles.heroBalance}>{formatPoints(balance)}</Text>
         <Text style={styles.heroPoints}>points to spend here</Text>
@@ -261,28 +262,27 @@ const styles = StyleSheet.create({
     paddingTop: 58,
     paddingBottom: 44,
   },
+  backRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 16,
+    alignSelf: 'flex-start',
+  },
   back: {
     fontFamily: fonts.bodyBold,
     color: colors.terracottaInk,
     fontSize: 13,
-    marginBottom: 16,
   },
   hero: {
     borderRadius: 26,
     padding: 20,
     marginBottom: 14,
   },
-  heroEyebrow: {
-    fontFamily: fonts.bodyBold,
-    fontSize: 9.5,
-    letterSpacing: 1.5,
-    color: colors.muted,
-  },
   heroName: {
     fontFamily: fonts.display,
     fontSize: 26,
     color: colors.text,
-    marginTop: 5,
   },
   heroBalance: {
     fontFamily: fonts.display,

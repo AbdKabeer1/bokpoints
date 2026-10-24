@@ -6,6 +6,16 @@
 
 ## Done
 
+- **Impeccable installed, and its craft floor applied (D-151).** The design skill and
+  detector are vendored under `.opencode/` (the platform binary is gitignored and
+  downloads on first run). `PRODUCT.md` records durable product truth and `DESIGN.md`
+  the two visual systems, both generated from the repo's own docs. The detector is clean
+  on the customer app. Its craft-floor review made three real changes: kicker labels
+  above headings removed, Unicode glyphs replaced with Feather line icons, and the
+  onboarding screen's drifting yellow replaced with the palette. Merchant surfaces keep
+  the brief's green system; the detector's 181 advisory findings there are type-scale and
+  colour values the brief deliberately specifies.
+
 - **Build 21b — the customer app's visual voice (D-150).** Left the flat white-and-green for a
   warm editorial system: cream canvas, paper cards, an espresso code card, saffron points and
   progress, terracotta expiry, and the store's colour as a pale wash. Fraunces (display) and

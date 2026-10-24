@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
+import { Feather } from '@expo/vector-icons';
 import {
   ApiError,
   getExpiring,
@@ -35,11 +36,13 @@ interface HomeProps {
 
 type Tab = 'home' | 'code' | 'inbox' | 'profile';
 
-const TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: 'home', label: 'Home', icon: '⌂' },
-  { id: 'code', label: 'Code', icon: '▦' },
-  { id: 'inbox', label: 'Inbox', icon: '✉' },
-  { id: 'profile', label: 'You', icon: '☺' },
+type IconName = React.ComponentProps<typeof Feather>['name'];
+
+const TABS: { id: Tab; label: string; icon: IconName }[] = [
+  { id: 'home', label: 'Home', icon: 'home' },
+  { id: 'code', label: 'Code', icon: 'grid' },
+  { id: 'inbox', label: 'Inbox', icon: 'inbox' },
+  { id: 'profile', label: 'You', icon: 'user' },
 ];
 
 const firstName = (me: Me): string => (me.customer.name || 'there').split(/\s+/)[0] ?? 'there';
@@ -153,10 +156,10 @@ export function Home({ token, me, onSignOut }: HomeProps) {
           <>
             <View style={styles.header}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.eyebrow}>{todayLabel()}</Text>
                 <Text style={styles.hello} numberOfLines={1}>
                   Hi {firstName(me)}
                 </Text>
+                <Text style={styles.headerDate}>{todayLabel()}</Text>
               </View>
               <Pressable
                 onPress={() => setTab('profile')}
@@ -201,8 +204,13 @@ export function Home({ token, me, onSignOut }: HomeProps) {
 
               <View style={styles.heroFoot}>
                 <Text style={styles.heroHint}>Brightness up, show at the till.</Text>
-                <Pressable onPress={() => setTab('code')} hitSlop={8}>
-                  <Text style={styles.heroAction}>Full screen ›</Text>
+                <Pressable
+                  onPress={() => setTab('code')}
+                  hitSlop={8}
+                  style={styles.heroActionRow}
+                >
+                  <Text style={styles.heroAction}>Full screen</Text>
+                  <Feather name="chevron-right" size={14} color={colors.saffron} />
                 </Pressable>
               </View>
             </View>
@@ -311,7 +319,6 @@ export function Home({ token, me, onSignOut }: HomeProps) {
           <>
             <View style={styles.header}>
               <View>
-                <Text style={styles.eyebrow}>AT THE TILL</Text>
                 <Text style={styles.hello}>Your code</Text>
               </View>
             </View>
@@ -359,7 +366,6 @@ export function Home({ token, me, onSignOut }: HomeProps) {
           <>
             <View style={styles.header}>
               <View>
-                <Text style={styles.eyebrow}>YOUR ACCOUNT</Text>
                 <Text style={styles.hello}>You</Text>
               </View>
             </View>
@@ -393,17 +399,17 @@ export function Home({ token, me, onSignOut }: HomeProps) {
             <Card style={{ padding: 0 }}>
               <Pressable style={styles.menuRow} onPress={() => setShowSettings(true)}>
                 <Text style={styles.menuLabel}>Name, language and settings</Text>
-                <Text style={styles.menuChevron}>›</Text>
+                <Feather name="chevron-right" size={18} color={colors.muted} />
               </Pressable>
               <Pressable style={styles.menuRow} onPress={() => setTab('code')}>
                 <Text style={styles.menuLabel}>My code</Text>
-                <Text style={styles.menuChevron}>›</Text>
+                <Feather name="chevron-right" size={18} color={colors.muted} />
               </Pressable>
               <Pressable style={[styles.menuRow, styles.menuRowLast]} onPress={() => setTab('inbox')}>
                 <Text style={styles.menuLabel}>
                   Inbox{unread > 0 ? ` · ${unread} new` : ''}
                 </Text>
-                <Text style={styles.menuChevron}>›</Text>
+                <Feather name="chevron-right" size={18} color={colors.muted} />
               </Pressable>
             </Card>
 
@@ -496,7 +502,11 @@ export function Home({ token, me, onSignOut }: HomeProps) {
                 onPress={() => setTab(entry.id)}
               >
                 <View style={styles.tabIconWrap}>
-                  <Text style={[styles.tabIcon, active && styles.tabIconOn]}>{entry.icon}</Text>
+                  <Feather
+                    name={entry.icon}
+                    size={18}
+                    color={active ? colors.saffron : colors.muted}
+                  />
                   {entry.id === 'inbox' && unread > 0 && (
                     <View style={[styles.tabBadge, active && styles.tabBadgeOn]} />
                   )}
@@ -526,18 +536,16 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 18,
   },
-  eyebrow: {
-    fontFamily: fonts.bodyBold,
-    fontSize: 10,
-    letterSpacing: 1.4,
-    textTransform: 'uppercase',
-    color: colors.muted,
-  },
   hello: {
     fontFamily: fonts.display,
     fontSize: 34,
     color: colors.text,
-    marginTop: 4,
+  },
+  headerDate: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.muted,
+    marginTop: 5,
   },
   headerAvatar: {
     width: 44,
@@ -633,6 +641,11 @@ const styles = StyleSheet.create({
     fontFamily: fonts.body,
     fontSize: 11.5,
     flex: 1,
+  },
+  heroActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
   },
   heroAction: {
     color: colors.saffron,
@@ -888,11 +901,6 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     color: colors.text,
   },
-  menuChevron: {
-    fontFamily: fonts.body,
-    fontSize: 18,
-    color: colors.muted,
-  },
   consentRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -999,13 +1007,6 @@ const styles = StyleSheet.create({
   },
   tabIconWrap: {
     position: 'relative',
-  },
-  tabIcon: {
-    fontSize: 17,
-    color: colors.muted,
-  },
-  tabIconOn: {
-    color: colors.saffron,
   },
   tabBadge: {
     position: 'absolute',

@@ -53,7 +53,6 @@ export function Inbox({ token, notifications, onRefresh, onChanged }: InboxProps
     <>
       <View style={styles.header}>
         <View>
-          <Text style={styles.eyebrow}>FROM YOUR STORES</Text>
           <Text style={styles.title}>Inbox</Text>
         </View>
         <Pressable
@@ -136,12 +135,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: 8,
-  },
-  eyebrow: {
-    fontFamily: fonts.bodyBold,
-    fontSize: 10,
-    letterSpacing: 1.4,
-    color: colors.muted,
   },
   title: {
     fontFamily: fonts.display,

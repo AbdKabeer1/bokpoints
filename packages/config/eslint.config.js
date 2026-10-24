@@ -8,6 +8,9 @@ export default tseslint.config(
       '**/coverage/**',
       '**/drizzle/meta/**',
       '**/.superpowers/**',
+      // Vendored agent skills and their generated artifacts.
+      '**/.opencode/**',
+      '**/.impeccable/**',
       // Throwaway UI preview spike, and any build output.
       'preview/**',
       '**/bundle.js',
