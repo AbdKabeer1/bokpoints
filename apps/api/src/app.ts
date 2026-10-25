@@ -140,43 +140,6 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
 
   app.get('/v1/ping', async () => ({ pong: true }));
 
-  /**
-   * A database round-trip, separate from the process health check. It reports
-   * only whether the pool can reach Postgres and a driver error code — never
-   * a connection string. A 503 here explains a 500 on the data routes.
-   */
-  /** Whether this instance can reach its Supabase project's public keys. */
-  app.get('/v1/health/auth', async () => {
-    const url = (process.env.SUPABASE_URL ?? '').replace(/\/+$/, '');
-    if (url === '') return { auth: 'not-configured' };
-    try {
-      const response = await fetch(`${url}/auth/v1/.well-known/jwks.json`, {
-        signal: AbortSignal.timeout(8000),
-      });
-      return { auth: response.ok ? 'ok' : 'unreachable', url, status: response.status };
-    } catch (error) {
-      const cause =
-        typeof error === 'object' && error !== null && 'cause' in error
-          ? String((error as { cause?: { code?: unknown } }).cause?.code ?? '')
-          : '';
-      return { auth: 'unreachable', url, code: 'FETCH_FAILED', cause };
-    }
-  });
-
-  app.get('/v1/health/db', async (_request, reply) => {
-    if (!options.db) return reply.code(503).send({ database: 'not-configured' });
-    try {
-      await options.db.execute(sql`select 1`);
-      return { database: 'ok' };
-    } catch (error) {
-      const code =
-        typeof error === 'object' && error !== null && 'code' in error
-          ? String((error as { code?: unknown }).code ?? 'UNKNOWN')
-          : 'UNKNOWN';
-      return reply.code(503).send({ database: 'unreachable', code });
-    }
-  });
-
   app.get('/v1/openapi.json', async () => app.swagger());
 
   if (options.db) {
