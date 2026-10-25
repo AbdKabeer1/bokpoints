@@ -1,10 +1,12 @@
 # STATUS
 
 **Project:** BOKPOINTS, a B2B2C loyalty platform for SMEs in Finland / EU.
-**Phase:** MVP built; security hardening. P0 items A1–A6 are complete. The builder-side P1/P2 items A5, B1, B3, B5, C5, C6, C7, C9 and C11 are applied; B2/B9 are partly applied. **Next up:** B4 pilot end-to-end test, C8 fraud signals (needs thresholds), B8 Sentry (needs a DSN), and the manual platform checks in C1–C4, C10, C12 and C13.
+**Phase:** MVP built; security hardening. P0 items A1–A6 are complete. The builder-side P1/P2 items A5, B1, B3, B5, C5, C6, C7, C9 and C11 are applied; B2/B9 are partly applied. **Next up:** C8 fraud signals (needs thresholds), B8 Sentry (needs a DSN), C6 recent step-up, C9 deep-link validation, B2 UI-brief merge, and the manual platform checks in C1–C4, C10, C12 and C13.
 **Last updated:** 25 Oct 2026, after the security hardening pass. 397 tests green; typecheck, lint and builds clean.
 
 ## Done
+
+- **B4 pilot path + reversal fix.** One integration test now runs identify → preview → confirm → redeem → reverse. It found and fixed a real bug: a sale that redeemed a reward in the same purchase could not be fully voided because the earn was taken back before the reward points were restored, hitting `BALANCE_WOULD_GO_NEGATIVE`. The restore now happens first.
 
 - **Security hardening A5 — customer export and deletion.** New
   `GET /v1/customer/me/export` returns only the caller's profile, consents,
