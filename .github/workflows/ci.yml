@@ -30,6 +30,9 @@ jobs:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/bokpoints_test
     steps:
       - uses: actions/checkout@v7
+        with:
+          # gitleaks needs the PR base commit, not a one-commit shallow clone.
+          fetch-depth: 0
       - uses: pnpm/action-setup@v6
         with:
           version: 12.9.1
