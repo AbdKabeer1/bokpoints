@@ -27,7 +27,14 @@ export class LogoStoreError extends Error {
   }
 }
 
-const base = (url: string): string => url.replace(/\/+$/, '');
+const base = (url: string): string => url.trim().replace(/\/+$/, '');
+
+/**
+ * The same repair the env loader applies: a pasted URL that lost its leading
+ * "h" (`ttps://`) must not silently break uploads while auth keeps working.
+ */
+const withScheme = (url: string): string =>
+  /^ttps?:\/\//i.test(url) ? `h${url}` : url;
 
 export function createLogoStore(
   supabaseUrl: string | undefined,
@@ -36,7 +43,7 @@ export function createLogoStore(
   if (supabaseUrl === undefined || supabaseUrl === '' || secretKey === undefined || secretKey === '') {
     return null;
   }
-  const root = base(supabaseUrl);
+  const root = base(withScheme(supabaseUrl));
   const headers = {
     apikey: secretKey,
     authorization: `Bearer ${secretKey}`,
