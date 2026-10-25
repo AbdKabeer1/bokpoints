@@ -49,6 +49,6 @@ jobs:
       - run: pnpm test:integration
       # Reports; the accepted advisories are documented in docs/SECURITY.md.
       - run: pnpm audit --prod || true
-      - uses: gitleaks/gitleaks-action@v2
+      - uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
