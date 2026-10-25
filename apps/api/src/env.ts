@@ -49,6 +49,12 @@ export const envSchema = z.object({
    */
   SUPABASE_SECRET_KEY: z.string().optional(),
   /**
+   * Dedicated secret for signing discount proofs (D-133). Must be set in
+   * production and any staging environment; development may use a fixed
+   * fallback.
+   */
+  DISCOUNT_PROOF_SECRET: z.string().optional(),
+  /**
    * How many awards a single caller may make per minute. A busy till is
    * far below this; it is there to stop a runaway client (AGENT.md
    * section 8).

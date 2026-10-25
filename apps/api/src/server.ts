@@ -16,6 +16,11 @@ if (env.NODE_ENV === 'production' && !process.env.TRUST_PROXY) {
   throw new Error('TRUST_PROXY must be set explicitly in production');
 }
 
+// Discount proofs must use a dedicated secret in production.
+if (env.NODE_ENV === 'production' && !process.env.DISCOUNT_PROOF_SECRET) {
+  throw new Error('DISCOUNT_PROOF_SECRET is required in production');
+}
+
 // The verified-email check (D-120) and the Auth Admin calls need the
 // secret key. Without it the API would answer sign-ins with a silent
 // "not verified" for everyone, so production refuses to start.

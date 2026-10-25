@@ -24,9 +24,12 @@ export interface ProofPayload {
 }
 
 function signingKey(): Buffer {
-  return createHash('sha256')
-    .update(process.env['SUPABASE_SECRET_KEY'] ?? 'dev-discount-proof-secret')
-    .digest();
+  const secret = process.env['DISCOUNT_PROOF_SECRET'] ?? (
+    process.env.NODE_ENV === 'production'
+      ? ''
+      : 'dev-discount-proof-secret'
+  );
+  return createHash('sha256').update(secret).digest();
 }
 
 function signBuffer(body: string): Buffer {

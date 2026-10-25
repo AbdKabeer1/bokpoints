@@ -38,3 +38,5 @@ services:
         sync: false
       - key: SUPABASE_SECRET_KEY
         sync: false
+      - key: DISCOUNT_PROOF_SECRET
+        sync: false
