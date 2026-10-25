@@ -150,9 +150,13 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       const response = await fetch(`${url}/auth/v1/.well-known/jwks.json`, {
         signal: AbortSignal.timeout(8000),
       });
-      return { auth: response.ok ? 'ok' : 'unreachable', status: response.status };
-    } catch {
-      return { auth: 'unreachable', code: 'FETCH_FAILED' };
+      return { auth: response.ok ? 'ok' : 'unreachable', url, status: response.status };
+    } catch (error) {
+      const cause =
+        typeof error === 'object' && error !== null && 'cause' in error
+          ? String((error as { cause?: { code?: unknown } }).cause?.code ?? '')
+          : '';
+      return { auth: 'unreachable', url, code: 'FETCH_FAILED', cause };
     }
   });
 
