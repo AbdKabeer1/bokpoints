@@ -89,6 +89,9 @@ export const stores = pgTable(
     // The brand colour the customer app paints this store's page with (D-139).
     // Null until the store picks one; the app then falls back to its own green.
     brandColor: text('brand_color'),
+    // The store's logo in Supabase Storage (D-156). Owner-uploaded; null means
+    // the customer app shows initials on the brand colour instead.
+    logoUrl: text('logo_url'),
     // Store status lifecycle from FRD 4.1.
     status: text('status').notNull().default('invited'),
     plan: text('plan'),

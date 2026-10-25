@@ -28,6 +28,7 @@ export interface CustomerNotification {
   storeId: string;
   storeName: string;
   storeBrandColor: string | null;
+  storeLogoUrl: string | null;
   title: string;
   body: string;
   createdAt: Date;
@@ -160,6 +161,7 @@ export async function customerNotifications(
       storeId: campaigns.storeId,
       storeName: stores.name,
       storeBrandColor: stores.brandColor,
+      storeLogoUrl: stores.logoUrl,
       title: campaigns.title,
       body: campaigns.body,
       createdAt: campaignDeliveries.createdAt,

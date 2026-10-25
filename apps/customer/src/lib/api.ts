@@ -24,6 +24,8 @@ export interface StoreSummary {
   lastActivityAt: string;
   /** The store's own colour; null means OmaPointii green. */
   brandColor: string | null;
+  /** The owner's uploaded logo, or null for initials. */
+  logoUrl: string | null;
   /** Store news is off until the customer turns it on (FR-PRV-2). */
   marketingConsent: boolean;
   /** The cheapest active reward the balance has not reached yet. */
@@ -35,6 +37,7 @@ export interface Notification {
   storeId: string;
   storeName: string;
   storeBrandColor: string | null;
+  storeLogoUrl: string | null;
   title: string;
   body: string;
   createdAt: string;

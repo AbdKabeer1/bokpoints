@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import {
+  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -199,10 +200,12 @@ export function StoreAvatar({
   name,
   color,
   size = 42,
+  logoUrl,
 }: {
   name: string;
   color?: string | null;
   size?: number;
+  logoUrl?: string | null;
 }) {
   const initials = name
     .split(/\s+/)
@@ -223,7 +226,15 @@ export function StoreAvatar({
         },
       ]}
     >
-      <Text style={[styles.avatarText, { fontSize: Math.round(size * 0.34) }]}>{initials}</Text>
+      {logoUrl !== null && logoUrl !== undefined ? (
+        <Image
+          source={{ uri: logoUrl }}
+          style={{ width: size, height: size }}
+          accessibilityIgnoresInvertColors
+        />
+      ) : (
+        <Text style={[styles.avatarText, { fontSize: Math.round(size * 0.34) }]}>{initials}</Text>
+      )}
     </View>
   );
 }

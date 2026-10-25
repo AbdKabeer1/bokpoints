@@ -35,6 +35,7 @@ import {
   discountRuleRowSchema,
   discountRuleSetRequestSchema,
   storeProfileResponseSchema,
+  storeLogoUpdateRequestSchema,
   storeProfileUpdateRequestSchema,
   storeReportsResponseSchema,
   discountProofVerifyRequestSchema,
@@ -50,6 +51,12 @@ import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { authorizeStoreRequest } from '../auth/authorize.js';
 import type { SessionResolver } from '../auth/session.js';
 import type { Database } from '../db/client.js';
+import {
+  LogoStoreError,
+  MAX_LOGO_BYTES,
+  sniffImageType,
+  type LogoStore,
+} from '../db/logo-storage.js';
 import {
   getBalance,
   LedgerError,
@@ -89,6 +96,8 @@ export interface RouteOptions {
   db: Database;
   sessionResolver?: SessionResolver | undefined;
   rateLimit?: { max: number; timeWindow: string } | undefined;
+  /** Null when no storage is configured; the logo routes then answer 503. */
+  logoStore?: LogoStore | null | undefined;
 }
 
 const bearer = (header: string | undefined): string | undefined =>
@@ -127,7 +136,7 @@ export const LEDGER_ERROR_STATUS = {
  * award points, get a balance.
  */
 export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, options) => {
-  const { db, sessionResolver, rateLimit } = options;
+  const { db, sessionResolver, rateLimit, logoStore } = options;
 
   /**
    * Resolve a credential to a customer. The cashier sees the first name and,
@@ -976,6 +985,7 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
           contactName: stores.contactName,
           contactEmail: stores.contactEmail,
           brandColor: stores.brandColor,
+          logoUrl: stores.logoUrl,
         })
         .from(stores)
         .where(eq(stores.id, storeId))
@@ -1044,6 +1054,7 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
           contactName: stores.contactName,
           contactEmail: stores.contactEmail,
           brandColor: stores.brandColor,
+          logoUrl: stores.logoUrl,
         });
       const updated = updatedRows[0] ?? {
         name: before.name,
@@ -1051,6 +1062,7 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
         contactName: before.contactName,
         contactEmail: before.contactEmail,
         brandColor: before.brandColor,
+        logoUrl: before.logoUrl,
       };
 
       await db.insert(auditLogEntries).values({
@@ -1074,6 +1086,187 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
   );
 
   /** The store's branches: the list the till already picks from. */
+  /**
+   * The store's logo (D-156). Owners upload the image; the API checks its real
+   * type from the bytes, not the label, stores it in the public bucket and
+   * records the change. Customers see it instead of initials.
+   */
+  app.post(
+    '/v1/stores/:storeId/logo',
+    {
+      // 2 MB of image is about 2.8 MB of base64; the default 1 MB body limit
+      // would reject a legitimate upload before the size check can explain it.
+      bodyLimit: 3_000_000,
+      config: { rateLimit: rateLimit ?? { max: 20, timeWindow: '1 minute' } },
+      schema: {
+        params: storeIdParamsSchema,
+        body: storeLogoUpdateRequestSchema,
+        response: {
+          200: storeProfileResponseSchema,
+          400: apiErrorSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+          404: apiErrorSchema,
+          502: apiErrorSchema,
+          503: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { storeId } = request.params;
+      const auth = await authorizeStoreRequest(db, sessionResolver, {
+        token: bearer(request.headers.authorization),
+        storeId,
+        anyOf: ['store.manage'],
+      });
+      if (!auth.ok) {
+        return reply.code(auth.status).send({ error: auth.error });
+      }
+      if (logoStore === undefined || logoStore === null) {
+        return reply.code(503).send({
+          error: {
+            code: 'LOGO_STORAGE_UNAVAILABLE',
+            message: 'Image storage is not configured on this server',
+          },
+        });
+      }
+
+      const bytes = Buffer.from(request.body.data, 'base64');
+      if (bytes.length === 0 || bytes.length > MAX_LOGO_BYTES) {
+        return reply.code(400).send({
+          error: { code: 'LOGO_TOO_LARGE', message: 'Use an image under 2 MB' },
+        });
+      }
+      const sniffed = sniffImageType(bytes);
+      if (sniffed === null || sniffed !== request.body.contentType) {
+        return reply.code(400).send({
+          error: {
+            code: 'LOGO_TYPE',
+            message: 'Use a PNG, JPEG or WebP image',
+          },
+        });
+      }
+
+      let logoUrl: string;
+      try {
+        logoUrl = await logoStore.put(storeId, bytes, sniffed);
+      } catch (error) {
+        if (error instanceof LogoStoreError) {
+          return reply.code(502).send({
+            error: { code: 'LOGO_UPLOAD_FAILED', message: 'The image could not be stored' },
+          });
+        }
+        throw error;
+      }
+
+      const updatedRows = await db
+        .update(stores)
+        .set({ logoUrl, updatedAt: new Date() })
+        .where(eq(stores.id, storeId))
+        .returning({
+          name: stores.name,
+          address: stores.address,
+          contactName: stores.contactName,
+          contactEmail: stores.contactEmail,
+          brandColor: stores.brandColor,
+          logoUrl: stores.logoUrl,
+        });
+      const updated = updatedRows[0];
+      if (updated === undefined) {
+        return reply.code(404).send({
+          error: { code: 'STORE_NOT_FOUND', message: 'That store does not exist here' },
+        });
+      }
+
+      await db.insert(auditLogEntries).values({
+        actorId: auth.staffUserId,
+        action: 'store.logo',
+        storeId,
+        targetType: 'store',
+        targetId: storeId,
+        after: { logoUrl },
+      });
+
+      return reply.send(updated);
+    },
+  );
+
+  app.delete(
+    '/v1/stores/:storeId/logo',
+    {
+      config: { rateLimit: rateLimit ?? { max: 20, timeWindow: '1 minute' } },
+      schema: {
+        params: storeIdParamsSchema,
+        response: {
+          200: storeProfileResponseSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+          404: apiErrorSchema,
+          502: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { storeId } = request.params;
+      const auth = await authorizeStoreRequest(db, sessionResolver, {
+        token: bearer(request.headers.authorization),
+        storeId,
+        anyOf: ['store.manage'],
+      });
+      if (!auth.ok) {
+        return reply.code(auth.status).send({ error: auth.error });
+      }
+
+      const existingRows = await db.select().from(stores).where(eq(stores.id, storeId)).limit(1);
+      const existing = existingRows[0];
+      if (existing === undefined) {
+        return reply.code(404).send({
+          error: { code: 'STORE_NOT_FOUND', message: 'That store does not exist here' },
+        });
+      }
+
+      if (logoStore !== undefined && logoStore !== null) {
+        try {
+          await logoStore.remove(storeId);
+        } catch (error) {
+          if (!(error instanceof LogoStoreError)) throw error;
+          // The row is cleared anyway; a stale object is harmless.
+        }
+      }
+
+      const updatedRows = await db
+        .update(stores)
+        .set({ logoUrl: null, updatedAt: new Date() })
+        .where(eq(stores.id, storeId))
+        .returning({
+          name: stores.name,
+          address: stores.address,
+          contactName: stores.contactName,
+          contactEmail: stores.contactEmail,
+          brandColor: stores.brandColor,
+          logoUrl: stores.logoUrl,
+        });
+      const updated = updatedRows[0];
+      if (updated === undefined) {
+        return reply.code(404).send({
+          error: { code: 'STORE_NOT_FOUND', message: 'That store does not exist here' },
+        });
+      }
+
+      await db.insert(auditLogEntries).values({
+        actorId: auth.staffUserId,
+        action: 'store.logo',
+        storeId,
+        targetType: 'store',
+        targetId: storeId,
+        before: { logoUrl: existing.logoUrl },
+        after: { logoUrl: null },
+      });
+
+      return reply.send(updated);
+    },
+  );
+
   app.get(
     '/v1/stores/:storeId/branches',
     {

@@ -1,5 +1,12 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { ApiError, getProfile, updateProfile, type Profile as ProfileData } from '../api';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import {
+  ApiError,
+  getProfile,
+  removeLogo,
+  updateProfile,
+  uploadLogo,
+  type Profile as ProfileData,
+} from '../api';
 import { ownerMessage } from '../errors';
 
 /** What the customer's app paints this store's page with (D-139). */
@@ -13,6 +20,8 @@ export function ProfileScreen({ token, storeId }: { token: string; storeId: stri
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [logoBusy, setLogoBusy] = useState(false);
+  const fileRef = useRef<HTMLInputElement | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -32,6 +41,52 @@ export function ProfileScreen({ token, storeId }: { token: string; storeId: stri
   useEffect(() => {
     void load();
   }, [load]);
+
+  const handleLogo = async (file: File) => {
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+      setError('Use a PNG, JPEG or WebP image.');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setError('Use an image under 2 MB.');
+      return;
+    }
+    setLogoBusy(true);
+    setError(null);
+    setFlash(null);
+    try {
+      const data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '');
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
+      const saved = await uploadLogo(token, storeId, {
+        contentType: file.type as 'image/png' | 'image/jpeg' | 'image/webp',
+        data,
+      });
+      setProfile(saved);
+      setFlash('Logo updated. Customers see it on your store page.');
+    } catch (caught) {
+      setError(caught instanceof ApiError ? ownerMessage(caught.code) : 'Could not upload it.');
+    } finally {
+      setLogoBusy(false);
+    }
+  };
+
+  const handleRemoveLogo = async () => {
+    setLogoBusy(true);
+    setError(null);
+    setFlash(null);
+    try {
+      setProfile(await removeLogo(token, storeId));
+      setFlash('Logo removed. Customers see your initials again.');
+    } catch (caught) {
+      setError(caught instanceof ApiError ? ownerMessage(caught.code) : 'Could not remove it.');
+    } finally {
+      setLogoBusy(false);
+    }
+  };
 
   const handleSave = async (event: FormEvent) => {
     event.preventDefault();
@@ -69,8 +124,63 @@ export function ProfileScreen({ token, storeId }: { token: string; storeId: stri
 
       {profile !== null && (
         <div className="panel" style={{ maxWidth: 760 }}>
+          <div className="logo-row">
+            <div className="logo-box" style={{ backgroundColor: brandColor }}>
+              {profile.logoUrl === null ? (
+                <span>
+                  {(name || 'S')
+                    .split(/\s+/)
+                    .slice(0, 2)
+                    .map((part) => part[0]?.toUpperCase() ?? '')
+                    .join('')}
+                </span>
+              ) : (
+                <img src={profile.logoUrl} alt={`${name} logo`} />
+              )}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <strong>Store logo</strong>
+              <p className="muted" style={{ fontSize: 12, margin: '3px 0 10px' }}>
+                PNG, JPEG or WebP, up to 2 MB. Customers see it on their store card and page.
+              </p>
+              <div className="actions">
+                <button
+                  className="ghost small"
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  disabled={logoBusy}
+                >
+                  {logoBusy ? 'Uploading…' : profile.logoUrl === null ? 'Upload logo' : 'Replace logo'}
+                </button>
+                {profile.logoUrl !== null && (
+                  <button
+                    className="ghost small danger"
+                    type="button"
+                    onClick={() => void handleRemoveLogo()}
+                    disabled={logoBusy}
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                style={{ display: 'none' }}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file !== undefined) void handleLogo(file);
+                  event.target.value = '';
+                }}
+              />
+            </div>
+          </div>
+
           <div className="storepreview">
-            <span className="storepreview-swatch" style={{ backgroundColor: brandColor }} aria-hidden="true" />
+            <span className="storepreview-swatch" style={{ backgroundColor: brandColor }} aria-hidden="true">
+              {profile.logoUrl !== null && <img src={profile.logoUrl} alt="" />}
+            </span>
             <div style={{ flex: 1, minWidth: 0 }}>
               <strong>{name || 'Your store'}</strong>
               <span>{address || 'Add an address so customers can find you'}</span>

@@ -6,6 +6,13 @@
 
 ## Done
 
+- **Build 25 — owner-uploaded store logos (D-156).** Migration `0017` adds
+  `stores.logo_url`; the `store-logos` bucket is public with a 2 MB limit. Owners upload,
+  replace or remove the logo in Store profile; the API sniffs the real image type, stores
+  it, audits `store.logo` and returns the profile. The customer app shows it on store
+  cards, the store page and campaign rows, falling back to initials. 5 new integration
+  tests; the bucket was verified with a real upload and public read.
+
 - **Build 24 — OmaPointii brand + merchant landing (D-155).** Renamed the visible product
   across customer, till, merchant and admin (titles, wordmarks, copy, installer names),
   with an O monogram. New merchant landing: deep-green brand panel, letter-by-letter

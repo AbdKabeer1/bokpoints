@@ -300,6 +300,7 @@ export interface CustomerStoreSummary {
   balance: number;
   lastActivityAt: Date;
   brandColor: string | null;
+  logoUrl: string | null;
   marketingConsent: boolean;
   /** The cheapest active reward the balance has not reached yet. */
   nextReward: { name: string; pointsCost: number } | null;
@@ -326,6 +327,7 @@ export async function customerStores(
       rel.store_id AS "storeId",
       s.name AS "name",
       s.brand_color AS "brandColor",
+      s.logo_url AS "logoUrl",
       coalesce(link.marketing_consent, false) AS "marketingConsent",
       coalesce(b.balance, 0)::int AS "balance",
       coalesce(last_entry.last_at, link.joined_at, s.created_at) AS "lastActivityAt",
@@ -360,6 +362,7 @@ export async function customerStores(
     balance: Number(row.balance ?? 0),
     lastActivityAt: new Date(row.lastActivityAt as string),
     brandColor: row.brandColor === null ? null : String(row.brandColor),
+    logoUrl: row.logoUrl === null || row.logoUrl === undefined ? null : String(row.logoUrl),
     marketingConsent: Boolean(row.marketingConsent),
     nextReward:
       row.nextRewardName === null || row.nextRewardName === undefined

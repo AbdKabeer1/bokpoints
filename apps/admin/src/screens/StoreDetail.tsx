@@ -357,6 +357,16 @@ export function StoreDetailScreen({
                   <dd>{store.contactEmail ?? 'Not given'}</dd>
                 </div>
                 <div>
+                  <dt>Logo</dt>
+                  <dd>
+                    {store.logoUrl === null ? (
+                      'Initials'
+                    ) : (
+                      <img className="detail-logo" src={store.logoUrl} alt={`${store.name} logo`} />
+                    )}
+                  </dd>
+                </div>
+                <div>
                   <dt>Brand colour</dt>
                   <dd>
                     {store.brandColor === null ? (

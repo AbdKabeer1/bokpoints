@@ -13,6 +13,7 @@ import {
 } from 'fastify-type-provider-zod';
 import type { CustomerSessionResolver, SessionResolver } from './auth/session.js';
 import type { Database } from './db/client.js';
+import { createLogoStore, type LogoStore } from './db/logo-storage.js';
 import { adminRoutes } from './routes/admin.js';
 import { auditRoutes } from './routes/audit.js';
 import { campaignRoutes } from './routes/campaigns.js';
@@ -38,6 +39,8 @@ export interface BuildAppOptions {
    * server does. Native apps are unaffected either way.
    */
   corsOrigins?: string[] | undefined;
+  /** Overrides the Supabase-backed logo store (tests use a stub). */
+  logoStore?: LogoStore | null | undefined;
   logger?: boolean;
   /** Overrides the rate limits. Used by the tests to keep them small. */
   rateLimit?: RateLimitOptions | undefined;
@@ -181,6 +184,10 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       db: options.db,
       sessionResolver: options.sessionResolver,
       rateLimit: options.rateLimit,
+      logoStore:
+        options.logoStore === undefined
+          ? createLogoStore(process.env.SUPABASE_URL, process.env.SUPABASE_SECRET_KEY)
+          : options.logoStore,
     });
     await app.register(adminRoutes, {
       db: options.db,

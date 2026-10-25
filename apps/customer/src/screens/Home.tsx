@@ -249,7 +249,7 @@ export function Home({ token, me, onSignOut }: HomeProps) {
                   accessibilityLabel={`Open ${store.name}, ${store.balance} points`}
                 >
                   <View style={styles.storeRow}>
-                    <StoreAvatar name={store.name} color={store.brandColor} size={44} />
+                    <StoreAvatar name={store.name} color={store.brandColor} size={44} logoUrl={store.logoUrl} />
                     <View style={styles.storeText}>
                       <Text style={styles.storeName}>{store.name}</Text>
                       <Text style={styles.storeMeta}>
@@ -294,6 +294,7 @@ export function Home({ token, me, onSignOut }: HomeProps) {
                         name={message.storeName}
                         color={message.storeBrandColor}
                         size={38}
+                        logoUrl={message.storeLogoUrl}
                       />
                       <View style={{ flex: 1 }}>
                         <View style={styles.inboxTop}>

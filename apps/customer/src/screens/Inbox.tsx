@@ -98,6 +98,7 @@ export function Inbox({ token, notifications, onRefresh, onChanged }: InboxProps
                   name={message.storeName}
                   color={message.storeBrandColor}
                   size={38}
+                  logoUrl={message.storeLogoUrl}
                 />
                 <View style={{ flex: 1 }}>
                   <View style={styles.itemMeta}>

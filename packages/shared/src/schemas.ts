@@ -259,6 +259,16 @@ export const storeProfileResponseSchema = z.object({
   contactName: z.string().nullable(),
   contactEmail: z.string().nullable(),
   brandColor: z.string().nullable(),
+  /** Supabase Storage public URL, or null when the store has no logo. */
+  logoUrl: z.string().nullable(),
+});
+
+/** A logo upload: a base64 image, already checked by the browser for size. */
+export const storeLogoUpdateRequestSchema = z.object({
+  contentType: z.enum(['image/png', 'image/jpeg', 'image/webp']),
+  // 2 MB decoded is about 2.8 M base64 characters; the API checks the bytes
+  // again after decoding.
+  data: z.string().min(16).max(2_900_000),
 });
 
 export const storeProfileUpdateRequestSchema = z
@@ -553,8 +563,10 @@ export const customerStoreSchema = z.object({
   name: z.string(),
   balance: z.number().int(),
   lastActivityAt: z.string(),
-  /** The store's brand colour, so the app can paint its card (D-139). Null = Poket green. */
+  /** The store's brand colour, so the app can paint its card (D-139). Null = OmaPointii green. */
   brandColor: z.string().nullable(),
+  /** The owner's uploaded logo, or null for initials. */
+  logoUrl: z.string().nullable(),
   /** Whether this customer accepts store news in the app (FR-PRV-2). */
   marketingConsent: z.boolean(),
   /** The cheapest active reward above the balance, or the best one to work toward. */
@@ -807,6 +819,7 @@ export const customerNotificationSchema = z.object({
   storeId: z.string().uuid(),
   storeName: z.string(),
   storeBrandColor: z.string().nullable(),
+  storeLogoUrl: z.string().nullable(),
   title: z.string(),
   body: z.string(),
   createdAt: z.string(),
@@ -878,6 +891,7 @@ export const adminStoreDetailSchema = z.object({
     contactName: z.string().nullable(),
     contactEmail: z.string().nullable(),
     brandColor: z.string().nullable(),
+    logoUrl: z.string().nullable(),
     maxPointsPerSale: z.number().int().nullable(),
     createdAt: z.string(),
   }),

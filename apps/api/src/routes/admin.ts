@@ -423,6 +423,7 @@ export const adminRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
           contactName: store.contactName,
           contactEmail: store.contactEmail,
           brandColor: store.brandColor,
+          logoUrl: store.logoUrl,
           maxPointsPerSale: store.maxPointsPerSale,
           createdAt: store.createdAt.toISOString(),
         },

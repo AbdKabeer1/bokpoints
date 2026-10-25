@@ -27,6 +27,7 @@ import {
   storeCustomersResponseSchema,
   storeProfileResponseSchema,
   storeProfileUpdateRequestSchema,
+  storeLogoUpdateRequestSchema,
   storeReportsResponseSchema,
   storeRewardsResponseSchema,
   storeRewardRowSchema,
@@ -53,7 +54,7 @@ interface ResponseSchema<T> {
 const base = (import.meta.env.VITE_API_BASE ?? '').replace(/\/+$/, '');
 
 interface RequestOptions {
-  method: 'GET' | 'POST' | 'PATCH';
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   path: string;
   token: string;
   body?: unknown;
@@ -293,6 +294,25 @@ export const updateProfile = (
     path: `/v1/stores/${storeId}/profile`,
     token,
     body: storeProfileUpdateRequestSchema.parse(body),
+  });
+
+export const uploadLogo = (
+  token: string,
+  storeId: string,
+  body: { contentType: 'image/png' | 'image/jpeg' | 'image/webp'; data: string },
+) =>
+  request(storeProfileResponseSchema, {
+    method: 'POST',
+    path: `/v1/stores/${storeId}/logo`,
+    token,
+    body: storeLogoUpdateRequestSchema.parse(body),
+  });
+
+export const removeLogo = (token: string, storeId: string) =>
+  request(storeProfileResponseSchema, {
+    method: 'DELETE',
+    path: `/v1/stores/${storeId}/logo`,
+    token,
   });
 
 export const getCustomerHistory = (token: string, storeId: string, customerId: string) =>
