@@ -5,6 +5,7 @@ import {
   ScrollView,
   Share,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
@@ -14,10 +15,12 @@ import {
   ApiError,
   deleteMyAccount,
   exportMyData,
+  sendFeedback,
   updateMe,
   type Me,
 } from '../lib/api';
 import { sendEmailCode } from '../lib/session';
+import { AboutLegal } from './AboutLegal';
 import { colors, fonts, layout } from '../lib/theme';
 
 interface SettingsProps {
@@ -47,6 +50,15 @@ export function SettingsScreen({ token, me, onSaved, onBack, onSignOut }: Settin
   const [deleteCode, setDeleteCode] = useState('');
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const [notifications, setNotifications] = useState(me.customer.notificationsEnabled);
+  const [legalOpen, setLegalOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackCategory, setFeedbackCategory] = useState<'bug' | 'idea' | 'other'>('idea');
+  const [feedbackMessage, setFeedbackMessage] = useState('');
+  const [feedbackBusy, setFeedbackBusy] = useState(false);
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
+  const [feedbackSent, setFeedbackSent] = useState(false);
 
   const save = async () => {
     setSaving(true);
@@ -130,6 +142,43 @@ export function SettingsScreen({ token, me, onSaved, onBack, onSignOut }: Settin
     }
   };
 
+  const toggleNotifications = async (next: boolean) => {
+    setNotifications(next);
+    setError(null);
+    try {
+      const updated = await updateMe(token, { notificationsEnabled: next });
+      onSaved(updated);
+    } catch {
+      setNotifications(me.customer.notificationsEnabled);
+      setError('We could not save the notification preference. Try again.');
+    }
+  };
+
+  const sendFeedbackMessage = async () => {
+    if (feedbackMessage.trim().length < 3) {
+      setFeedbackError('Write a little more first.');
+      return;
+    }
+    setFeedbackBusy(true);
+    setFeedbackError(null);
+    try {
+      await sendFeedback(token, {
+        category: feedbackCategory,
+        message: feedbackMessage.trim(),
+        page: 'Settings',
+      });
+      setFeedbackSent(true);
+      setFeedbackMessage('');
+      setFeedbackOpen(false);
+    } catch {
+      setFeedbackError('We could not send that. Try again in a moment.');
+    } finally {
+      setFeedbackBusy(false);
+    }
+  };
+
+  if (legalOpen) return <AboutLegal onBack={() => setLegalOpen(false)} />;
+
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <Pressable onPress={onBack} hitSlop={12} style={styles.backRow}>
@@ -167,6 +216,21 @@ export function SettingsScreen({ token, me, onSaved, onBack, onSignOut }: Settin
           </Pressable>
         </View>
 
+        <View style={styles.toggleRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.toggleTitle}>In-app notifications</Text>
+            <Text style={styles.toggleBody}>
+              Store messages in your Inbox. Store-news consent is separate.
+            </Text>
+          </View>
+          <Switch
+            value={notifications}
+            onValueChange={(next) => void toggleNotifications(next)}
+            trackColor={{ false: colors.lineStrong, true: colors.primary }}
+            thumbColor="#FFFFFF"
+          />
+        </View>
+
         {error !== null && <Text style={styles.error}>{error}</Text>}
         {saved && error === null && <Text style={styles.saved}>Saved.</Text>}
 
@@ -177,6 +241,75 @@ export function SettingsScreen({ token, me, onSaved, onBack, onSignOut }: Settin
         >
           <Text style={styles.saveText}>{saving ? 'Saving…' : 'Save'}</Text>
         </Pressable>
+      </View>
+
+      <Text style={styles.sectionLabel}>Help & feedback</Text>
+
+      <View style={styles.card}>
+        <Pressable style={styles.menuRow} onPress={() => setLegalOpen(true)}>
+          <Text style={styles.menuLabel}>FAQ, terms, privacy and licences</Text>
+          <Feather name="chevron-right" size={18} color={colors.muted} />
+        </Pressable>
+
+        <View style={styles.divider} />
+
+        {feedbackSent && <Text style={styles.saved}>Thank you — your feedback is in.</Text>}
+
+        {!feedbackOpen ? (
+          <Pressable style={styles.secondaryButton} onPress={() => setFeedbackOpen(true)}>
+            <Feather name="message-square" size={15} color={colors.text} />
+            <Text style={styles.secondaryText}>Send feedback</Text>
+          </Pressable>
+        ) : (
+          <View>
+            <Text style={styles.feedbackLabel}>What kind of feedback?</Text>
+            <View style={styles.langRow}>
+              {(['bug', 'idea', 'other'] as const).map((category) => (
+                <Pressable
+                  key={category}
+                  style={[styles.langChip, feedbackCategory === category && styles.langChipOn]}
+                  onPress={() => setFeedbackCategory(category)}
+                >
+                  <Text
+                    style={[
+                      styles.langText,
+                      feedbackCategory === category && styles.langTextOn,
+                    ]}
+                  >
+                    {category === 'bug' ? 'Problem' : category === 'idea' ? 'Idea' : 'Other'}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            <TextInput
+              value={feedbackMessage}
+              onChangeText={setFeedbackMessage}
+              placeholder="Tell us what happened or what would help"
+              placeholderTextColor={colors.muted}
+              multiline
+              maxLength={2000}
+              editable={!feedbackBusy}
+              style={[styles.input, styles.feedbackInput]}
+            />
+            {feedbackError !== null && <Text style={styles.error}>{feedbackError}</Text>}
+            <Pressable
+              style={[styles.saveButton, feedbackBusy && styles.saveButtonBusy]}
+              onPress={() => void sendFeedbackMessage()}
+              disabled={feedbackBusy}
+            >
+              <Text style={styles.saveText}>{feedbackBusy ? 'Sending…' : 'Send feedback'}</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                setFeedbackOpen(false);
+                setFeedbackError(null);
+              }}
+              hitSlop={8}
+            >
+              <Text style={styles.cancel}>Cancel</Text>
+            </Pressable>
+          </View>
+        )}
       </View>
 
       <Text style={styles.sectionLabel}>Privacy</Text>
@@ -465,6 +598,51 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: colors.line,
     marginVertical: 20,
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 18,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
+  },
+  toggleTitle: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 13.5,
+    color: colors.text,
+  },
+  toggleBody: {
+    fontFamily: fonts.body,
+    fontSize: 11.5,
+    lineHeight: 17,
+    color: colors.muted,
+    marginTop: 2,
+  },
+  menuRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    minHeight: 44,
+  },
+  menuLabel: {
+    fontFamily: fonts.bodySemi,
+    fontSize: 13.5,
+    color: colors.text,
+    flex: 1,
+  },
+  feedbackLabel: {
+    fontFamily: fonts.bodySemi,
+    fontSize: 12.5,
+    color: colors.muted,
+    marginBottom: 8,
+  },
+  feedbackInput: {
+    minHeight: 96,
+    textAlignVertical: 'top',
+    marginTop: 12,
   },
   dangerButton: {
     marginTop: 14,

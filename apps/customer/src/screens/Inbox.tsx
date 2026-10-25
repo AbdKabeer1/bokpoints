@@ -8,6 +8,7 @@ import { Card, StoreAvatar } from '../components/ui';
 interface InboxProps {
   token: string;
   notifications: Notification[];
+  enabled: boolean;
   onChanged: () => Promise<void>;
 }
 
@@ -23,7 +24,7 @@ const relative = (iso: string): string => {
 };
 
 /** Offers are the messages stores send inside OmaPointii — never email or SMS. */
-export function Inbox({ token, notifications, onChanged }: InboxProps) {
+export function Inbox({ token, notifications, enabled, onChanged }: InboxProps) {
   const [busy, setBusy] = useState<string | null>(null);
   const unread = notifications.filter((message) => message.readAt === null).length;
 
@@ -43,15 +44,25 @@ export function Inbox({ token, notifications, onChanged }: InboxProps) {
       <View style={styles.head}>
         <Text style={styles.title}>Inbox</Text>
         <Text style={styles.sub}>
-          {notifications.length === 0
-            ? 'Messages from your stores'
-            : unread === 0
-              ? 'All caught up'
-              : `${unread} unread message${unread === 1 ? '' : 's'}`}
+          {!enabled
+            ? 'Notifications are off'
+            : notifications.length === 0
+              ? 'Messages from your stores'
+              : unread === 0
+                ? 'All caught up'
+                : `${unread} unread message${unread === 1 ? '' : 's'}`}
         </Text>
       </View>
 
-      {notifications.length === 0 ? (
+      {!enabled ? (
+        <Card>
+          <Text style={styles.emptyTitle}>Notifications are off</Text>
+          <Text style={styles.emptyBody}>
+            Turn them back on under You → Settings → In-app notifications. Store messages are
+            kept while they are off.
+          </Text>
+        </Card>
+      ) : notifications.length === 0 ? (
         <Card>
           <Text style={styles.emptyTitle}>Nothing here yet</Text>
           <Text style={styles.emptyBody}>

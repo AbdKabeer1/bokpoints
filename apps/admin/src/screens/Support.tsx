@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { ApiError, searchSupport, type SupportResults } from '../api';
 import { adminMessage } from '../errors';
 import { formatDate } from '../format';
+import { FeedbackForm, RecentFeedback } from '../components/FeedbackPanel';
 
 /**
  * One search box for support: a store name, or a customer's email, name or
@@ -154,6 +155,11 @@ export function SupportScreen({
           </div>
         </div>
       )}
+      <div className="grid two" style={{ marginTop: 16 }}>
+        <FeedbackForm token={token} />
+        <RecentFeedback token={token} />
+      </div>
+
     </section>
   );
 }

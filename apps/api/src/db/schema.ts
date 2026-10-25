@@ -39,6 +39,8 @@ export const customers = pgTable(
     phone: text('phone'),
     emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
     language: text('language').notNull().default('fi'),
+    /** Push/in-app notifications can be turned off without losing the account (customer preference). */
+    notificationsEnabled: boolean('notifications_enabled').notNull().default(true),
     status: text('status').notNull().default('active'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -637,6 +639,32 @@ export const subscriptions = pgTable(
       'subscriptions_status_check',
       sql`${t.status} in ('trialing', 'active', 'past_due', 'paused', 'suspended', 'canceled')`,
     ),
+  ],
+).enableRLS();
+
+/**
+ * In-app feedback from any surface. One row per message; the admin Support
+ * area can read them. Deliberately not a ticket system.
+ */
+export const feedback = pgTable(
+  'feedback',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    source: text('source').notNull(),
+    category: text('category').notNull(),
+    message: text('message').notNull(),
+    contactEmail: text('contact_email'),
+    page: text('page'),
+    customerId: uuid('customer_id').references(() => customers.id, { onDelete: 'set null' }),
+    staffUserId: uuid('staff_user_id').references(() => staffUsers.id, { onDelete: 'set null' }),
+    status: text('status').notNull().default('new'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check('feedback_source_check', sql`${t.source} in ('customer', 'owner', 'admin', 'till')`),
+    check('feedback_category_check', sql`${t.category} in ('bug', 'idea', 'other')`),
+    check('feedback_status_check', sql`${t.status} in ('new', 'reviewed', 'closed')`),
+    index('feedback_created_idx').on(t.createdAt),
   ],
 ).enableRLS();
 

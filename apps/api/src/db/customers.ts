@@ -38,6 +38,7 @@ export interface CustomerProfile {
   email: string;
   name: string;
   language: string;
+  notificationsEnabled: boolean;
   createdAt: Date;
 }
 
@@ -191,6 +192,7 @@ export async function provisionCustomer(
         email: row.email,
         name: row.name,
         language: row.language,
+        notificationsEnabled: row.notificationsEnabled,
         createdAt: row.createdAt,
         credentialIdentifier,
       };
@@ -264,6 +266,7 @@ async function readSettledCustomer(
     email: row.email,
     name: row.name,
     language: row.language,
+    notificationsEnabled: row.notificationsEnabled,
     createdAt: row.createdAt,
     credentialIdentifier: identifier,
   };
@@ -273,13 +276,20 @@ async function readSettledCustomer(
 export async function updateCustomerProfile(
   db: Database,
   customerId: string,
-  patch: { name?: string | undefined; language?: string | undefined },
+  patch: {
+    name?: string | undefined;
+    language?: string | undefined;
+    notificationsEnabled?: boolean | undefined;
+  },
 ): Promise<CustomerProfile> {
   const rows = await db
     .update(customers)
     .set({
       ...(patch.name === undefined ? {} : { name: patch.name }),
       ...(patch.language === undefined ? {} : { language: patch.language }),
+      ...(patch.notificationsEnabled === undefined
+        ? {}
+        : { notificationsEnabled: patch.notificationsEnabled }),
       updatedAt: new Date(),
     })
     .where(eq(customers.id, customerId))
@@ -288,6 +298,7 @@ export async function updateCustomerProfile(
       email: customers.email,
       name: customers.name,
       language: customers.language,
+      notificationsEnabled: customers.notificationsEnabled,
       createdAt: customers.createdAt,
     });
 

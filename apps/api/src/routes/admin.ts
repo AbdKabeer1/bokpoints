@@ -5,8 +5,11 @@ import {
   adminAnonymiseCustomerRequestSchema,
   adminAnonymiseCustomerResponseSchema,
   adminCustomerParamsSchema,
+  adminFeedbackResponseSchema,
   adminSafetySignalsResponseSchema,
   adminStoreDetailSchema,
+  feedbackRequestSchema,
+  feedbackResponseSchema,
   adminStoreStatusRequestSchema,
   adminStoreStatusResponseSchema,
   adminStoresQuerySchema,
@@ -37,6 +40,7 @@ import {
 } from '../db/schema.js';
 import { LedgerError, recordFraudClawback, type LedgerErrorCode } from '../db/ledger.js';
 import { anonymiseCustomer, clearCustomerAuthUserId } from '../db/customers.js';
+import { listFeedback, recordFeedback } from '../db/feedback.js';
 import { createStaffAccountForInvite, StaffAccountError } from '../db/staff.js';
 import { LEDGER_ERROR_STATUS } from './stores.js';
 import type { RouteOptions } from './stores.js';
@@ -719,6 +723,74 @@ export const adminRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
       ];
 
       return reply.send({ thresholds, signals });
+    },
+  );
+
+
+  /** Feedback submitted from the platform console itself. */
+  app.post(
+    '/v1/admin/feedback',
+    {
+      config: { rateLimit: rateLimit ?? { max: 10, timeWindow: '1 hour' } },
+      schema: {
+        body: feedbackRequestSchema,
+        response: {
+          201: feedbackResponseSchema,
+          400: apiErrorSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const auth = await authorizeAdminRequest(db, sessionResolver, {
+        token: bearer(request.headers.authorization),
+        anyOf: ['audit.view'],
+      });
+      if (!auth.ok) return reply.code(auth.status).send({ error: auth.error });
+
+      const saved = await recordFeedback(db, {
+        source: 'admin',
+        category: request.body.category,
+        message: request.body.message,
+        page: request.body.page ?? null,
+        staffUserId: auth.staffUserId,
+      });
+
+      return reply.code(201).send({
+        id: saved.id,
+        createdAt: saved.createdAt.toISOString(),
+      });
+    },
+  );
+
+  /** The newest feedback from every surface, for the Support area. */
+  app.get(
+    '/v1/admin/feedback',
+    {
+      config: { rateLimit: rateLimit ?? { max: 60, timeWindow: '1 minute' } },
+      schema: {
+        response: {
+          200: adminFeedbackResponseSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const auth = await authorizeAdminRequest(db, sessionResolver, {
+        token: bearer(request.headers.authorization),
+        anyOf: ['audit.view'],
+      });
+      if (!auth.ok) return reply.code(auth.status).send({ error: auth.error });
+
+      const rows = await listFeedback(db);
+      return reply.send({
+        feedback: rows.map((row) => ({
+          ...row,
+          createdAt: row.createdAt.toISOString(),
+        })),
+      });
     },
   );
 

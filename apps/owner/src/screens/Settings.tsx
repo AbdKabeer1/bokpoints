@@ -1,3 +1,4 @@
+import { APP_VERSION } from '@bokpoints/shared';
 import type { Tab } from '../Shell';
 
 /**
@@ -99,6 +100,43 @@ export function SettingsScreen({ onNavigate }: { onNavigate: (tab: Tab) => void 
         </div>
 
         <div className="grid" style={{ gap: 16 }}>
+          <div className="panel">
+            <div className="panelhead">
+              <div>
+                <h3>About this build</h3>
+                <p className="sub">Version, terms and privacy</p>
+              </div>
+            </div>
+            <div className="kv">
+              <div>
+                <dt>Version</dt>
+                <dd>{APP_VERSION} · pilot</dd>
+              </div>
+              <div>
+                <dt>Terms of use</dt>
+                <dd>
+                  Points have no cash value, are held per store, and expire three months after
+                  they are earned. Stores may change future earning rules and rewards.
+                </dd>
+              </div>
+              <div>
+                <dt>Privacy</dt>
+                <dd>
+                  Customer data is processed to run the loyalty service. Customers can export or
+                  delete their data in the app; store totals remain anonymised.
+                </dd>
+              </div>
+              <div>
+                <dt>Feedback</dt>
+                <dd>
+                  <button className="link" type="button" onClick={() => onNavigate('support')}>
+                    Send feedback in Support &amp; FAQ ›
+                  </button>
+                </dd>
+              </div>
+            </div>
+          </div>
+
           <div className="panel">
             <div className="panelhead">
               <div>

@@ -16,6 +16,7 @@ import {
   type RecentAwards,
   type TillReward,
 } from './api';
+import { APP_VERSION } from '@bokpoints/shared';
 import { cashierMessage, HELP_LINE } from './errors';
 import { formatCents, formatDate, isEmail, normalizeScan, parseAmountToCents } from './format';
 import { ScanCamera } from './ScanCamera';
@@ -908,7 +909,9 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
         )}
 
         {error !== null && <p className="error">{error}</p>}
-        <p className="helpline muted small">{HELP_LINE}</p>
+        <p className="helpline muted small">
+          {HELP_LINE} · OmaPointii {APP_VERSION}
+        </p>
       </section>
     </main>
   );

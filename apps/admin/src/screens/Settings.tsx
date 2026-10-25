@@ -1,3 +1,4 @@
+import { APP_VERSION } from '@bokpoints/shared';
 import type { Me } from '../api';
 
 /** Account, security and the integrations this console waits on. */
@@ -68,6 +69,39 @@ export function SettingsScreen({ me, onSignOut }: { me: Me; onSignOut: () => voi
         </div>
 
         <div className="grid" style={{ gap: 16 }}>
+          <div className="panel">
+            <div className="panelhead">
+              <div>
+                <h3>About this build</h3>
+                <p className="sub">Version, terms and privacy</p>
+              </div>
+            </div>
+            <dl className="kv">
+              <div>
+                <dt>Version</dt>
+                <dd>{APP_VERSION} · pilot</dd>
+              </div>
+              <div>
+                <dt>Terms of use</dt>
+                <dd>
+                  Points have no cash value and expire three months after they are earned. Stores
+                  may change future rules and rewards.
+                </dd>
+              </div>
+              <div>
+                <dt>Privacy</dt>
+                <dd>
+                  Customer data is processed to run the loyalty service. Anonymisation keeps the
+                  ledger totals but removes the identity.
+                </dd>
+              </div>
+              <div>
+                <dt>Feedback</dt>
+                <dd>Use Support → Send feedback. The queue is read here.</dd>
+              </div>
+            </dl>
+          </div>
+
           <div className="panel">
             <div className="panelhead">
               <div>

@@ -205,7 +205,7 @@ export function App() {
             />
           )}
           {tab === 'billing' && <BillingScreen onNavigate={setTab} />}
-          {tab === 'support' && <SupportScreen onNavigate={setTab} />}
+          {tab === 'support' && <SupportScreen token={phase.token} onNavigate={setTab} />}
           {tab === 'settings' && <SettingsScreen onNavigate={setTab} />}
         </Shell>
       );

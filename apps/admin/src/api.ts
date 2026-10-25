@@ -1,5 +1,6 @@
 import {
   adminAnalyticsResponseSchema,
+  adminFeedbackResponseSchema,
   adminAnonymiseCustomerRequestSchema,
   adminAnonymiseCustomerResponseSchema,
   adminSafetySignalsResponseSchema,
@@ -10,6 +11,8 @@ import {
   adminSubscriptionsResponseSchema,
   adminSupportResponseSchema,
   apiErrorSchema,
+  feedbackRequestSchema,
+  feedbackResponseSchema,
   auditResponseSchema,
   meResponseSchema,
 } from '@bokpoints/shared';
@@ -160,3 +163,22 @@ export type SupportResults = Awaited<ReturnType<typeof searchSupport>>;
 export type Analytics = Awaited<ReturnType<typeof getAnalytics>>;
 export type Subscription = Awaited<ReturnType<typeof listSubscriptions>>['subscriptions'][number];
 export type AuditEntry = Awaited<ReturnType<typeof listAudit>>['entries'][number];
+
+
+export const sendFeedback = (
+  token: string,
+  body: { category: 'bug' | 'idea' | 'other'; message: string; page?: string },
+) =>
+  request(feedbackResponseSchema, {
+    method: 'POST',
+    path: '/v1/admin/feedback',
+    token,
+    body: feedbackRequestSchema.parse(body),
+  });
+
+export const listFeedback = (token: string) =>
+  request(adminFeedbackResponseSchema, {
+    method: 'GET',
+    path: '/v1/admin/feedback',
+    token,
+  });

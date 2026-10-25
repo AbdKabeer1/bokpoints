@@ -300,7 +300,12 @@ export function Home({ token, me, onSignOut }: HomeProps) {
           <Offers token={token} stores={stores ?? []} onOpenStore={setOpenStore} />
         )}
         {tab === 'inbox' && (
-          <Inbox token={token} notifications={notifications} onChanged={load} />
+          <Inbox
+            token={token}
+            notifications={notifications}
+            enabled={me.customer.notificationsEnabled}
+            onChanged={load}
+          />
         )}
         {tab === 'stores' && (
           <Stores directory={directory} visited={stores ?? []} onOpenStore={setOpenStore} />
@@ -355,7 +360,9 @@ export function Home({ token, me, onSignOut }: HomeProps) {
                   size={19}
                   color={active ? colors.onPrimary : colors.muted}
                 />
-                {entry.id === 'inbox' && unread > 0 && !active && <View style={styles.tabDot} />}
+                {entry.id === 'inbox' && me.customer.notificationsEnabled && unread > 0 && !active && (
+                  <View style={styles.tabDot} />
+                )}
               </View>
               <Text style={[styles.tabLabel, active && styles.tabLabelOn]}>{entry.label}</Text>
             </Pressable>

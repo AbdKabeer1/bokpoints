@@ -531,6 +531,8 @@ export const customerProfileSchema = z.object({
   email: z.string(),
   name: z.string(),
   language: z.string(),
+  /** Global in-app notification preference; per-store consent stays separate. */
+  notificationsEnabled: z.boolean(),
   createdAt: z.string(),
 });
 
@@ -553,10 +555,15 @@ export const updateCustomerRequestSchema = z
   .object({
     name: z.string().trim().min(1).max(100).optional(),
     language: z.enum(['fi', 'en']).optional(),
+    notificationsEnabled: z.boolean().optional(),
   })
-  .refine((value) => value.name !== undefined || value.language !== undefined, {
-    message: 'Send a name, a language, or both',
-  });
+  .refine(
+    (value) =>
+      value.name !== undefined ||
+      value.language !== undefined ||
+      value.notificationsEnabled !== undefined,
+    { message: 'Send a name, a language, or a notification preference' },
+  );
 
 export const customerStoreSchema = z.object({
   storeId: z.string().uuid(),
@@ -1117,4 +1124,35 @@ export const adminSafetySignalsResponseSchema = z.object({
     adjustmentsPerStaff30d: z.number().int(),
   }),
   signals: z.array(safetySignalSchema),
+});
+
+
+/* ── Feedback (customer, merchant, admin, till) ─────────────────────────── */
+
+export const feedbackCategorySchema = z.enum(['bug', 'idea', 'other']);
+
+export const feedbackRequestSchema = z.object({
+  category: feedbackCategorySchema,
+  message: z.string().trim().min(3).max(2000),
+  page: z.string().trim().max(200).optional(),
+});
+
+export const feedbackResponseSchema = z.object({
+  id: z.string().uuid(),
+  createdAt: z.string(),
+});
+
+export const adminFeedbackRowSchema = z.object({
+  id: z.string().uuid(),
+  source: z.string(),
+  category: z.string(),
+  message: z.string(),
+  contactEmail: z.string().nullable(),
+  page: z.string().nullable(),
+  status: z.string(),
+  createdAt: z.string(),
+});
+
+export const adminFeedbackResponseSchema = z.object({
+  feedback: z.array(adminFeedbackRowSchema),
 });

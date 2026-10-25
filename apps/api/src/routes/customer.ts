@@ -5,6 +5,8 @@ import {
   customerExpiringResponseSchema,
   customerExportSchema,
   deleteCustomerRequestSchema,
+  feedbackRequestSchema,
+  feedbackResponseSchema,
   deleteCustomerResponseSchema,
   customerHistoryResponseSchema,
   customerMeResponseSchema,
@@ -43,6 +45,7 @@ import {
 } from '../db/campaigns.js';
 import type { CustomerProfile } from '../db/customers.js';
 import type { AuthUserDeleter, EmailOtpVerifier } from '../auth/supabase-admin.js';
+import { recordFeedback } from '../db/feedback.js';
 import { issueDiscountProof, proofExpiresAt } from '../db/discount-proof.js';
 import { discountRules } from '../db/schema.js';
 import { and, eq } from 'drizzle-orm';
@@ -66,6 +69,7 @@ const meBody = (customer: CustomerProfile, credentialIdentifier: string) => ({
     email: customer.email,
     name: customer.name,
     language: customer.language,
+    notificationsEnabled: customer.notificationsEnabled,
     createdAt: customer.createdAt.toISOString(),
   },
   credential: { type: 'app_qr' as const, identifier: credentialIdentifier },
@@ -792,5 +796,53 @@ export const customerRoutes: FastifyPluginAsyncZod<CustomerRouteOptions> = async
       return reply.send({ deleted: true as const });
     },
   );
+
+  /** In-app feedback from the customer app; stored for the admin Support view. */
+  app.post(
+    '/v1/customer/me/feedback',
+    {
+      config: { rateLimit: { max: 10, timeWindow: '1 hour' } },
+      schema: {
+        body: feedbackRequestSchema,
+        response: {
+          201: feedbackResponseSchema,
+          400: apiErrorSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+          409: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const principal = await resolve(request.headers.authorization);
+      if (principal === null) {
+        return reply
+          .code(401)
+          .send({ error: { code: 'INVALID_TOKEN', message: 'That access token is not valid' } });
+      }
+
+      const customer = await provision(principal);
+      if (customer instanceof CustomerError) {
+        return reply
+          .code(customerErrorStatus(customer.code))
+          .send({ error: { code: customer.code, message: customer.message } });
+      }
+
+      const saved = await recordFeedback(db, {
+        source: 'customer',
+        category: request.body.category,
+        message: request.body.message,
+        page: request.body.page ?? null,
+        contactEmail: customer.email,
+        customerId: customer.id,
+      });
+
+      return reply.code(201).send({
+        id: saved.id,
+        createdAt: saved.createdAt.toISOString(),
+      });
+    },
+  );
+
 
 };

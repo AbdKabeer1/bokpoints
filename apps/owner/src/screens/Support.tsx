@@ -1,4 +1,5 @@
 import type { Tab } from '../Shell';
+import { FeedbackForm } from '../components/FeedbackForm';
 
 const FAQ: { q: string; a: string }[] = [
   {
@@ -36,7 +37,13 @@ const FAQ: { q: string; a: string }[] = [
  * describe what this build actually does; where a channel is not connected
  * yet, the page says so instead of offering a button that fails.
  */
-export function SupportScreen({ onNavigate }: { onNavigate: (tab: Tab) => void }) {
+export function SupportScreen({
+  token,
+  onNavigate,
+}: {
+  token: string;
+  onNavigate: (tab: Tab) => void;
+}) {
   return (
     <section>
       <div className="pagehead">
@@ -107,6 +114,10 @@ export function SupportScreen({ onNavigate }: { onNavigate: (tab: Tab) => void }
           </div>
         </div>
       </div>
+      <div style={{ marginTop: 16 }}>
+        <FeedbackForm token={token} />
+      </div>
+
     </section>
   );
 }

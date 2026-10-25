@@ -1,8 +1,14 @@
 import { and, eq, inArray } from 'drizzle-orm';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
-import { apiErrorSchema, meResponseSchema } from '@bokpoints/shared';
+import {
+  apiErrorSchema,
+  feedbackRequestSchema,
+  feedbackResponseSchema,
+  meResponseSchema,
+} from '@bokpoints/shared';
 import { authorizeStaffRequest } from '../auth/authorize.js';
 import { staffUsers, storeLocations, storeMembers, stores } from '../db/schema.js';
+import { recordFeedback } from '../db/feedback.js';
 import type { RouteOptions } from './stores.js';
 
 const bearer = (header: string | undefined): string | undefined =>
@@ -20,7 +26,7 @@ const roleOf = (value: string): 'owner' | 'manager' | 'cashier' =>
  * are invisible to the screen.
  */
 export const meRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, options) => {
-  const { db, sessionResolver } = options;
+  const { db, sessionResolver, rateLimit } = options;
 
   app.get(
     '/v1/me',
@@ -105,4 +111,42 @@ export const meRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, options
       });
     },
   );
+  /** Feedback from a staff surface; the admin Support area reads these. */
+  app.post(
+    '/v1/me/feedback',
+    {
+      config: { rateLimit: rateLimit ?? { max: 10, timeWindow: '1 hour' } },
+      schema: {
+        body: feedbackRequestSchema,
+        response: {
+          201: feedbackResponseSchema,
+          400: apiErrorSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const auth = await authorizeStaffRequest(db, sessionResolver, {
+        token: bearer(request.headers.authorization),
+      });
+      if (!auth.ok) {
+        return reply.code(auth.status).send({ error: auth.error });
+      }
+
+      const saved = await recordFeedback(db, {
+        source: 'owner',
+        category: request.body.category,
+        message: request.body.message,
+        page: request.body.page ?? null,
+        staffUserId: auth.staffUserId,
+      });
+
+      return reply.code(201).send({
+        id: saved.id,
+        createdAt: saved.createdAt.toISOString(),
+      });
+    },
+  );
+
 };

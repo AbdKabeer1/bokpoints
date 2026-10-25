@@ -8,6 +8,7 @@ export interface CustomerProfile {
   email: string;
   name: string;
   language: string;
+  notificationsEnabled: boolean;
   createdAt: string;
 }
 
@@ -130,8 +131,10 @@ async function request<T>(
 
 export const getMe = (token: string) => request<Me>('/v1/customer/me', token);
 
-export const updateMe = (token: string, patch: { name?: string; language?: 'fi' | 'en' }) =>
-  request<Me>('/v1/customer/me', token, 'PATCH', patch);
+export const updateMe = (
+  token: string,
+  patch: { name?: string; language?: 'fi' | 'en'; notificationsEnabled?: boolean },
+) => request<Me>('/v1/customer/me', token, 'PATCH', patch);
 
 export const getStores = (token: string) =>
   request<{ stores: StoreSummary[] }>('/v1/customer/me/stores', token);
@@ -240,3 +243,11 @@ export const exportMyData = (token: string) =>
 /** Irreversible. The caller must have requested a fresh email code first. */
 export const deleteMyAccount = (token: string, code: string) =>
   request<{ deleted: true }>('/v1/customer/me/delete', token, 'POST', { code });
+
+
+/** In-app feedback; stored for the platform support queue. */
+export const sendFeedback = (
+  token: string,
+  body: { category: 'bug' | 'idea' | 'other'; message: string; page?: string },
+) =>
+  request<{ id: string; createdAt: string }>('/v1/customer/me/feedback', token, 'POST', body);

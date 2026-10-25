@@ -7,3 +7,4 @@ export * from './points/balance.js';
 export * from './permissions.js';
 export * from './discount.js';
 export * from './schemas.js';
+export * from './version.js';

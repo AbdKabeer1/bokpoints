@@ -8,6 +8,8 @@ import {
   earningRuleRowSchema,
   earningRuleStatusRequestSchema,
   earningRulesResponseSchema,
+  feedbackRequestSchema,
+  feedbackResponseSchema,
   meResponseSchema,
   registeredCustomerSchema,
   ruleSimulateRequestSchema,
@@ -375,3 +377,15 @@ export type CustomerHistory = Awaited<ReturnType<typeof getCustomerHistory>>;
 export type Simulation = Awaited<ReturnType<typeof simulateRules>>;
 export type Campaign = Awaited<ReturnType<typeof listCampaigns>>['campaigns'][number];
 export type Audience = Awaited<ReturnType<typeof getCampaignAudience>>;
+
+
+export const sendFeedback = (
+  token: string,
+  body: { category: 'bug' | 'idea' | 'other'; message: string; page?: string },
+) =>
+  request(feedbackResponseSchema, {
+    method: 'POST',
+    path: '/v1/me/feedback',
+    token,
+    body: feedbackRequestSchema.parse(body),
+  });

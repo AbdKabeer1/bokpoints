@@ -6,6 +6,13 @@
 
 ## Done
 
+- **Product readiness pass.** Global in-app notification preference (D-162),
+  feedback from customer, owner and admin surfaces stored in one queue and read
+  in admin Support, a customer Help & legal screen with FAQ/terms/privacy/
+  licences, version in owner/admin Settings and the till footer, pilot legal
+  texts in `docs/legal/`, and bot-protection steps in `docs/SECURITY.md`.
+  Migration `0018` adds `customers.notifications_enabled` and `feedback`.
+
 - **C6 step-up, C8 fraud signals, B8 Sentry wiring.** Suspending a store and
   anonymising a customer now require MFA within 10 minutes (`amr` timestamp;
   403 `MFA_STEP_UP_REQUIRED` otherwise). The platform Safety screen shows
