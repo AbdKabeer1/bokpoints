@@ -37,6 +37,7 @@ import { StoreHistory } from './StoreHistory';
 interface HomeProps {
   token: string;
   me: Me;
+  onMeChanged: (me: Me) => void;
   onSignOut: () => void;
 }
 
@@ -66,7 +67,7 @@ const relative = (iso: string): string => {
   return `${Math.round(hours / 24)} d ago`;
 };
 
-export function Home({ token, me, onSignOut }: HomeProps) {
+export function Home({ token, me, onMeChanged, onSignOut }: HomeProps) {
   const [tab, setTab] = useState<Tab>('home');
   const [stores, setStores] = useState<StoreSummary[] | null>(null);
   const [directory, setDirectory] = useState<DirectoryStore[] | null>(null);
@@ -141,7 +142,8 @@ export function Home({ token, me, onSignOut }: HomeProps) {
         me={me}
         onBack={() => setShowSettings(false)}
         onSignOut={onSignOut}
-        onSaved={() => {
+        onSaved={(updated) => {
+          onMeChanged(updated);
           setShowSettings(false);
           void load();
         }}
@@ -151,6 +153,8 @@ export function Home({ token, me, onSignOut }: HomeProps) {
 
   const totalPoints = (stores ?? []).reduce((sum, store) => sum + store.balance, 0);
   const latest = notifications.slice(0, 2);
+  // Older API responses may predate the preference; default to on.
+  const notificationsEnabled = me.customer.notificationsEnabled ?? true;
 
   return (
     <View style={styles.screen}>
@@ -303,7 +307,7 @@ export function Home({ token, me, onSignOut }: HomeProps) {
           <Inbox
             token={token}
             notifications={notifications}
-            enabled={me.customer.notificationsEnabled}
+            enabled={notificationsEnabled}
             onChanged={load}
           />
         )}
@@ -360,7 +364,7 @@ export function Home({ token, me, onSignOut }: HomeProps) {
                   size={19}
                   color={active ? colors.onPrimary : colors.muted}
                 />
-                {entry.id === 'inbox' && me.customer.notificationsEnabled && unread > 0 && !active && (
+                {entry.id === 'inbox' && notificationsEnabled && unread > 0 && !active && (
                   <View style={styles.tabDot} />
                 )}
               </View>

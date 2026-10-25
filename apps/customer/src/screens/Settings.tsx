@@ -51,7 +51,7 @@ export function SettingsScreen({ token, me, onSaved, onBack, onSignOut }: Settin
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  const [notifications, setNotifications] = useState(me.customer.notificationsEnabled);
+  const [notifications, setNotifications] = useState(me.customer.notificationsEnabled ?? true);
   const [legalOpen, setLegalOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackCategory, setFeedbackCategory] = useState<'bug' | 'idea' | 'other'>('idea');
@@ -149,7 +149,7 @@ export function SettingsScreen({ token, me, onSaved, onBack, onSignOut }: Settin
       const updated = await updateMe(token, { notificationsEnabled: next });
       onSaved(updated);
     } catch {
-      setNotifications(me.customer.notificationsEnabled);
+      setNotifications(me.customer.notificationsEnabled ?? true);
       setError('We could not save the notification preference. Try again.');
     }
   };

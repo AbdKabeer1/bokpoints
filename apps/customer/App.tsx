@@ -131,7 +131,14 @@ export function App() {
     case 'onboarding':
       return <Onboarding token={phase.token} me={phase.me} onDone={() => void refresh()} />;
     case 'ready':
-      return <Home token={phase.token} me={phase.me} onSignOut={() => void handleSignOut()} />;
+      return (
+        <Home
+          token={phase.token}
+          me={phase.me}
+          onMeChanged={(me) => setPhase({ kind: 'ready', token: phase.token, me })}
+          onSignOut={() => void handleSignOut()}
+        />
+      );
   }
 }
 

@@ -1,10 +1,18 @@
 import * as Sentry from '@sentry/react';
 import { registerRootComponent } from 'expo';
+import { Platform } from 'react-native';
 import { App } from './App';
 
-registerRootComponent(App);
-
+// The customer app is web-first. The React SDK is correct there; native
+// crash reporting needs @sentry/react-native, so we do not initialise the
+// web SDK on iOS/Android.
 const sentryDsn = process.env.EXPO_PUBLIC_SENTRY_DSN;
-if (sentryDsn !== undefined && sentryDsn !== '') {
-  Sentry.init({ dsn: sentryDsn, tracesSampleRate: 0 });
+if (Platform.OS === 'web' && sentryDsn !== undefined && sentryDsn !== '') {
+  Sentry.init({
+    dsn: sentryDsn,
+    environment: process.env.EXPO_PUBLIC_ENV ?? 'production',
+    tracesSampleRate: 0,
+  });
 }
+
+registerRootComponent(App);
