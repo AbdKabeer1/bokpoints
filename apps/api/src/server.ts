@@ -10,6 +10,12 @@ import { loadEnv } from './env.js';
 
 const env = loadEnv();
 
+// In production TRUST_PROXY must be set explicitly to avoid a forged
+// X-Forwarded-For defeating the rate limiter.
+if (env.NODE_ENV === 'production' && !process.env.TRUST_PROXY) {
+  throw new Error('TRUST_PROXY must be set explicitly in production');
+}
+
 // The verified-email check (D-120) and the Auth Admin calls need the
 // secret key. Without it the API would answer sign-ins with a silent
 // "not verified" for everyone, so production refuses to start.
@@ -105,7 +111,7 @@ const app = await buildApp({
   enableDocs: env.NODE_ENV !== 'production',
   // Behind the load balancer the rate limiter must key on the caller, not
   // on the proxy (D-095).
-  trustProxy: env.TRUST_PROXY,
+  trustProxy: env.TRUST_PROXY as any,
 });
 
 app.addHook('onClose', async () => {

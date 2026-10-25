@@ -61,9 +61,15 @@ export const envSchema = z.object({
    * reached directly: with it on, a caller could forge that header.
    */
   TRUST_PROXY: z
-    .enum(['true', 'false'])
+    .string()
     .default('false')
-    .transform((value) => value === 'true'),
+    .transform((value) => {
+      if (value === 'false') return false;
+      if (value === 'true') return true;
+      const n = Number(value);
+      if (Number.isInteger(n) && n > 0) return n;
+      throw new Error('TRUST_PROXY must be false, true, or a positive integer');
+    }),
   /**
    * Enables the development session resolver, where the bearer token is a
    * staff email address. It must never be on in production: the server

@@ -56,7 +56,7 @@ export interface BuildAppOptions {
    * when the API is reached directly, so a forged header cannot defeat the
    * limiter.
    */
-  trustProxy?: boolean | undefined;
+  trustProxy?: boolean | number | undefined;
 }
 
 /**
@@ -69,7 +69,7 @@ export interface BuildAppOptions {
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
   const app = Fastify({
     logger: options.logger ?? false,
-    trustProxy: options.trustProxy ?? false,
+    trustProxy: options.trustProxy as any,
   }).withTypeProvider<ZodTypeProvider>();
 
   app.setValidatorCompiler(validatorCompiler);

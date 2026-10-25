@@ -17,4 +17,17 @@ describe('environment validation', () => {
   it('still refuses a URL with no usable scheme', () => {
     expect(() => loadEnv({ ...base, SUPABASE_URL: 'project.supabase.co' })).toThrow(/http/);
   });
+
+  it('accepts TRUST_PROXY false, true and numeric values', () => {
+    expect(loadEnv({ ...base, TRUST_PROXY: 'false' }).TRUST_PROXY).toBe(false);
+    expect(loadEnv({ ...base, TRUST_PROXY: 'true' }).TRUST_PROXY).toBe(true);
+    expect(loadEnv({ ...base, TRUST_PROXY: '1' }).TRUST_PROXY).toBe(1);
+    expect(loadEnv({ ...base, TRUST_PROXY: '2' }).TRUST_PROXY).toBe(2);
+  });
+
+  it('rejects invalid TRUST_PROXY values', () => {
+    expect(() => loadEnv({ ...base, TRUST_PROXY: 'yes' })).toThrow();
+    expect(() => loadEnv({ ...base, TRUST_PROXY: '0' })).toThrow();
+    expect(() => loadEnv({ ...base, TRUST_PROXY: '-1' })).toThrow();
+  });
 });

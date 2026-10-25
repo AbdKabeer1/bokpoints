@@ -27,7 +27,7 @@ services:
       - key: HOST
         value: 0.0.0.0
       - key: TRUST_PROXY
-        value: "true"
+        value: "1"
       - key: CORS_ORIGINS
         value: https://app.omapointii.store,https://till.omapointii.store,https://portal.omapointii.store,https://admin.omapointii.store
       - key: DATABASE_URL
