@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, Check } from 'lucide-react';
+import {
+  ArrowLeft,
+  Check,
+  CreditCard,
+  LayoutDashboard,
+  ScrollText,
+  SlidersHorizontal,
+  Users,
+} from 'lucide-react';
 import {
   ApiError,
   getStoreDetail,
@@ -122,6 +130,14 @@ export function StoreDetailScreen({
     { done: readiness.cashier, label: 'A cashier is active', detail: 'Somebody can record a sale.' },
   ];
   const readyCount = readinessItems.filter((item) => item.done).length;
+  const readyPercent = Math.round((readyCount / readinessItems.length) * 100);
+  const TAB_ICONS = {
+    overview: LayoutDashboard,
+    staff: Users,
+    rules: SlidersHorizontal,
+    billing: CreditCard,
+    audit: ScrollText,
+  } as const;
 
   return (
     <section>
@@ -217,6 +233,10 @@ export function StoreDetailScreen({
             className={tab === id ? 'tab active' : 'tab'}
             onClick={() => setTab(id)}
           >
+            {(() => {
+              const Icon = TAB_ICONS[id];
+              return <Icon size={14} strokeWidth={1.9} aria-hidden="true" />;
+            })()}
             {label}
             {count !== null && count > 0 && <span className="count">{count}</span>}
           </button>
@@ -226,20 +246,44 @@ export function StoreDetailScreen({
       {tab === 'overview' && (
         <div className="grid two">
           <div className="grid" style={{ gap: 16 }}>
-            <div className="panel">
-              <div className="panelhead">
+            <div className="panel readiness">
+              <div className="readiness-top">
                 <div>
-                  <h3>Ready to trade</h3>
-                  <p className="sub">
+                  <p className="statlabel">Readiness</p>
+                  <p className="readiness-value">{readyPercent}%</p>
+                  <p className="readiness-caption">
                     {readyCount} of {readinessItems.length} in place
                   </p>
                 </div>
+                {readyCount < readinessItems.length && (
+                  <span className="pill warn">
+                    <span className="dot" aria-hidden="true" />
+                    Action required
+                  </span>
+                )}
               </div>
-              <ul className="checklist">
+
+              <div
+                className="readiness-bar"
+                role="progressbar"
+                aria-label="Store readiness"
+                aria-valuemin={0}
+                aria-valuemax={readinessItems.length}
+                aria-valuenow={readyCount}
+              >
                 {readinessItems.map((item) => (
-                  <li key={item.label} className={item.done ? 'done' : ''}>
+                  <span key={item.label} className={item.done ? 'on' : ''} />
+                ))}
+              </div>
+
+              <ul className="checklist">
+                {readinessItems.map((item, index) => (
+                  <li
+                    key={item.label}
+                    className={item.done ? 'done' : index === readyCount ? 'doing' : ''}
+                  >
                     <span className="state" aria-hidden="true">
-                      {item.done && <Check size={12} strokeWidth={2.4} />}
+                      {item.done ? <Check size={12} strokeWidth={2.4} /> : ''}
                     </span>
                     <span className="txt">
                       <strong>{item.label}</strong>
@@ -248,11 +292,6 @@ export function StoreDetailScreen({
                   </li>
                 ))}
               </ul>
-              {readyCount < readinessItems.length && (
-                <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>
-                  The store can still trade; the missing pieces limit what customers can do.
-                </p>
-              )}
             </div>
 
             <div className="panel">

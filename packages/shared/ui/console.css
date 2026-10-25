@@ -2193,3 +2193,129 @@ details[open] summary::after {
   align-items: center;
   gap: 5px;
 }
+
+/* ── Reference patterns: readiness, KPI tiles, team ────────────────────── */
+
+.readiness {
+  padding: 20px;
+}
+
+.readiness-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.readiness-value {
+  font-size: 42px;
+  font-weight: 650;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  margin: 6px 0 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.readiness-caption {
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.readiness-bar {
+  display: flex;
+  gap: 3px;
+  margin: 16px 0 4px;
+  height: 9px;
+}
+
+.readiness-bar span {
+  flex: 1;
+  border-radius: 2px;
+  background: var(--line);
+}
+
+.readiness-bar span.on {
+  background: var(--ink);
+}
+
+.readiness .checklist {
+  margin-top: 10px;
+}
+
+.staticon {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  background: var(--green-soft);
+  color: var(--green-deep);
+  flex: 0 0 auto;
+}
+
+.statlabel-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.statlabel-row .statlabel {
+  margin: 0;
+}
+
+.team-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.team-row:last-child {
+  border-bottom: none;
+}
+
+.team-row .avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--soft);
+  color: var(--green-deep);
+  font-size: 10px;
+}
+
+.team-row .meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.team-row .meta strong {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 650;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.team-row .meta span {
+  display: block;
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.tab svg {
+  opacity: 0.75;
+}
+
+.tab.active svg {
+  opacity: 1;
+}

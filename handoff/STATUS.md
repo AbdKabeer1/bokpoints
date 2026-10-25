@@ -6,6 +6,13 @@
 
 ## Done
 
+- **Build 23 — reference-driven interface rebuild (D-154).** The four dashboard references
+  now drive the merchant and admin surfaces: readiness hero with a large percentage and a
+  segmented completion bar, done/in-progress/to-do checklist, KPI labels with icon tiles,
+  tab icons with counts, and a team card in the overview. Customer app keeps its warm
+  editorial system; till keeps its task layout. References live in `docs/ui-reference/`;
+  the second brief in `docs/ui/UIdesign_brief_v2.md`. 372 tests green; all six builds pass.
+
 - **Build 22 — Poket Platform Admin (D-153).** New `apps/admin` on :5175, sharing the
   merchant shell and tokens with a permanent red Platform admin label and All stores
   scope. Screens: Stores + platform stat strip and filters; store detail with readiness,

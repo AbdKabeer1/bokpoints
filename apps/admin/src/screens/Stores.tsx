@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { Coins, Gift, Store, Users } from 'lucide-react';
 import { ApiError, getAnalytics, listStores, type Analytics, type StoreRow } from '../api';
 import { adminMessage } from '../errors';
 import { formatDate, formatDateTime } from '../format';
@@ -96,22 +97,34 @@ export function StoresScreen({
       {analytics !== null && (
         <div className="statstrip">
           <div className="stat">
-            <p className="statlabel">Stores</p>
+            <div className="statlabel-row">
+              <span className="staticon" aria-hidden="true"><Store size={13} strokeWidth={2} /></span>
+              <p className="statlabel">Stores</p>
+            </div>
             <p className="statvalue">{analytics.stores.toLocaleString('fi-FI')}</p>
             <p className="statfoot">{analytics.activeStores} active</p>
           </div>
           <div className="stat">
-            <p className="statlabel">Customers</p>
+            <div className="statlabel-row">
+              <span className="staticon" aria-hidden="true"><Users size={13} strokeWidth={2} /></span>
+              <p className="statlabel">Customers</p>
+            </div>
             <p className="statvalue">{analytics.customers.toLocaleString('fi-FI')}</p>
             <p className="statfoot">Across every store</p>
           </div>
           <div className="stat">
-            <p className="statlabel">Awards · 30 days</p>
+            <div className="statlabel-row">
+              <span className="staticon" aria-hidden="true"><Gift size={13} strokeWidth={2} /></span>
+              <p className="statlabel">Awards · 30 days</p>
+            </div>
             <p className="statvalue">{analytics.awards30d.toLocaleString('fi-FI')}</p>
             <p className="statfoot">{analytics.redemptions30d} redeemed</p>
           </div>
           <div className="stat">
-            <p className="statlabel">Points outstanding</p>
+            <div className="statlabel-row">
+              <span className="staticon" aria-hidden="true"><Coins size={13} strokeWidth={2} /></span>
+              <p className="statlabel">Points outstanding</p>
+            </div>
             <p className="statvalue">{analytics.outstandingPoints.toLocaleString('fi-FI')}</p>
             <p className="statfoot">A liability, not yet spent</p>
           </div>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Gift, ReceiptText, Users, Wallet } from 'lucide-react';
 import {
   ApiError,
   getCampaignAudience,
@@ -230,6 +231,11 @@ export function HomeScreen({ token, storeId, onNavigate }: HomeProps) {
     });
   }
 
+  const doneCount = checklist.filter((item) => item.done).length;
+  const readinessPercent = Math.round((doneCount / checklist.length) * 100);
+  const nextIndex = checklist.findIndex((item) => !item.done);
+  const nextStep = nextIndex === -1 ? undefined : checklist[nextIndex];
+
   const today = new Date().toLocaleDateString('en-GB', {
     weekday: 'long',
     day: 'numeric',
@@ -259,22 +265,34 @@ export function HomeScreen({ token, storeId, onNavigate }: HomeProps) {
 
       <div className="statstrip">
         <div className="stat">
-          <p className="statlabel">Customers</p>
+          <div className="statlabel-row">
+            <span className="staticon" aria-hidden="true"><Users size={13} strokeWidth={2} /></span>
+            <p className="statlabel">Customers</p>
+          </div>
           <p className="statvalue">{points(reports?.customers ?? 0)}</p>
           <p className="statfoot">{points(reports?.newCustomers30d ?? 0)} joined in 30 days</p>
         </div>
         <div className="stat">
-          <p className="statlabel">Visits · 30 days</p>
+          <div className="statlabel-row">
+            <span className="staticon" aria-hidden="true"><ReceiptText size={13} strokeWidth={2} /></span>
+            <p className="statlabel">Visits · 30 days</p>
+          </div>
           <p className="statvalue">{points(reports?.visits30d ?? 0)}</p>
           <p className="statfoot">Sales recorded at the till</p>
         </div>
         <div className="stat">
-          <p className="statlabel">Points issued</p>
+          <div className="statlabel-row">
+            <span className="staticon" aria-hidden="true"><Gift size={13} strokeWidth={2} /></span>
+            <p className="statlabel">Points issued</p>
+          </div>
           <p className="statvalue">{points(reports?.pointsIssued30d ?? 0)}</p>
           <p className="statfoot">{points(reports?.pointsRedeemed30d ?? 0)} redeemed</p>
         </div>
         <div className="stat">
-          <p className="statlabel">Points expired</p>
+          <div className="statlabel-row">
+            <span className="staticon" aria-hidden="true"><Wallet size={13} strokeWidth={2} /></span>
+            <p className="statlabel">Points expired</p>
+          </div>
           <p className="statvalue">{points(reports?.pointsExpired30d ?? 0)}</p>
           <p className="statfoot">Left balances in 30 days</p>
         </div>
@@ -401,32 +419,59 @@ export function HomeScreen({ token, storeId, onNavigate }: HomeProps) {
           </div>
 
           {!setupDone && (
-            <div className="panel">
-              <div className="panelhead">
+            <div className="panel readiness">
+              <div className="readiness-top">
                 <div>
-                  <h3>Set up your store</h3>
-                  <p className="sub">
-                    {checklist.filter((item) => item.done).length} of {checklist.length} done
+                  <p className="statlabel">Getting started</p>
+                  <p className="readiness-value">{readinessPercent}%</p>
+                  <p className="readiness-caption">
+                    {doneCount} of {checklist.length} steps done
                   </p>
                 </div>
+                {nextStep !== undefined && (
+                  <button
+                    className="ghost small"
+                    type="button"
+                    onClick={() => onNavigate(nextStep.tab)}
+                  >
+                    Continue
+                  </button>
+                )}
               </div>
-              <ul className="checklist">
-                {checklist.map((item) => (
-                  <li key={item.title} className={item.done ? 'done' : ''}>
-                    <span className="state" aria-hidden="true">
-                      {item.done ? '✓' : ''}
-                    </span>
-                    <span className="txt">
-                      <strong>{item.title}</strong>
-                      <span>{item.body}</span>
-                    </span>
-                    {!item.done && (
-                      <button className="link" type="button" onClick={() => onNavigate(item.tab)}>
-                        Open ›
-                      </button>
-                    )}
-                  </li>
+
+              <div
+                className="readiness-bar"
+                role="progressbar"
+                aria-label="Store setup progress"
+                aria-valuemin={0}
+                aria-valuemax={checklist.length}
+                aria-valuenow={doneCount}
+              >
+                {checklist.map((item, index) => (
+                  <span key={item.title} className={index < doneCount ? 'on' : ''} />
                 ))}
+              </div>
+
+              <ul className="checklist">
+                {checklist.map((item, index) => {
+                  const state = item.done ? 'done' : index === nextIndex ? 'doing' : '';
+                  return (
+                    <li key={item.title} className={state}>
+                      <span className="state" aria-hidden="true">
+                        {item.done ? '✓' : index === nextIndex ? '•' : ''}
+                      </span>
+                      <span className="txt">
+                        <strong>{item.title}</strong>
+                        <span>{item.body}</span>
+                      </span>
+                      {!item.done && (
+                        <button className="link" type="button" onClick={() => onNavigate(item.tab)}>
+                          Open ›
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}
@@ -486,6 +531,45 @@ export function HomeScreen({ token, storeId, onNavigate }: HomeProps) {
                   />
                 </div>
               </>
+            )}
+          </div>
+
+          <div className="panel">
+            <div className="panelhead">
+              <div>
+                <h3>Team</h3>
+                <p className="sub">{staff.length} with access</p>
+              </div>
+              <button className="link" type="button" onClick={() => onNavigate('people')}>
+                All people ›
+              </button>
+            </div>
+            {staff.length === 0 ? (
+              <p className="emptynote">Nobody has access yet.</p>
+            ) : (
+              staff.slice(0, 4).map((member) => (
+                <div className="team-row" key={member.memberId}>
+                  <span className="avatar" aria-hidden="true">
+                    {member.name
+                      .split(/\s+/)
+                      .slice(0, 2)
+                      .map((part) => part[0]?.toUpperCase() ?? '')
+                      .join('')}
+                  </span>
+                  <span className="meta">
+                    <strong>{member.name === '' ? member.email : member.name}</strong>
+                    <span>
+                      {member.role === 'owner'
+                        ? 'Owner'
+                        : member.role === 'manager'
+                          ? 'Manager'
+                          : 'Cashier'}
+                      {' · '}
+                      {member.locationName ?? 'Every branch'}
+                    </span>
+                  </span>
+                </div>
+              ))
             )}
           </div>
 

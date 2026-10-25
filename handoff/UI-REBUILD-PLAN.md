@@ -1,8 +1,8 @@
-# UI rebuild — plan (from `docs/ui/UIdesign_brief.md`)
+# UI rebuild — plan (from `docs/ui/UIdesign_brief_v2.md`)
 
 ## Source of truth
 
-- **Look and feel:** `docs/ui/UIdesign_brief.md` (§2 tokens, §3 shell, §4 per-app, §7 done).
+- **Look and feel:** `docs/ui/UIdesign_brief_v2.md` (§2 tokens, §3 shell, §4 per-app, §7 done).
 - **Scope:** `BOKPOINTS The Way Forward.md` + `UI_and_App_Components_revised.docx`.
 - **A's explicit additions (2026-10-24):** in-app campaigns, notifications, store logo/brand colour
   and public contact visibility, support/FAQ, sign out, role and store switching, colourful charts.
