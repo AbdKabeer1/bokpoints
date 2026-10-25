@@ -135,6 +135,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   app.get('/v1/health', async () => ({
     status: 'ok',
     version: '0.1.0',
+    // Render sets this; it makes a deploy verifiable without dashboard access.
+    commit: process.env['RENDER_GIT_COMMIT'] ?? 'local',
   }));
 
   app.get('/v1/ping', async () => ({ pong: true }));
