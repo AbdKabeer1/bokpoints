@@ -16,19 +16,12 @@ if (env.NODE_ENV === 'production' && !process.env.TRUST_PROXY) {
   throw new Error('TRUST_PROXY must be set explicitly in production');
 }
 
-// These are required for full hardening but must not take the pilot down
-// while the values are being installed in Render.
+// These are required for full hardening. Render now carries both values.
 if (env.NODE_ENV === 'production' && !process.env.DISCOUNT_PROOF_SECRET) {
-  console.warn(
-    'WARNING: DISCOUNT_PROOF_SECRET is not set. Discount proofs fall back to ' +
-      'SUPABASE_SECRET_KEY until the dedicated secret is added in Render.',
-  );
+  throw new Error('DISCOUNT_PROOF_SECRET is required in production');
 }
 if (env.NODE_ENV === 'production' && !process.env.DATABASE_CA_CERT) {
-  console.warn(
-    'WARNING: DATABASE_CA_CERT is not set. The database connection is encrypted ' +
-      'but not certificate-verified until the Supabase CA is added in Render.',
-  );
+  throw new Error('DATABASE_CA_CERT is required in production');
 }
 
 // The verified-email check (D-120) and the Auth Admin calls need the
