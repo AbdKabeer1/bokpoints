@@ -142,6 +142,20 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
    * only whether the pool can reach Postgres and a driver error code — never
    * a connection string. A 503 here explains a 500 on the data routes.
    */
+  /** Whether this instance can reach its Supabase project's public keys. */
+  app.get('/v1/health/auth', async () => {
+    const url = (process.env.SUPABASE_URL ?? '').replace(/\/+$/, '');
+    if (url === '') return { auth: 'not-configured' };
+    try {
+      const response = await fetch(`${url}/auth/v1/.well-known/jwks.json`, {
+        signal: AbortSignal.timeout(8000),
+      });
+      return { auth: response.ok ? 'ok' : 'unreachable', status: response.status };
+    } catch {
+      return { auth: 'unreachable', code: 'FETCH_FAILED' };
+    }
+  });
+
   app.get('/v1/health/db', async (_request, reply) => {
     if (!options.db) return reply.code(503).send({ database: 'not-configured' });
     try {
