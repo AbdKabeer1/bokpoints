@@ -1,7 +1,7 @@
 import * as Sentry from '@sentry/react';
 import { registerRootComponent } from 'expo';
 import { Platform } from 'react-native';
-import { App } from './App';
+import { Root } from './src/Root';
 
 // The customer app is web-first. The React SDK is correct there; native
 // crash reporting needs @sentry/react-native, so we do not initialise the
@@ -15,4 +15,4 @@ if (Platform.OS === 'web' && sentryDsn !== undefined && sentryDsn !== '') {
   });
 }
 
-registerRootComponent(App);
+registerRootComponent(Root);
