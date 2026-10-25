@@ -121,7 +121,7 @@ const app = await buildApp({
   enableDocs: env.NODE_ENV !== 'production',
   // Behind the load balancer the rate limiter must key on the caller, not
   // on the proxy (D-095).
-  trustProxy: env.TRUST_PROXY as any,
+  trustProxy: env.TRUST_PROXY,
 });
 
 app.addHook('onClose', async () => {
