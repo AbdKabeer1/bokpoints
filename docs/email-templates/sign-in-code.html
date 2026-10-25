@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>Your OmaPointii sign-in code</title>
+  </head>
+  <body style="margin:0;padding:0;background:#f6f1e7;">
+    <!-- Preheader: shown in the inbox list, hidden in the body. -->
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">
+      Your one-time code is inside. It expires shortly and works once.
+    </div>
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+      style="background:#f6f1e7;padding:32px 12px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+            style="max-width:560px;background:#fffcf6;border:1px solid #e4dac8;border-radius:18px;overflow:hidden;">
+
+            <tr>
+              <td style="background:#0b3d2a;padding:22px 28px;">
+                <span style="font-family:Georgia,'Times New Roman',serif;font-size:24px;font-weight:700;color:#fbf5e8;letter-spacing:-0.5px;">
+                  OmaPointii<span style="color:#e8a93c;">.</span>
+                </span>
+                <span style="font-family:Arial,Helvetica,sans-serif;font-size:10px;letter-spacing:2px;color:#a9c3b4;text-transform:uppercase;margin-left:8px;">
+                  Sign-in
+                </span>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:32px 28px 6px;">
+                <h1 style="margin:0 0 10px;font-family:Georgia,'Times New Roman',serif;font-size:26px;line-height:1.25;color:#1a1712;">
+                  Your sign-in code
+                </h1>
+                <p style="margin:0;color:#5f6f66;font-size:14px;line-height:1.65;">
+                  Enter this code in the OmaPointii app to finish signing in.
+                  It is for <strong style="color:#1a1712;">{{ .Email }}</strong>.
+                </p>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:20px 28px 6px;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td align="center" style="background:#f6f1e7;border:1px solid #e4dac8;border-radius:14px;padding:24px 12px;">
+                      <span style="font-family:'SF Mono',Menlo,Consolas,'Courier New',monospace;font-size:38px;line-height:1.1;font-weight:700;letter-spacing:9px;color:#0b3d2a;">
+                        {{ .Token }}
+                      </span>
+                    </td>
+                  </tr>
+                </table>
+                <p style="margin:10px 0 0;text-align:center;color:#8a6a1f;font-size:12px;">
+                  Expires shortly &middot; one use only
+                </p>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:20px 28px 6px;">
+                <p style="margin:0 0 18px;color:#5f6f66;font-size:13px;line-height:1.65;">
+                  For your security, don't share this code. OmaPointii will never ask for it
+                  by phone or message.
+                </p>
+                <a href="{{ .SiteURL }}"
+                  style="display:inline-block;background:#0b7a4b;color:#fffcf6;text-decoration:none;font-family:Arial,Helvetica,sans-serif;font-weight:700;font-size:14px;padding:13px 22px;border-radius:10px;">
+                  Open OmaPointii
+                </a>
+                <p style="margin:20px 0 0;color:#8b948e;font-size:12px;line-height:1.65;">
+                  Didn't ask for this? You can ignore this email — nobody can sign in without
+                  the code above.
+                </p>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:16px 28px 22px;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td style="border-top:1px solid #e4dac8;padding-top:14px;">
+                      <p style="margin:0;color:#8b948e;font-size:11px;line-height:1.6;">
+                        OmaPointii &middot; loyalty for independent shops &middot;
+                        <a href="https://omapointii.store" style="color:#0b7a4b;text-decoration:none;">omapointii.store</a>
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+          </table>
+
+          <p style="margin:14px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:10px;line-height:1.6;color:#a39a8a;text-align:center;">
+            You received this because this address was entered at OmaPointii.
+          </p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

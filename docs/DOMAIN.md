@@ -100,9 +100,10 @@ Email Sending replaces it.
    - **Redirect URLs:** `https://app.omapointii.store/**`, `https://portal.omapointii.store/**`,
      `https://admin.omapointii.store/**`, `https://till.omapointii.store/**`, and keep
      `http://localhost:8081/**` for development.
-6. Edit the email templates. The customer app signs in with a **code**, so the
-   Magic Link template must contain `{{ .Token }}` (the six-to-ten digit code), not only
-   `{{ .ConfirmationURL }}`. Keep "Confirm email" enabled.
+6. Paste the sign-in template from `docs/email-templates/sign-in-code.html` into
+   **Authentication → Emails → Magic Link**. Subject: `Your OmaPointii sign-in code`.
+   It must contain `{{ .Token }}` (the code the app asks for), not only a link. Keep
+   "Confirm email" enabled. See `docs/email-templates/README.md`.
 
 Local and CI must use the **Sandbox**, not the live endpoint, so test mail never reaches
 a real inbox. Keep both tokens in separate env vars:
