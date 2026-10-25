@@ -68,7 +68,7 @@ one-time discount.
 
 ## Brand Commitments
 
-- The product's visible name is **Poket**; the company/repo name is BOKPOINTS.
+- The product's visible name is **OmaPointii**; the company/repo name is BOKPOINTS.
 - The brand dot after the wordmark is part of the identity.
 - Merchant surfaces keep the approved green-and-white work-surface palette. The
   customer app has a warm editorial identity of its own (D-150).

@@ -136,7 +136,7 @@ export function App() {
       return (
         <main className="centered">
           <p className="brand">
-            <span className="brand-word">Poket</span>
+            <span className="brand-word">OmaPointii</span>
             <span className="brand-tag">Platform Admin</span>
           </p>
           <p className="muted">Starting…</p>
@@ -147,7 +147,7 @@ export function App() {
         <main className="centered">
           <div className="card narrow">
             <p className="brand">
-              <span className="brand-word">Poket</span>
+              <span className="brand-word">OmaPointii</span>
               <span className="brand-tag">Platform Admin</span>
             </p>
             <h1>The platform is offline</h1>
@@ -173,7 +173,7 @@ export function App() {
         <main className="centered">
           <div className="card narrow">
             <p className="brand">
-              <span className="brand-word">Poket</span>
+              <span className="brand-word">OmaPointii</span>
               <span className="brand-tag">Platform Admin</span>
             </p>
             <h1>Not a platform admin</h1>

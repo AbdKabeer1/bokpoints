@@ -183,8 +183,8 @@ export function StoreHistory({ token, store, onBack }: StoreHistoryProps) {
             <Text style={styles.consentName}>News from {store.name}</Text>
             <Text style={styles.consentBody}>
               {consent
-                ? 'On. Messages arrive in your Poket inbox.'
-                : 'Off. This store cannot message you in Poket.'}
+                ? 'On. Messages arrive in your OmaPointii inbox.'
+                : 'Off. This store cannot message you in OmaPointii.'}
             </Text>
           </View>
           <Switch

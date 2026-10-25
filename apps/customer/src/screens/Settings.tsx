@@ -95,7 +95,7 @@ export function SettingsScreen({ token, me, onSaved, onBack, onSignOut }: Settin
       </View>
 
       <Pressable style={styles.signOutBox} onPress={onSignOut} hitSlop={8}>
-        <Text style={styles.signOutText}>Sign out of Poket</Text>
+        <Text style={styles.signOutText}>Sign out of OmaPointii</Text>
       </Pressable>
 
       <Text style={styles.fine}>

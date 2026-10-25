@@ -30,7 +30,7 @@ export function Login({ onSignedIn }: { onSignedIn: () => void }) {
     <main className="centered">
       <form className="card narrow" onSubmit={(event) => void handleSubmit(event)}>
         <p className="brand">
-          <span className="brand-word">Poket</span>
+          <span className="brand-word">OmaPointii</span>
           <span className="brand-tag">Platform Admin</span>
         </p>
         <h1>Platform sign-in</h1>

@@ -175,7 +175,7 @@ export function Home({ token, me, onSignOut }: HomeProps) {
 
             <View style={styles.hero}>
               <View style={styles.heroTop}>
-                <Text style={styles.heroLabel}>YOUR POKET CODE</Text>
+                <Text style={styles.heroLabel}>YOUR OMAPOINTII CODE</Text>
                 <View style={styles.heroLive}>
                   <View style={styles.heroLiveDot} />
                   <Text style={styles.heroLiveText}>Ready</Text>
@@ -237,7 +237,7 @@ export function Home({ token, me, onSignOut }: HomeProps) {
               <Card>
                 <Text style={styles.emptyTitle}>No points yet</Text>
                 <Text style={styles.emptyBody}>
-                  Show your code at a Poket till and your first points appear here.
+                  Show your code at a OmaPointii till and your first points appear here.
                 </Text>
               </Card>
             ) : (
@@ -279,7 +279,7 @@ export function Home({ token, me, onSignOut }: HomeProps) {
               <>
                 <SectionTitle
                   title="From your stores"
-                  subtitle="Messages inside Poket"
+                  subtitle="Messages inside OmaPointii"
                   action="Inbox"
                   onAction={() => setTab('inbox')}
                 />
@@ -324,7 +324,7 @@ export function Home({ token, me, onSignOut }: HomeProps) {
             </View>
 
             <View style={styles.codeCard}>
-              <Text style={styles.codeName}>{me.customer.name || 'Your Poket code'}</Text>
+              <Text style={styles.codeName}>{me.customer.name || 'Your OmaPointii code'}</Text>
               <Text style={styles.codeEmail}>{me.customer.email}</Text>
               <View style={styles.bigQrTile}>
                 <QRCode
@@ -413,7 +413,7 @@ export function Home({ token, me, onSignOut }: HomeProps) {
               </Pressable>
             </Card>
 
-            <SectionTitle title="Store news" subtitle="Which stores may message you in Poket" />
+            <SectionTitle title="Store news" subtitle="Which stores may message you in OmaPointii" />
             {stores !== null && stores.length > 0 ? (
               <Card style={{ padding: 0 }}>
                 {stores.map((store, index) => (
@@ -479,10 +479,10 @@ export function Home({ token, me, onSignOut }: HomeProps) {
             </Card>
 
             <Pressable style={styles.signOut} onPress={onSignOut} accessibilityRole="button">
-              <Text style={styles.signOutText}>Sign out of Poket</Text>
+              <Text style={styles.signOutText}>Sign out of OmaPointii</Text>
             </Pressable>
 
-            <Text style={styles.footer}>Poket · pilot build</Text>
+            <Text style={styles.footer}>OmaPointii · pilot build</Text>
           </>
         )}
 

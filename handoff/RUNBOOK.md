@@ -213,7 +213,7 @@ curl http://127.0.0.1:3000/v1/health
 | `GET` | `/v1/admin/stores` | Admin console: stores with status, plan, customers and last activity |
 | `GET` | `/v1/admin/stores/{storeId}` | Admin console: store readiness, counts, staff, subscription and recent audit |
 | `POST` | `/v1/admin/stores/{storeId}/status` | Suspend, pause or reactivate with a required audited reason |
-| `GET` | `/v1/admin/support?query=` | Support search by store, customer name/email or Poket code |
+| `GET` | `/v1/admin/support?query=` | Support search by store, customer name/email or OmaPointii code |
 | `GET` | `/v1/admin/analytics` | Platform totals: stores, customers, awards, redemptions and outstanding points |
 | `GET` | `/v1/admin/subscriptions` | Plans and payment stages; empty before billing is connected |
 | `GET` | `/v1/stores/{storeId}/customers/{customerId}/balance` | Balance at that store |

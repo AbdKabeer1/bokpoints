@@ -2319,3 +2319,269 @@ details[open] summary::after {
 .tab.active svg {
   opacity: 1;
 }
+
+/* ── OmaPointii merchant landing ───────────────────────────────────────── */
+
+@font-face {
+  font-family: 'FrauncesOwn';
+  src: url('/fonts/Fraunces-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+.landing {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(380px, 0.85fr);
+  background: #08170f;
+  color: #f3efe2;
+  position: relative;
+  overflow: hidden;
+}
+
+.landing-ambient {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.landing-ambient span {
+  position: absolute;
+  width: 58vw;
+  height: 58vw;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: 0.5;
+  animation: ambient-drift 26s ease-in-out infinite alternate;
+}
+
+.landing-ambient span:first-child {
+  top: -22vw;
+  left: -12vw;
+  background: radial-gradient(circle, #1f5c3a 0%, transparent 68%);
+}
+
+.landing-ambient span:last-child {
+  bottom: -26vw;
+  right: -8vw;
+  background: radial-gradient(circle, #8c6a1f 0%, transparent 66%);
+  opacity: 0.28;
+  animation-delay: -9s;
+}
+
+@keyframes ambient-drift {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(4vw, 3vw, 0) scale(1.08);
+  }
+}
+
+.landing-brand {
+  position: relative;
+  z-index: 1;
+  padding: clamp(30px, 6vw, 88px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 26px;
+  min-height: 100vh;
+}
+
+.landing-wordmark {
+  display: flex;
+  flex-wrap: wrap;
+  font-family: 'FrauncesOwn', Georgia, serif;
+  font-size: clamp(46px, 7.2vw, 96px);
+  line-height: 0.98;
+  letter-spacing: -0.045em;
+  color: #fbf5e8;
+}
+
+.landing-wordmark span {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(26px);
+  filter: blur(6px);
+  animation: letter-rise 0.85s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: calc(var(--i) * 42ms + 120ms);
+}
+
+@keyframes letter-rise {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+.landing-tagline {
+  font-size: clamp(18px, 2vw, 24px);
+  line-height: 1.35;
+  color: #d7e4da;
+  margin: 0;
+  max-width: 22ch;
+}
+
+.landing-lede {
+  font-size: 14.5px;
+  line-height: 1.65;
+  color: #9db3a4;
+  margin: 0;
+  max-width: 44ch;
+}
+
+.landing-proof {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.landing-proof li {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  font-size: 13px;
+  color: #c2d2c7;
+}
+
+.landing-proof .prooficon {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: rgb(243 239 226 / 8%);
+  border: 1px solid rgb(243 239 226 / 12%);
+  color: #e8a93c;
+  flex: 0 0 auto;
+}
+
+.landing-foot {
+  margin: 6px 0 0;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #75887c;
+}
+
+.landing-panel {
+  position: relative;
+  z-index: 1;
+  background: #f6f1e7;
+  color: #0f1512;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(28px, 5vw, 64px);
+}
+
+.landing-form {
+  width: min(380px, 100%);
+  animation: panel-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.35s both;
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.landing-form h1 {
+  font-family: 'FrauncesOwn', Georgia, serif;
+  font-size: 32px;
+  letter-spacing: -0.02em;
+  margin: 0 0 6px;
+}
+
+.landing-form .landing-sub {
+  margin: 0 0 24px;
+  font-size: 13px;
+  color: #5f6f66;
+}
+
+.landing-form label {
+  margin-top: 14px;
+}
+
+.landing-form input {
+  background: #fffcf6;
+  border-color: #d3c6ae;
+}
+
+.landing-form .primary {
+  width: 100%;
+  margin-top: 18px;
+  min-height: 46px;
+}
+
+.landing-small {
+  margin: 14px 0 0;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: #6e675b;
+}
+
+.landing-brandmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 4px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #8fa697;
+}
+
+@media (max-width: 900px) {
+  .landing {
+    grid-template-columns: 1fr;
+  }
+
+  .landing-brand {
+    min-height: auto;
+    padding: 40px 24px 30px;
+    gap: 18px;
+  }
+
+  .landing-wordmark {
+    font-size: clamp(40px, 12vw, 64px);
+  }
+
+  .landing-tagline {
+    font-size: 17px;
+  }
+
+  .landing-proof {
+    display: none;
+  }
+
+  .landing-panel {
+    padding: 30px 24px 48px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-wordmark span,
+  .landing-form {
+    animation: none;
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+
+  .landing-ambient span {
+    animation: none;
+  }
+}

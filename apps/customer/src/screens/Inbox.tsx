@@ -24,7 +24,7 @@ const relative = (iso: string): string => {
 };
 
 /**
- * Messages a store sent inside Poket (D-148). Opening one marks it read;
+ * Messages a store sent inside OmaPointii (D-148). Opening one marks it read;
  * the dot and the tab badge go away, and the store sees the open count.
  */
 export function Inbox({ token, notifications, onRefresh, onChanged }: InboxProps) {
@@ -79,7 +79,7 @@ export function Inbox({ token, notifications, onRefresh, onChanged }: InboxProps
         <Card>
           <Text style={styles.emptyTitle}>Nothing here yet</Text>
           <Text style={styles.emptyBody}>
-            When a store you visit sends news or an offer, it appears here — inside Poket, not
+            When a store you visit sends news or an offer, it appears here — inside OmaPointii, not
             by email or text.
           </Text>
         </Card>

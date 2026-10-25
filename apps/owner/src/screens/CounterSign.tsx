@@ -54,7 +54,7 @@ export function CounterSignScreen({ token, storeId }: { token: string; storeId: 
               <span key={index} className={index % 3 === 0 || index % 7 === 0 ? 'qron' : ''} />
             ))}
           </div>
-          <p className="sign-line">Ask at the counter — your points live in the Poket app.</p>
+          <p className="sign-line">Ask at the counter — your points live in the OmaPointii app.</p>
         </div>
         </div>
       )}

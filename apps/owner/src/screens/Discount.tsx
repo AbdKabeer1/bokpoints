@@ -124,7 +124,7 @@ export function DiscountScreen({ token, storeId }: { token: string; storeId: str
         <div className="panelhead">
           <div>
             <h3>{rule === null ? 'Set the discount' : 'Change the discount'}</h3>
-            <p className="sub">The store funds it; Poket only quotes and records it</p>
+            <p className="sub">The store funds it; OmaPointii only quotes and records it</p>
           </div>
         </div>
 
@@ -175,7 +175,7 @@ export function DiscountScreen({ token, storeId }: { token: string; storeId: str
       </form>
 
       <p className="muted small">
-        The discount is funded by the store in its own till — Poket only quotes it and records it
+        The discount is funded by the store in its own till — OmaPointii only quotes it and records it
         on the sale. The customer's code is verified online and works once; there is no offline
         discount.
       </p>

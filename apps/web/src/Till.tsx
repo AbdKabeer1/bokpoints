@@ -462,7 +462,7 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
       )}
       <header className="topbar">
         <div>
-          <p className="brand"><span className="brand-word">Poket</span><span className="brand-tag">Store Portal</span></p>
+          <p className="brand"><span className="brand-word">OmaPointii</span><span className="brand-tag">Store Portal</span></p>
           <p className="store">
             {membership.storeName}
             <span className="muted">

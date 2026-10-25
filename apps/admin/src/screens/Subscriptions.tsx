@@ -67,7 +67,7 @@ export function SubscriptionsScreen({ token }: { token: string }) {
               </div>
             </div>
             <p className="muted" style={{ fontSize: 13 }}>
-              Every pilot store runs on a direct arrangement with Poket. When the payment provider
+              Every pilot store runs on a direct arrangement with OmaPointii. When the payment provider
               is connected, this table will show each store’s plan, payment status and renewal date.
             </p>
             <div className="placeholdercard" style={{ marginTop: 12, marginBottom: 0 }}>

@@ -52,7 +52,7 @@ export function Onboarding({ token, me, onDone }: OnboardingProps) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={styles.card}>
-        <Text style={styles.brand}>POKET</Text>
+        <Text style={styles.brand}>OMAPOINTII</Text>
         <Text style={styles.title}>What should the till call you?</Text>
         <Text style={styles.muted}>
           The cashier sees your first name when they scan your code. That is all they see.

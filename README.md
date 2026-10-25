@@ -137,9 +137,9 @@ token.
 ```
 apps/
   api/            Fastify API, Drizzle schema and migrations, ledger write path
-  web/            Poket Store Portal — cashier till (:5173)
-  owner/          Poket Merchant Platform — store owner/manager dashboard (:5174)
-  admin/          Poket Platform Admin — platform control room (:5175)
+  web/            OmaPointii Store Portal — cashier till (:5173)
+  owner/          OmaPointii Merchant Platform — store owner/manager dashboard (:5174)
+  admin/          OmaPointii Platform Admin — platform control room (:5175)
   customer/       Expo customer app, native + web (:8081)
 packages/
   shared/         Points engine, expiry, FIFO, balance rules, permissions

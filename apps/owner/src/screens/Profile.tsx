@@ -60,7 +60,7 @@ export function ProfileScreen({ token, storeId }: { token: string; storeId: stri
       <div className="pagehead">
         <div>
           <h1>Store profile</h1>
-          <p className="sub">What customers see in their Poket app</p>
+          <p className="sub">What customers see in their OmaPointii app</p>
         </div>
       </div>
 

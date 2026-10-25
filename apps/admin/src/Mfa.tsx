@@ -68,7 +68,7 @@ export function Mfa({ email, onVerified, onSignOut }: MfaProps) {
     <main className="centered">
       <form className="card narrow" onSubmit={(event) => void handleSubmit(event)}>
         <p className="brand">
-          <span className="brand-word">Poket</span>
+          <span className="brand-word">OmaPointii</span>
           <span className="brand-tag">Merchant Platform</span>
         </p>
         <h1>{enrolment === null ? 'Your 6-digit code' : 'Set up your authenticator'}</h1>

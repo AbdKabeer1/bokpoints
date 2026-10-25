@@ -154,9 +154,9 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
         >
           <View style={styles.brandRow}>
             <View style={styles.mark}>
-              <Text style={styles.markText}>P</Text>
+              <Text style={styles.markText}>O</Text>
             </View>
-            <Text style={styles.wordmark}>Poket</Text>
+            <Text style={styles.wordmark}>OmaPointii</Text>
           </View>
 
           {step === 'email' ? (

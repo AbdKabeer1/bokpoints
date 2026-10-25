@@ -97,7 +97,7 @@ export function App() {
   if (!hasConfig) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.title}>Poket</Text>
+        <Text style={styles.title}>OmaPointii</Text>
         <Text style={styles.muted}>
           This build has no Supabase settings. Copy `.env.example` to `.env` and fill in the
           project URL and publishable key, then restart the app.
@@ -116,7 +116,7 @@ export function App() {
     case 'error':
       return (
         <View style={styles.centered}>
-          <Text style={styles.title}>Poket</Text>
+          <Text style={styles.title}>OmaPointii</Text>
           <Text style={styles.muted}>{phase.message}</Text>
           <Pressable style={styles.primary} onPress={() => void refresh()}>
             <Text style={styles.primaryText}>Try again</Text>

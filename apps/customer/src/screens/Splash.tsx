@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { colors } from '../lib/theme';
 
-const NAME = 'Poket'.split('');
+const NAME = 'OmaPointii'.split('');
 const LETTER_STAGGER = 60;
 
 /**
@@ -106,7 +106,7 @@ export function Splash({ onDone }: { onDone: () => void }) {
 
   return (
     <Animated.View style={[styles.screen, { opacity: fade }]}>
-      <View accessibilityRole="header" accessibilityLabel="Poket" style={styles.nameRow}>
+      <View accessibilityRole="header" accessibilityLabel="OmaPointii" style={styles.nameRow}>
         {letters.map((value, index) => (
           <Animated.Text
             key={index}
@@ -164,18 +164,18 @@ const styles = StyleSheet.create({
   },
   name: {
     color: colors.ink,
-    fontSize: 58,
-    lineHeight: 64,
+    fontSize: 40,
+    lineHeight: 46,
     fontWeight: '800',
-    letterSpacing: -2.4,
+    letterSpacing: -1.6,
   },
   dot: {
-    width: 11,
-    height: 11,
-    borderRadius: 5.5,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: colors.green,
-    marginLeft: 5,
-    marginBottom: 13,
+    marginLeft: 4,
+    marginBottom: 8,
   },
   tagline: {
     color: colors.muted,

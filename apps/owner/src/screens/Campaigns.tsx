@@ -60,7 +60,7 @@ export function CampaignsScreen({ token, storeId }: { token: string; storeId: st
       setFlash(
         sent.recipients === 0
           ? 'Saved, but it reached no one: no customer has opted in yet.'
-          : `Sent to ${sent.recipients} customer${sent.recipients === 1 ? '' : 's'}. It is in their Poket inbox now.`,
+          : `Sent to ${sent.recipients} customer${sent.recipients === 1 ? '' : 's'}. It is in their OmaPointii inbox now.`,
       );
       setTitle('');
       setBody('');
@@ -78,7 +78,7 @@ export function CampaignsScreen({ token, storeId }: { token: string; storeId: st
       <div className="pagehead">
         <div>
           <h1>Campaigns</h1>
-          <p className="sub">One short message to your customers, inside the Poket app</p>
+          <p className="sub">One short message to your customers, inside the OmaPointii app</p>
         </div>
       </div>
 
@@ -98,7 +98,7 @@ export function CampaignsScreen({ token, storeId }: { token: string; storeId: st
             </strong>{' '}
             {audience.linked === 0
               ? 'A customer joins the first time they earn points here.'
-              : `${audience.linked} customer${audience.linked === 1 ? ' is' : 's are'} linked. Store news is off by default; each customer turns it on from the store page in their Poket app.`}
+              : `${audience.linked} customer${audience.linked === 1 ? ' is' : 's are'} linked. Store news is off by default; each customer turns it on from the store page in their OmaPointii app.`}
           </p>
         </div>
       )}
@@ -303,7 +303,7 @@ export function CampaignsScreen({ token, storeId }: { token: string; storeId: st
                 </span>
                 <div style={{ flex: 1 }}>
                   <strong>In-app push</strong>
-                  <p>Delivered to the Poket inbox, with read counts.</p>
+                  <p>Delivered to the OmaPointii inbox, with read counts.</p>
                 </div>
               </div>
               <div className="item locked">

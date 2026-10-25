@@ -125,9 +125,9 @@ export function Shell({
     <div className="shell">
       <aside className={navOpen ? 'sidebar open' : 'sidebar'} aria-label="Platform sections">
         <div className="sidebrand">
-          <span className="mark">P</span>
+          <span className="mark">O</span>
           <div>
-            <div className="name">Poket</div>
+            <div className="name">OmaPointii</div>
             <div className="sub">Platform Admin</div>
           </div>
         </div>

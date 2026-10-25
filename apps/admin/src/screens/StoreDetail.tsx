@@ -360,7 +360,7 @@ export function StoreDetailScreen({
                   <dt>Brand colour</dt>
                   <dd>
                     {store.brandColor === null ? (
-                      'Poket green'
+                      'OmaPointii green'
                     ) : (
                       <span className="colourvalue">
                         <span
@@ -393,7 +393,7 @@ export function StoreDetailScreen({
               </div>
               {subscription === null ? (
                 <p className="muted" style={{ fontSize: 13 }}>
-                  No subscription row. This store runs on the pilot arrangement with Poket.
+                  No subscription row. This store runs on the pilot arrangement with OmaPointii.
                 </p>
               ) : (
                 <dl className="kv">

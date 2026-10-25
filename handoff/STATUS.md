@@ -6,6 +6,13 @@
 
 ## Done
 
+- **Build 24 — OmaPointii brand + merchant landing (D-155).** Renamed the visible product
+  across customer, till, merchant and admin (titles, wordmarks, copy, installer names),
+  with an O monogram. New merchant landing: deep-green brand panel, letter-by-letter
+  Fraunces wordmark, positioning line, three proof points, cream sign-in card, one
+  authored motion and reduced-motion fallback. Owner splash/login retired. Internal
+  package names and repo stay `bokpoints`.
+
 - **Build 23 — reference-driven interface rebuild (D-154).** The four dashboard references
   now drive the merchant and admin surfaces: readiness hero with a large percentage and a
   segmented completion bar, done/in-progress/to-do checklist, KPI labels with icon tiles,
@@ -13,11 +20,11 @@
   editorial system; till keeps its task layout. References live in `docs/ui-reference/`;
   the second brief in `docs/ui/UIdesign_brief_v2.md`. 372 tests green; all six builds pass.
 
-- **Build 22 — Poket Platform Admin (D-153).** New `apps/admin` on :5175, sharing the
+- **Build 22 — OmaPointii Platform Admin (D-153).** New `apps/admin` on :5175, sharing the
   merchant shell and tokens with a permanent red Platform admin label and All stores
   scope. Screens: Stores + platform stat strip and filters; store detail with readiness,
   counts, staff/rules/billing/audit tabs and reasoned suspend/reactivate; Subscriptions;
-  read-only Support search by store, customer or Poket code; Safety; platform Audit;
+  read-only Support search by store, customer or OmaPointii code; Safety; platform Audit;
   Settings. New API endpoints: admin store list/detail/status, support search, analytics,
   subscriptions. Root build now includes owner and admin. Impeccable detector: 0 findings
   in `apps/admin/src`. 87 unit + 283 integration tests green; typecheck, lint and all six
@@ -135,7 +142,7 @@
   screens at all yet. Note: the document's "D-125" citation for redemption is a numbering
   slip; it is D-138 here.
 
-- **Build 14 — the owner portal (`apps/owner`, "Poket Merchant Platform", :5174).**
+- **Build 14 — the owner portal (`apps/owner`, "OmaPointii Merchant Platform", :5174).**
   Sign-in and TOTP identical to the till, four sections. **Rules** is the point-calculation
   control: see every current rule in one line each, create one of the four types, change a
   rule by saving the next version (history stays append-only), pause/resume, and **Try it**
@@ -151,16 +158,16 @@
   green action, the promise, three benefits, one email field, and a focused-input
   state; the three benefits tick in one after the other as solid green checks. The
   palette is now white/green with the old names aliased, so Home,
-  Onboarding and history picked it up too. The customer-facing name is **Poket**
+  Onboarding and history picked it up too. The customer-facing name is **OmaPointii**
   (D-136), shown as a letter-by-letter animated wordmark with a green dot; the repo,
   packages, API and documents keep BOKPOINTS until a full rename is approved.
 - **Till restyle.** `apps/web` moved from dark navy/gold to the same white-and-green
-  Poket system: bright surface, 800-weight headings, green primary with soft-mint
+  OmaPointii system: bright surface, 800-weight headings, green primary with soft-mint
   disabled state, green eyebrows, focused-input ring, and the wordmark dot in the
   top bar. Functionality untouched (one stylesheet plus the five brand strings).
-  The till identifies as **Poket · STORE PORTAL** (wordmark + small tag on every
+  The till identifies as **OmaPointii · STORE PORTAL** (wordmark + small tag on every
   screen, tab title, and the sign-in headline), keeping "Merchant Platform" free
-  for the owner console; the customer app stays plain Poket.
+  for the owner console; the customer app stays plain OmaPointii.
 - **Till depth pass.** To answer "white and green feels incomplete": the top bar
   became the near-black anchor (white wordmark + mint tag, white store name), a
   three-chip step rail (Find the customer → Add the amount → Confirm the sale)

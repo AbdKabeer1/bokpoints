@@ -93,7 +93,7 @@ Email Sending replaces it.
    | Username | `api` |
    | Password | the Mailtrap API token |
    | Sender email | `no-reply@omapointii.store` |
-   | Sender name | `Poket` |
+   | Sender name | `OmaPointii` |
 
 5. In Supabase → **Authentication → URL Configuration**:
    - **Site URL:** `https://app.omapointii.store`

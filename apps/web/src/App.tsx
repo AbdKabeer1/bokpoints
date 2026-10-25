@@ -73,7 +73,7 @@ export function App() {
       return (
         <main className="centered">
           <div className="card narrow">
-            <p className="brand"><span className="brand-word">Poket</span><span className="brand-tag">Store Portal</span></p>
+            <p className="brand"><span className="brand-word">OmaPointii</span><span className="brand-tag">Store Portal</span></p>
             <h1>The till is offline</h1>
             <p className="muted">{phase.message}</p>
             <button className="primary" type="button" onClick={() => void refresh()}>

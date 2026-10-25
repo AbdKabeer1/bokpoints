@@ -20,7 +20,7 @@ export function BillingScreen({ onNavigate }: { onNavigate: (tab: Tab) => void }
             <div className="panelhead">
               <div>
                 <h3>Current plan</h3>
-                <p className="sub">Set up directly with Poket</p>
+                <p className="sub">Set up directly with OmaPointii</p>
               </div>
               <span className="pill active">
                 <span className="dot" aria-hidden="true" />
@@ -35,7 +35,7 @@ export function BillingScreen({ onNavigate }: { onNavigate: (tab: Tab) => void }
               </div>
               <div>
                 <dt>Renewal</dt>
-                <dd>Agreed with your Poket contact</dd>
+                <dd>Agreed with your OmaPointii contact</dd>
               </div>
               <div>
                 <dt>Payment method</dt>
@@ -73,7 +73,7 @@ export function BillingScreen({ onNavigate }: { onNavigate: (tab: Tab) => void }
                 <span className="state" aria-hidden="true" />
                 <span className="txt">
                   <strong>Card and payment method</strong>
-                  <span>Handled by the payment provider; Poket never stores card details.</span>
+                  <span>Handled by the payment provider; OmaPointii never stores card details.</span>
                 </span>
               </li>
               <li>
@@ -103,7 +103,7 @@ export function BillingScreen({ onNavigate }: { onNavigate: (tab: Tab) => void }
               </div>
             </div>
             <p style={{ fontSize: 13 }}>
-              Plan changes, extra stores and invoicing are arranged with your Poket contact while
+              Plan changes, extra stores and invoicing are arranged with your OmaPointii contact while
               the pilot runs. There is no self-service payment in this build.
             </p>
             <button

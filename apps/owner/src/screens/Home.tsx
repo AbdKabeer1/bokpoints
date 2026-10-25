@@ -162,7 +162,7 @@ export function HomeScreen({ token, storeId, onNavigate }: HomeProps) {
       {
         done: false,
         title: 'Print the counter sign',
-        body: 'Put your Poket code where customers can see it.',
+        body: 'Put your OmaPointii code where customers can see it.',
         tab: 'sign' as Tab,
       },
     ],
@@ -225,7 +225,7 @@ export function HomeScreen({ token, storeId, onNavigate }: HomeProps) {
       tone: 'good',
       icon: '◈',
       title: 'No one has opted in to store news',
-      body: 'Customers turn store news on from their Poket app. Until then a campaign reaches no one.',
+      body: 'Customers turn store news on from their OmaPointii app. Until then a campaign reaches no one.',
       tab: 'campaigns',
       action: 'Open campaigns',
     });
@@ -480,7 +480,7 @@ export function HomeScreen({ token, storeId, onNavigate }: HomeProps) {
             <div className="panelhead">
               <div>
                 <h3>Last campaign</h3>
-                <p className="sub">Delivered inside the Poket app</p>
+                <p className="sub">Delivered inside the OmaPointii app</p>
               </div>
               <button className="link" type="button" onClick={() => onNavigate('campaigns')}>
                 All campaigns ›
@@ -489,7 +489,7 @@ export function HomeScreen({ token, storeId, onNavigate }: HomeProps) {
 
             {lastCampaign === null ? (
               <p className="emptynote">
-                No campaigns yet. Write one short message and it lands in your customers’ Poket
+                No campaigns yet. Write one short message and it lands in your customers’ OmaPointii
                 inbox.
               </p>
             ) : (
@@ -581,7 +581,7 @@ export function HomeScreen({ token, storeId, onNavigate }: HomeProps) {
               </div>
             </div>
             <p style={{ fontSize: 13, margin: 0 }}>
-              Your plan and billing are arranged directly with Poket during the pilot. In-app
+              Your plan and billing are arranged directly with OmaPointii during the pilot. In-app
               billing arrives after the pilot.
             </p>
             <button

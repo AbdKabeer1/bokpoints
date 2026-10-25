@@ -129,7 +129,7 @@ export function NotificationsScreen({
       tone: 'info',
       icon: '◈',
       title: 'Campaigns currently reach no one',
-      body: `All ${audience.linked} linked customers have store news switched off. They can turn it on in the Poket app.`,
+      body: `All ${audience.linked} linked customers have store news switched off. They can turn it on in the OmaPointii app.`,
       tab: 'campaigns',
       action: 'Open campaigns',
     });

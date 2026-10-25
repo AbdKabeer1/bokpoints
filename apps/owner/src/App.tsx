@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError, getMe, type Membership, type Me } from './api';
 import { assuranceLevel, onAuthChange, signOut, supabase } from './auth';
-import { Login } from './Login';
-import { Splash } from './Splash';
+import { Landing } from './Landing';
 import { Mfa } from './Mfa';
 import { StorePicker } from './StorePicker';
 import { Shell, type Tab } from './Shell';
@@ -31,7 +30,6 @@ type Phase =
   | { kind: 'unreachable'; message: string };
 
 export function App() {
-  const [introDone, setIntroDone] = useState(false);
   const [phase, setPhase] = useState<Phase>({ kind: 'loading' });
   const [chosenStoreId, setChosenStoreId] = useState<string | null>(null);
   const [idleWarn, setIdleWarn] = useState(false);
@@ -101,16 +99,12 @@ export function App() {
     };
   }, [phase.kind, handleSignOut]);
 
-  if (!introDone) {
-    return <Splash tagline="Merchant Platform" onDone={() => setIntroDone(true)} />;
-  }
-
   switch (phase.kind) {
     case 'loading':
       return (
         <main className="centered">
           <p className="brand">
-            <span className="brand-word">Poket</span>
+            <span className="brand-word">OmaPointii</span>
             <span className="brand-tag">Merchant Platform</span>
           </p>
           <p className="muted">Starting…</p>
@@ -121,7 +115,7 @@ export function App() {
         <main className="centered">
           <div className="card narrow">
             <p className="brand">
-              <span className="brand-word">Poket</span>
+              <span className="brand-word">OmaPointii</span>
               <span className="brand-tag">Merchant Platform</span>
             </p>
             <h1>The platform is offline</h1>
@@ -133,7 +127,7 @@ export function App() {
         </main>
       );
     case 'signed-out':
-      return <Login onSignedIn={() => void refresh()} />;
+      return <Landing onSignedIn={() => void refresh()} />;
     case 'needs-code':
       return (
         <Mfa

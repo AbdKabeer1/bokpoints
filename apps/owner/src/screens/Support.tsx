@@ -15,7 +15,7 @@ const FAQ: { q: string; a: string }[] = [
   },
   {
     q: 'Do campaigns send email or SMS?',
-    a: 'No. In this build a campaign is an in-app message in the customer’s Poket inbox. Email needs a verified sender domain; SMS needs a messaging provider. Both are shown as unavailable rather than as switches that do nothing.',
+    a: 'No. In this build a campaign is an in-app message in the customer’s OmaPointii inbox. Email needs a verified sender domain; SMS needs a messaging provider. Both are shown as unavailable rather than as switches that do nothing.',
   },
   {
     q: 'Why does a campaign reach fewer people than I expected?',
@@ -74,7 +74,7 @@ export function SupportScreen({ onNavigate }: { onNavigate: (tab: Tab) => void }
               </div>
             </div>
             <p style={{ fontSize: 13 }}>
-              During the pilot, your Poket contact answers directly. Support email and in-app
+              During the pilot, your OmaPointii contact answers directly. Support email and in-app
               chat are not connected in this build, and no button here pretends otherwise.
             </p>
             <div className="placeholdercard" style={{ marginTop: 10, marginBottom: 0 }}>

@@ -1,5 +1,5 @@
 ---
-name: Poket
+name: OmaPointii
 description: Loyalty for Finnish shops — a warm customer wallet and a precise merchant console.
 colors:
   canvas: "#F6F1E7"
@@ -121,7 +121,7 @@ components:
 
 ## Overview
 
-Poket has two visual identities with one job each.
+OmaPointii has two visual identities with one job each.
 
 **The customer app** (Expo, iOS/Android/web) is a warm editorial wallet: a cream
 canvas, paper cards, one espresso card that holds the code, saffron for points and
@@ -164,7 +164,7 @@ there because staff are acting, not browsing.
   headings. Never below 20px; never for paragraphs.
 - **Interface: Manrope 400/500/600/700/800.** Body, labels, buttons, metadata.
 - Scale: 46/34 hero, 23–26 section, 15 card title, 14 body, 12 secondary, 10 label.
-- Labels that are field names inside a card ("YOUR POKET CODE", "TOTAL POINTS") may be
+- Labels that are field names inside a card ("YOUR OMAPOINTII CODE", "TOTAL POINTS") may be
   uppercase with 0.14em tracking. Do not put a kicker label above a page heading.
 - Balances and points use tabular numerals.
 - The merchant dashboard keeps the system sans stack and the monospace stack for IDs,

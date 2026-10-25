@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-const NAME = 'Poket'.split('');
+const NAME = 'OmaPointii'.split('');
 
 /**
  * The first thing anyone sees: each letter rises into place, the green dot
@@ -26,7 +26,7 @@ export function Splash({ tagline, onDone }: { tagline: string; onDone: () => voi
     <div
       className={leaving ? 'splash splash-leaving' : 'splash'}
       role="heading"
-      aria-label="Poket"
+      aria-label="OmaPointii"
     >
       <div className="splash-row">
         {NAME.map((letter, index) => (

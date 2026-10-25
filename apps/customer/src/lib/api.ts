@@ -22,7 +22,7 @@ export interface StoreSummary {
   name: string;
   balance: number;
   lastActivityAt: string;
-  /** The store's own colour; null means Poket green. */
+  /** The store's own colour; null means OmaPointii green. */
   brandColor: string | null;
   /** Store news is off until the customer turns it on (FR-PRV-2). */
   marketingConsent: boolean;

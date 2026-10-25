@@ -61,7 +61,7 @@ export function SupportScreen({
         <div className="panel">
           <p className="muted" style={{ fontSize: 13, margin: 0 }}>
             Type at least two characters. A customer search matches the email, the name or the
-            printed Poket code, and shows their balance at each store.
+            printed OmaPointii code, and shows their balance at each store.
           </p>
         </div>
       ) : results.stores.length === 0 && results.customers.length === 0 ? (
