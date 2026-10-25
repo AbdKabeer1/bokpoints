@@ -9,9 +9,12 @@ describe('environment validation', () => {
     expect(env.SUPABASE_URL).toBe('https://project.supabase.co');
   });
 
-  it('refuses a URL whose scheme is a typo', () => {
-    expect(() => loadEnv({ ...base, SUPABASE_URL: 'ttps://project.supabase.co' })).toThrow(
-      /http/,
-    );
+  it('repairs a URL that lost its leading h', () => {
+    const env = loadEnv({ ...base, SUPABASE_URL: 'ttps://project.supabase.co' });
+    expect(env.SUPABASE_URL).toBe('https://project.supabase.co');
+  });
+
+  it('still refuses a URL with no usable scheme', () => {
+    expect(() => loadEnv({ ...base, SUPABASE_URL: 'project.supabase.co' })).toThrow(/http/);
   });
 });

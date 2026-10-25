@@ -21,12 +21,22 @@ export const envSchema = z.object({
    */
   CORS_ORIGINS: z.string().optional(),
   SUPABASE_URL: z.preprocess(
-    (value) => (value === '' ? undefined : value),
+    (value) => {
+      if (typeof value !== 'string') return value;
+      const trimmed = value.trim();
+      if (trimmed === '') return undefined;
+      // A pasted value that lost its leading "h" (`ttps://`) is repaired
+      // rather than taking the whole platform down; the warning makes the
+      // typo visible without blocking sign-in.
+      if (/^ttps?:\/\//i.test(trimmed)) {
+        console.warn('SUPABASE_URL was missing its leading "h"; using https://');
+        return `h${trimmed}`;
+      }
+      return trimmed;
+    },
     z
       .string()
       .url()
-      // `z.url()` accepts any scheme, including the `ttps://` typo that took
-      // production down for an afternoon.
       .refine((value) => /^https?:\/\//.test(value), {
         message: 'SUPABASE_URL must start with http:// or https://',
       })
