@@ -90,13 +90,13 @@ export function SegmentBar({
   total,
   segments = 10,
   label,
-  tone = 'saffron',
+  tone = 'primary',
 }: {
   value: number;
   total: number;
   segments?: number;
   label?: string;
-  tone?: 'saffron' | 'forest';
+  tone?: 'primary' | 'saffron' | 'forest';
 }) {
   const ratio = total <= 0 ? 1 : Math.min(1, Math.max(0, value / total));
   const filled = Math.round(ratio * segments);
@@ -115,7 +115,12 @@ export function SegmentBar({
             style={[
               styles.segment,
               index < filled && {
-                backgroundColor: tone === 'forest' ? colors.green : colors.saffron,
+                backgroundColor:
+                  tone === 'forest'
+                    ? colors.green
+                    : tone === 'saffron'
+                      ? colors.amber
+                      : colors.primary,
               },
             ]}
           />

@@ -6,6 +6,14 @@
 
 ## Done
 
+- **Build 26 — customer app rebuild (D-157).** New cool/violet palette and Manrope-only
+  typography. Five tabs with icon + word: Home, Coupons, Offers, Inbox, Stores; You sits in
+  a persistent top-right avatar. My QR is a floating button that slides a sheet up over the
+  app. Coupons shows rewards by readiness; Offers shows active store discounts (new
+  endpoint); Inbox keeps messages; Stores lists every active business (new directory
+  endpoint). The code field no longer shows a sample number. Brand spelling stays
+  OmaPointii until A decides.
+
 - **Build 25 — owner-uploaded store logos (D-156).** Migration `0017` adds
   `stores.logo_url`; the `store-logos` bucket is public with a 2 MB limit. Owners upload,
   replace or remove the logo in Store profile; the API sniffs the real image type, stores

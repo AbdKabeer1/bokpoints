@@ -985,3 +985,36 @@ export const adminSubscriptionRowSchema = z.object({
 export const adminSubscriptionsResponseSchema = z.object({
   subscriptions: z.array(adminSubscriptionRowSchema),
 });
+
+/* ── Customer app: the store directory (D-157) ──────────────────────────── */
+
+export const directoryStoreSchema = z.object({
+  storeId: z.string().uuid(),
+  name: z.string(),
+  address: z.string().nullable(),
+  brandColor: z.string().nullable(),
+  logoUrl: z.string().nullable(),
+  /** True when this customer already has a link or a balance at the store. */
+  visited: z.boolean(),
+  balance: z.number().int(),
+});
+
+export const directoryResponseSchema = z.object({
+  stores: z.array(directoryStoreSchema),
+});
+
+/* ── Customer app: store offers (active basket discounts) ────────────────── */
+
+export const customerOfferSchema = z.object({
+  storeId: z.string().uuid(),
+  storeName: z.string(),
+  brandColor: z.string().nullable(),
+  logoUrl: z.string().nullable(),
+  thresholdCents: z.number().int(),
+  kind: z.enum(['fixed_cents', 'percent']),
+  value: z.number().int(),
+});
+
+export const customerOffersResponseSchema = z.object({
+  offers: z.array(customerOfferSchema),
+});

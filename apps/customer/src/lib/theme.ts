@@ -1,67 +1,67 @@
 /**
- * The customer app's design language.
- *
- * Not a white dashboard: a warm, editorial loyalty wallet. A cream canvas,
- * espresso ink, and three accents that each mean something — saffron for
- * points and progress, terracotta for expiry and attention, forest for
- * positive/store actions. Fraunces sets the display voice; Manrope carries
- * the interface. The same palette is shared by every customer screen so
- * nothing drifts.
+ * The customer app's design language — rebuilt around clarity and colour
+ * rather than cream and serif: a cool light canvas, white cards, violet as
+ * the one brand action, mint for points, amber for expiry, coral for
+ * attention. Manrope everywhere, no display face.
  */
 export const colors = {
-  /** The page: warm paper, never pure white. */
-  background: '#F6F1E7',
-  /** Cards sitting on the page. */
-  card: '#FFFCF6',
-  /** A quieter inset panel. */
-  surface: '#EFE7D7',
-  /** The page in the store's own colour, used sparingly. */
-  tint: '#F1E9DA',
+  background: '#F5F6FA',
+  surface: '#FFFFFF',
+  card: '#FFFFFF',
+  tint: '#EEECFF',
 
-  text: '#1A1712',
-  ink: '#1A1712',
-  muted: '#6E675B',
-  line: '#E4DAC8',
-  lineStrong: '#D3C6AE',
+  text: '#11131A',
+  ink: '#11131A',
+  muted: '#6B7280',
+  line: '#E6E8EF',
+  lineStrong: '#D6DAE5',
 
-  /** The hero and primary action colour. */
-  espresso: '#241E18',
-  espressoSoft: '#3A3128',
-  onEspresso: '#FBF5E8',
+  primary: '#5B4BFF',
+  primaryDark: '#4436E0',
+  primarySoft: '#EEECFF',
+  onPrimary: '#FFFFFF',
 
-  /** Brand green, now an accent rather than the whole page. */
-  green: '#1F5C3A',
-  greenDark: '#184A2F',
-  greenSoft: '#E3EDE3',
-  onGreen: '#FFFCF6',
+  green: '#00A878',
+  greenDark: '#00805B',
+  greenSoft: '#E6F8F1',
+  onGreen: '#FFFFFF',
 
-  /** Points, progress, "ready". */
-  saffron: '#E8A93C',
-  saffronInk: '#7A5410',
-  saffronSoft: '#FBF0D8',
+  mint: '#00C48C',
+  mintSoft: '#E6F9F2',
 
-  /** Expiry, attention. */
-  terracotta: '#C25E3D',
-  terracottaInk: '#8A3A22',
-  terracottaSoft: '#F8E4DA',
+  amber: '#F5A524',
+  amberSoft: '#FFF4E0',
+  amberInk: '#8A5A00',
 
-  sage: '#8FA98C',
-  sageSoft: '#E7EDE4',
+  danger: '#E5484D',
+  dangerSoft: '#FFECEC',
+  info: '#2F6BFF',
+  infoSoft: '#EAF0FF',
 
-  danger: '#B42318',
-  dangerSoft: '#FBE3DD',
-  info: '#2B5FB4',
-  infoSoft: '#E5EDF9',
+  dark: '#14151C',
+  onDark: '#F7F8FB',
+  darkSoft: '#23252F',
 
-  // Legacy names kept so untouched screens still inherit the palette.
-  gold: '#1F5C3A',
-  goldSoft: '#E3EDE3',
+  // Legacy aliases so untouched screens inherit the new palette.
+  espresso: '#14151C',
+  espressoSoft: '#23252F',
+  onEspresso: '#F7F8FB',
+  cream: '#F5F6FA',
+  saffron: '#F5A524',
+  saffronInk: '#8A5A00',
+  saffronSoft: '#FFF4E0',
+  terracotta: '#FF6B6B',
+  terracottaInk: '#B42318',
+  terracottaSoft: '#FFECEC',
+  sage: '#9AA3B2',
+  sageSoft: '#EEF1F6',
+  gold: '#5B4BFF',
+  goldSoft: '#EEECFF',
 };
 
 export const fonts = {
-  /** Headlines, balances, the wordmark. */
-  display: 'Fraunces_700Bold',
-  displayMedium: 'Fraunces_600SemiBold',
+  display: 'Manrope_800ExtraBold',
+  displayMedium: 'Manrope_700Bold',
   body: 'Manrope_400Regular',
   bodyMedium: 'Manrope_500Medium',
   bodySemi: 'Manrope_600SemiBold',
@@ -74,7 +74,7 @@ export const layout = {
   radius: 22,
   cardRadius: 20,
   gap: 12,
-  tabBar: 88,
+  tabBar: 84,
 };
 
 export const formatPoints = (value: number): string => value.toLocaleString('fi-FI');

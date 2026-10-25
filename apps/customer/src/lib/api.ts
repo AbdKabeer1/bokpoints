@@ -32,6 +32,26 @@ export interface StoreSummary {
   nextReward: { name: string; pointsCost: number } | null;
 }
 
+export interface DirectoryStore {
+  storeId: string;
+  name: string;
+  address: string | null;
+  brandColor: string | null;
+  logoUrl: string | null;
+  visited: boolean;
+  balance: number;
+}
+
+export interface StoreOffer {
+  storeId: string;
+  storeName: string;
+  brandColor: string | null;
+  logoUrl: string | null;
+  thresholdCents: number;
+  kind: 'fixed_cents' | 'percent';
+  value: number;
+}
+
 export interface Notification {
   id: string;
   storeId: string;
@@ -116,6 +136,10 @@ export const updateMe = (token: string, patch: { name?: string; language?: 'fi' 
 export const getStores = (token: string) =>
   request<{ stores: StoreSummary[] }>('/v1/customer/me/stores', token);
 
+/** Every active store on the platform, with this customer's visit state. */
+export const getDirectory = (token: string) =>
+  request<{ stores: DirectoryStore[] }>('/v1/customer/stores', token);
+
 export const getHistory = (token: string, storeId: string) =>
   request<History>(`/v1/customer/me/stores/${storeId}/history`, token);
 
@@ -143,6 +167,10 @@ export const getDiscountProof = (token: string, storeId: string) =>
 
 export const getExpiring = (token: string) =>
   request<{ windowDays: number; items: ExpiringItem[] }>('/v1/customer/me/expiring', token);
+
+/** Active basket discounts at the stores this customer has joined. */
+export const getOffers = (token: string) =>
+  request<{ offers: StoreOffer[] }>('/v1/customer/me/offers', token);
 
 /** The customer's inbox: campaign messages from their stores (D-148). */
 export const getNotifications = (token: string) =>

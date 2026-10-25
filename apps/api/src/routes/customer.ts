@@ -7,9 +7,11 @@ import {
   customerMeResponseSchema,
   customerNotificationParamsSchema,
   customerNotificationsResponseSchema,
+  customerOffersResponseSchema,
   customerStoreRewardsResponseSchema,
   customerStoresResponseSchema,
   discountProofIssueResponseSchema,
+  directoryResponseSchema,
   notificationReadResponseSchema,
   storeConsentRequestSchema,
   storeConsentResponseSchema,
@@ -18,6 +20,7 @@ import {
 } from '@bokpoints/shared';
 import type { CustomerPrincipal, CustomerSessionResolver } from '../auth/session.js';
 import type { Database } from '../db/client.js';
+import { sql } from 'drizzle-orm';
 import {
   CustomerError,
   customerExpiring,
@@ -329,6 +332,136 @@ export const customerRoutes: FastifyPluginAsyncZod<CustomerRouteOptions> = async
 
       const rewards = await customerStoreRewards(db, request.params.storeId);
       return reply.send({ rewards });
+    },
+  );
+
+  /**
+   * Every active store on the platform, with the customer's own balance and
+   * whether they have visited. This is the app's Stores tab, not a marketing
+   * directory: it never exposes another customer's data.
+   */
+  app.get(
+    '/v1/customer/stores',
+    {
+      config: { rateLimit: rateLimit ?? { max: 60, timeWindow: '1 minute' } },
+      schema: {
+        response: {
+          200: directoryResponseSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+          409: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const principal = await resolve(request.headers.authorization);
+      if (principal === null) {
+        return reply
+          .code(401)
+          .send({ error: { code: 'INVALID_TOKEN', message: 'That access token is not valid' } });
+      }
+      const customer = await provision(principal);
+      if (customer instanceof CustomerError) {
+        return reply
+          .code(customerErrorStatus(customer.code))
+          .send({ error: { code: customer.code, message: customer.message } });
+      }
+
+      const rows = await db.execute(sql`
+        SELECT
+          s.id AS "storeId",
+          s.name,
+          s.address,
+          s.brand_color AS "brandColor",
+          s.logo_url AS "logoUrl",
+          (link.id IS NOT NULL) AS "visited",
+          coalesce(b.balance, 0)::int AS "balance"
+        FROM stores s
+        LEFT JOIN customer_store_links link
+          ON link.store_id = s.id AND link.customer_id = ${customer.id}
+        LEFT JOIN points_balances b
+          ON b.store_id = s.id AND b.customer_id = ${customer.id}
+        WHERE s.status = 'active'
+        ORDER BY s.name
+        LIMIT 200
+      `);
+
+      return reply.send({
+        stores: (rows.rows as Record<string, unknown>[]).map((row) => ({
+          storeId: String(row.storeId),
+          name: String(row.name),
+          address: row.address === null ? null : String(row.address),
+          brandColor: row.brandColor === null ? null : String(row.brandColor),
+          logoUrl: row.logoUrl === null ? null : String(row.logoUrl),
+          visited: Boolean(row.visited),
+          balance: Number(row.balance ?? 0),
+        })),
+      });
+    },
+  );
+
+  /**
+   * Active basket discounts at stores this customer has joined. These are the
+   * store-funded offers the app shows under Offers; messages live elsewhere.
+   */
+  app.get(
+    '/v1/customer/me/offers',
+    {
+      config: { rateLimit: rateLimit ?? { max: 60, timeWindow: '1 minute' } },
+      schema: {
+        response: {
+          200: customerOffersResponseSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+          409: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const principal = await resolve(request.headers.authorization);
+      if (principal === null) {
+        return reply
+          .code(401)
+          .send({ error: { code: 'INVALID_TOKEN', message: 'That access token is not valid' } });
+      }
+      const customer = await provision(principal);
+      if (customer instanceof CustomerError) {
+        return reply
+          .code(customerErrorStatus(customer.code))
+          .send({ error: { code: customer.code, message: customer.message } });
+      }
+
+      const rows = await db.execute(sql`
+        SELECT
+          d.store_id AS "storeId",
+          s.name AS "storeName",
+          s.brand_color AS "brandColor",
+          s.logo_url AS "logoUrl",
+          d.threshold_cents AS "thresholdCents",
+          d.kind,
+          d.value
+        FROM discount_rules d
+        INNER JOIN stores s ON s.id = d.store_id
+        INNER JOIN customer_store_links l
+          ON l.store_id = d.store_id AND l.customer_id = ${customer.id}
+        WHERE d.active = true AND s.status = 'active'
+        ORDER BY s.name
+      `);
+
+      return reply.send({
+        offers: rows.rows.map((row) => {
+          const offer = row as Record<string, unknown>;
+          return {
+            storeId: String(offer.storeId),
+            storeName: String(offer.storeName),
+            brandColor: offer.brandColor === null ? null : String(offer.brandColor),
+            logoUrl: offer.logoUrl === null ? null : String(offer.logoUrl),
+            thresholdCents: Number(offer.thresholdCents ?? 0),
+            kind: offer.kind === 'percent' ? ('percent' as const) : ('fixed_cents' as const),
+            value: Number(offer.value ?? 0),
+          };
+        }),
+      });
     },
   );
 

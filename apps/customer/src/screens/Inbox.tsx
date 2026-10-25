@@ -8,7 +8,6 @@ import { Card, StoreAvatar } from '../components/ui';
 interface InboxProps {
   token: string;
   notifications: Notification[];
-  onRefresh: () => Promise<void>;
   onChanged: () => Promise<void>;
 }
 
@@ -23,152 +22,149 @@ const relative = (iso: string): string => {
   return formatDate(iso);
 };
 
-/**
- * Messages a store sent inside OmaPointii (D-148). Opening one marks it read;
- * the dot and the tab badge go away, and the store sees the open count.
- */
-export function Inbox({ token, notifications, onRefresh, onChanged }: InboxProps) {
+/** Offers are the messages stores send inside OmaPointii — never email or SMS. */
+export function Inbox({ token, notifications, onChanged }: InboxProps) {
   const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [open, setOpen] = useState<string | null>(null);
+  const unread = notifications.filter((message) => message.readAt === null).length;
 
-  const openMessage = async (message: Notification) => {
-    setOpen((current) => (current === message.id ? null : message.id));
+  const open = async (message: Notification) => {
     if (message.readAt !== null || busy !== null) return;
     setBusy(message.id);
     try {
       await markNotificationRead(token, message.id);
       await onChanged();
-      setError(null);
-    } catch {
-      setError('We could not mark that as read. Check your connection.');
     } finally {
       setBusy(null);
     }
   };
 
-  const unread = notifications.filter((message) => message.readAt === null).length;
-
   return (
-    <>
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.title}>Inbox</Text>
-        </View>
-        <Pressable
-          onPress={() => void onRefresh()}
-          hitSlop={10}
-          accessibilityLabel="Refresh the inbox"
-          style={styles.refresh}
-        >
-          <Text style={styles.refreshText}>Refresh</Text>
-        </Pressable>
+    <View>
+      <View style={styles.head}>
+        <Text style={styles.title}>Inbox</Text>
+        <Text style={styles.sub}>
+          {notifications.length === 0
+            ? 'Messages from your stores'
+            : unread === 0
+              ? 'All caught up'
+              : `${unread} unread message${unread === 1 ? '' : 's'}`}
+        </Text>
       </View>
-
-      <Text style={styles.sub}>
-        {notifications.length === 0
-          ? 'Messages from your stores land here.'
-          : unread === 0
-            ? 'All caught up.'
-            : `${unread} unread message${unread === 1 ? '' : 's'}.`}
-      </Text>
-
-      {error !== null && <Text style={styles.error}>{error}</Text>}
 
       {notifications.length === 0 ? (
         <Card>
           <Text style={styles.emptyTitle}>Nothing here yet</Text>
           <Text style={styles.emptyBody}>
-            When a store you visit sends news or an offer, it appears here — inside OmaPointii, not
-            by email or text.
+            When a store sends you a message, it lands here inside OmaPointii.
           </Text>
         </Card>
       ) : (
         notifications.map((message) => {
-          const expanded = open === message.id;
+          const unreadMessage = message.readAt === null;
           return (
             <Pressable
               key={message.id}
-              onPress={() => void openMessage(message)}
-              style={[styles.item, message.readAt === null && styles.itemUnread]}
+              onPress={() => void open(message)}
+              style={[styles.offer, unreadMessage && styles.unread]}
               accessibilityLabel={`${message.title}, from ${message.storeName}`}
             >
-              <View style={styles.itemTop}>
+              <View style={styles.top}>
                 <StoreAvatar
                   name={message.storeName}
                   color={message.storeBrandColor}
-                  size={38}
                   logoUrl={message.storeLogoUrl}
+                  size={40}
                 />
                 <View style={{ flex: 1 }}>
-                  <View style={styles.itemMeta}>
-                    <Text style={styles.store}>{message.storeName}</Text>
-                    <Text style={styles.time}>{relative(message.createdAt)}</Text>
-                  </View>
-                  <Text style={styles.itemTitle}>{message.title}</Text>
+                  <Text style={styles.store}>{message.storeName}</Text>
+                  <Text style={styles.offerTitle}>{message.title}</Text>
                 </View>
-                {message.readAt === null && <View style={styles.dot} />}
+                {unreadMessage && <View style={styles.dot} />}
               </View>
-              <Text style={styles.body} numberOfLines={expanded ? undefined : 2}>
-                {message.body}
-              </Text>
-              {expanded && (
-                <Text style={styles.sent}>
-                  Sent {formatDate(message.createdAt)} ·{' '}
-                  {message.readAt === null ? 'marking read…' : 'read'}
-                </Text>
-              )}
+              <Text style={styles.body}>{message.body}</Text>
+              <Text style={styles.time}>{relative(message.createdAt)}</Text>
             </Pressable>
           );
         })
       )}
 
       <Text style={styles.fine}>
-        Store news is on only for the stores you chose. Change that under You → Store news.
+        Messages are in-app only, not email or texts. You choose which stores may send them
+        under You → Store news.
       </Text>
-    </>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 8,
+  head: {
+    marginBottom: 18,
   },
   title: {
-    fontFamily: fonts.display,
-    fontSize: 34,
+    fontFamily: fonts.bodyExtra,
+    fontSize: 32,
+    letterSpacing: -1,
     color: colors.text,
-    marginTop: 4,
-  },
-  refresh: {
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-    minHeight: 44,
-    justifyContent: 'center',
-  },
-  refreshText: {
-    fontFamily: fonts.bodyBold,
-    fontSize: 12,
-    color: colors.terracottaInk,
   },
   sub: {
     fontFamily: fonts.body,
-    fontSize: 12,
+    fontSize: 12.5,
     color: colors.muted,
-    marginBottom: 16,
+    marginTop: 3,
   },
-  error: {
-    fontFamily: fonts.bodySemi,
-    color: colors.danger,
-    fontSize: 12,
+  offer: {
+    backgroundColor: colors.card,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.line,
+    padding: 14,
     marginBottom: 10,
   },
+  unread: {
+    borderColor: colors.primarySoft,
+    backgroundColor: '#FBFAFF',
+  },
+  top: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 11,
+  },
+  store: {
+    fontFamily: fonts.bodySemi,
+    fontSize: 10,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    color: colors.muted,
+  },
+  offerTitle: {
+    fontFamily: fonts.bodyExtra,
+    fontSize: 14.5,
+    color: colors.text,
+    marginTop: 2,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.primary,
+    marginTop: 5,
+  },
+  body: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.text,
+    marginTop: 10,
+  },
+  time: {
+    fontFamily: fonts.body,
+    fontSize: 10,
+    color: colors.muted,
+    marginTop: 8,
+  },
   emptyTitle: {
-    fontFamily: fonts.display,
-    fontSize: 20,
+    fontFamily: fonts.bodyExtra,
+    fontSize: 17,
     color: colors.text,
   },
   emptyBody: {
@@ -178,72 +174,11 @@ const styles = StyleSheet.create({
     color: colors.muted,
     marginTop: 5,
   },
-  item: {
-    backgroundColor: colors.card,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: colors.line,
-    padding: 14,
-    marginBottom: 10,
-  },
-  itemUnread: {
-    borderColor: '#EBCBBE',
-    backgroundColor: '#FFFAF4',
-  },
-  itemTop: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-  },
-  itemMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  store: {
-    fontFamily: fonts.bodyBold,
-    fontSize: 9,
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    color: colors.muted,
-  },
-  time: {
-    fontFamily: fonts.body,
-    fontSize: 10,
-    color: colors.muted,
-  },
-  itemTitle: {
-    fontFamily: fonts.bodyBold,
-    fontSize: 14,
-    color: colors.text,
-    marginTop: 3,
-  },
-  dot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: colors.terracotta,
-    marginTop: 5,
-  },
-  body: {
-    fontFamily: fonts.body,
-    fontSize: 13,
-    lineHeight: 19,
-    color: colors.text,
-    marginTop: 9,
-  },
-  sent: {
-    fontFamily: fonts.body,
-    fontSize: 10,
-    color: colors.muted,
-    marginTop: 8,
-  },
   fine: {
     fontFamily: fonts.body,
     fontSize: 11,
     lineHeight: 17,
     color: colors.muted,
-    marginTop: 18,
+    marginTop: 16,
   },
 });
