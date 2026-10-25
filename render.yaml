@@ -11,7 +11,7 @@ services:
   - type: web
     name: poket-api
     runtime: node
-    plan: free
+    plan: starter
     region: frankfurt
     branch: main
     healthCheckPath: /v1/health
