@@ -35,16 +35,38 @@ What is in place:
 
 What must be enabled in the dashboard:
 
-1. **Supabase Auth CAPTCHA** — Authentication → Settings → Enable CAPTCHA.
-   Use Cloudflare Turnstile or hCaptcha and put the secret in Supabase. This is
-   enforced by Supabase Auth, not by our code, and covers sign-in code requests.
+1. **Do not enable Supabase Auth CAPTCHA yet.** Supabase rejects a sign-in
+   request that carries no `captchaToken`, and our app does not render a
+   Turnstile/hCaptcha widget yet. Enabling it now would lock every customer and
+   staff member out. Add the widget and send the token first; only then turn on
+   the Supabase setting.
 2. **Email rate limits** — keep Supabase's built-in limits; they stop a stranger
    being flooded with codes.
 3. **Vercel Bot Protection / Firewall** — enable the managed rules for the four
-   web apps. The till and admin apps are already `noindex`.
+   web apps now. This needs no app code and is the right first layer. The till
+   and admin apps are already `noindex`.
 4. **Cloudflare (optional)** — if the domain moves behind Cloudflare, turn on
    Bot Fight Mode and a rate-limit rule for `/auth/v1/*` and `/v1/*`.
 
 If a Turnstile widget is added to our own forms later, the site key is public
 and the secret stays in Supabase. The app must send the token as
 `options.captchaToken`; no secret belongs in the bundle.
+
+
+## Visible vs invisible CAPTCHA
+
+Invisible CAPTCHA is not a server-only switch. Cloudflare Turnstile and
+hCaptcha both work by loading a widget in the client, which returns a token;
+the app then sends that token to Supabase Auth (`options.captchaToken`).
+
+- **Visible/managed Turnstile** shows a checkbox or a short challenge. Highest
+  friction, clearest signal.
+- **Invisible Turnstile** shows nothing in the normal case, but still needs the
+  widget, the site key and the token. It is the better fit for sign-in once the
+  client integration exists.
+- **Server-only** CAPTCHA is not a thing: the auth server cannot tell a human
+  from a bot without a client proof.
+
+Current position: rate limits and Vercel Bot Protection are live;
+Supabase CAPTCHA stays **off** until the Turnstile widget is added to the
+sign-in screens.
