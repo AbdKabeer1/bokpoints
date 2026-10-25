@@ -1268,51 +1268,7 @@ export async function reverseSale(db: Database, input: ReverseSaleInput): Promis
     await lockCustomerBalance(tx, sale.customerId, input.storeId);
     const balanceBefore = await readBalance(tx, sale.customerId, input.storeId);
 
-    // 1. Take back what the sale's earn gave (when it gave anything).
-    const earnRows = await tx
-      .select({ id: pointsLedgerEntries.id, points: pointsLedgerEntries.points })
-      .from(pointsLedgerEntries)
-      .where(
-        and(
-          eq(pointsLedgerEntries.saleId, input.saleId),
-          eq(pointsLedgerEntries.type, 'earn'),
-          sql`${pointsLedgerEntries.points} > 0`,
-        ),
-      )
-      .limit(1);
-    const earn = earnRows[0];
-
-    let reversalEntryId: string | null = null;
-    let reversedPoints = 0;
-    if (earn) {
-      const points = -earn.points;
-      // Removing points takes them off the batches too, so the expiry job
-      // cannot expire them later.
-      await drawDownBatches(tx, sale.customerId, input.storeId, earn.points);
-
-      const inserted = await tx
-        .insert(pointsLedgerEntries)
-        .values({
-          customerId: sale.customerId,
-          storeId: input.storeId,
-          type: 'reversal',
-          points,
-          reversalOf: earn.id,
-          saleId: input.saleId,
-          staffId: input.staffId,
-          reason,
-        })
-        .returning({ id: pointsLedgerEntries.id });
-      reversalEntryId = inserted[0]?.id ?? null;
-      reversedPoints = points;
-
-      // The guarded delta refuses a reversal that would take the balance
-      // below zero; the whole transaction then rolls back and the sale
-      // stays completed.
-      await applyGuardedBalanceDelta(tx, sale.customerId, input.storeId, points);
-    }
-
-    // 2. A full void also gives back what the sale's reward took (D-143):
+    // 1. A full void gives back what the sale's reward took (D-143) first.
     //    the customer cancelled the whole sale, so they should not lose the
     //    points they spent on it. Each redeem entry gets its own positive
     //    reversal naming it, and the returned points get a fresh batch with
@@ -1355,6 +1311,51 @@ export async function reverseSale(db: Database, input: ReverseSaleInput): Promis
       }
       await applyBalanceDelta(tx, sale.customerId, input.storeId, restored);
       restoredPoints += restored;
+    }
+
+
+    // 2. Take back what the sale's earn gave (when it gave anything).
+    const earnRows = await tx
+      .select({ id: pointsLedgerEntries.id, points: pointsLedgerEntries.points })
+      .from(pointsLedgerEntries)
+      .where(
+        and(
+          eq(pointsLedgerEntries.saleId, input.saleId),
+          eq(pointsLedgerEntries.type, 'earn'),
+          sql`${pointsLedgerEntries.points} > 0`,
+        ),
+      )
+      .limit(1);
+    const earn = earnRows[0];
+
+    let reversalEntryId: string | null = null;
+    let reversedPoints = 0;
+    if (earn) {
+      const points = -earn.points;
+      // Removing points takes them off the batches too, so the expiry job
+      // cannot expire them later.
+      await drawDownBatches(tx, sale.customerId, input.storeId, earn.points);
+
+      const inserted = await tx
+        .insert(pointsLedgerEntries)
+        .values({
+          customerId: sale.customerId,
+          storeId: input.storeId,
+          type: 'reversal',
+          points,
+          reversalOf: earn.id,
+          saleId: input.saleId,
+          staffId: input.staffId,
+          reason,
+        })
+        .returning({ id: pointsLedgerEntries.id });
+      reversalEntryId = inserted[0]?.id ?? null;
+      reversedPoints = points;
+
+      // The guarded delta refuses a reversal that would take the balance
+      // below zero; the whole transaction then rolls back and the sale
+      // stays completed.
+      await applyGuardedBalanceDelta(tx, sale.customerId, input.storeId, points);
     }
 
     await tx.update(sales).set({ status: 'reversed' }).where(eq(sales.id, input.saleId));
