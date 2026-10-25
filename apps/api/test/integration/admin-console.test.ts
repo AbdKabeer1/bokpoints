@@ -249,4 +249,46 @@ describe('platform analytics and subscriptions', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json().subscriptions).toEqual([]);
   });
+
+  it('requires a recent MFA step-up before suspending a store', async () => {
+    const app = await buildApp({
+      db,
+      logger: false,
+      sessionResolver: createDevSessionResolver(db, {
+        mfaAt: new Date(Date.now() - 11 * 60 * 1000),
+      }),
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/admin/stores/${storeId}/status`,
+      headers: { authorization: `Bearer ${ADMIN}` },
+      payload: { status: 'suspended', reason: 'Security review' },
+    });
+    await app.close();
+
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error.code).toBe('MFA_STEP_UP_REQUIRED');
+  });
+
+  it('flags a cashier above the daily award threshold', async () => {
+    const cashier = await pool.query(
+      "SELECT id FROM staff_users WHERE email = 'cashier@test.dev'",
+    );
+    await pool.query(
+      `INSERT INTO points_ledger_entries (customer_id, store_id, type, points, staff_id)
+       SELECT $1, $2, 'earn', 1, $3 FROM generate_series(1, 50001)`,
+      [customerId, storeId, cashier.rows[0].id],
+    );
+
+    const res = await inject('GET', '/v1/admin/safety/signals', ADMIN);
+    expect(res.statusCode).toBe(200);
+    const signal = (res.json().signals as Array<Record<string, unknown>>).find(
+      (row) => row.kind === 'awards_per_cashier_day',
+    );
+    expect(signal).toMatchObject({
+      count: 50_001,
+      threshold: 50_000,
+      window: 'today (Helsinki)',
+    });
+  });
 });

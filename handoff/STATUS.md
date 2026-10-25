@@ -1,10 +1,18 @@
 # STATUS
 
 **Project:** BOKPOINTS, a B2B2C loyalty platform for SMEs in Finland / EU.
-**Phase:** MVP built; security hardening. P0 items A1–A6 are complete. The builder-side P1/P2 items A5, B1, B3, B5, C5, C6, C7, C9 and C11 are applied; B2/B9 are partly applied. **Next up:** C8 fraud signals (needs thresholds), B8 Sentry (needs a DSN), C6 recent step-up, C9 deep-link validation, B2 UI-brief merge, and the manual platform checks in C1–C4, C10, C12 and C13.
+**Phase:** MVP built; security hardening. P0 items A1–A6 are complete. The builder-side P1/P2 items A5, B1, B3, B5, C5, C6, C7, C9 and C11 are applied; B2/B9 are partly applied. **Next up:** the Sentry DSN value, C9 deep-link validation/privacy labels, B2 UI-brief merge, A5 retention, and the manual platform checks in C1–C4, C10, C12 and C13.
 **Last updated:** 25 Oct 2026, after the security hardening pass. 397 tests green; typecheck, lint and builds clean.
 
 ## Done
+
+- **C6 step-up, C8 fraud signals, B8 Sentry wiring.** Suspending a store and
+  anonymising a customer now require MFA within 10 minutes (`amr` timestamp;
+  403 `MFA_STEP_UP_REQUIRED` otherwise). The platform Safety screen shows
+  awards, redemptions, reversals and adjustments above the agreed pilot
+  thresholds: 50,000 / 60 / 10 / 20. Sentry is wired into the API and all four
+  web apps behind `SENTRY_DSN`, `VITE_SENTRY_DSN` and
+  `EXPO_PUBLIC_SENTRY_DSN`; the DSN values still need to be created.
 
 - **B4 pilot path + reversal fix.** One integration test now runs identify → preview → confirm → redeem → reverse. It found and fixed a real bug: a sale that redeemed a reward in the same purchase could not be fully voided because the earn was taken back before the reward points were restored, hitting `BALANCE_WOULD_GO_NEGATIVE`. The restore now happens first.
 

@@ -54,6 +54,8 @@ export const envSchema = z.object({
    * fallback.
    */
   DISCOUNT_PROOF_SECRET: z.string().optional(),
+  /** Optional Sentry DSN for the API (B8). */
+  SENTRY_DSN: z.string().url().optional(),
   /**
    * How many awards a single caller may make per minute. A busy till is
    * far below this; it is there to stop a runaway client (AGENT.md

@@ -8,6 +8,8 @@ const MESSAGES: Record<string, string> = {
   MISSING_TOKEN: 'Your session ended. Sign in again.',
   INVALID_TOKEN: 'Your session ended. Sign in again.',
   MFA_REQUIRED: 'The second factor is needed before this action.',
+  MFA_STEP_UP_REQUIRED:
+    'Sign in again with your authenticator before this action. The previous check is too old.',
   ACCOUNT_DEACTIVATED: 'This account has been deactivated.',
   RATE_LIMIT: 'Too many requests just now. Wait a moment and try again.',
   INVALID_RESPONSE: 'The API sent an answer this console did not understand.',

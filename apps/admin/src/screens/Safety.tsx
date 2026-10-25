@@ -1,7 +1,8 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import {
   ApiError,
   anonymiseCustomerAsAdmin,
+  getSafetySignals,
   searchSupport,
   type SupportResults,
 } from '../api';
@@ -23,6 +24,23 @@ export function SafetyScreen({ token }: { token: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
+  const [signals, setSignals] = useState<Awaited<ReturnType<typeof getSafetySignals>> | null>(
+    null,
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    void getSafetySignals(token)
+      .then((data) => {
+        if (!cancelled) setSignals(data);
+      })
+      .catch(() => {
+        if (!cancelled) setSignals({ thresholds: { awardsPerCashierDay: 0, redemptionsPerCustomer30d: 0, reversalsPerStaff30d: 0, adjustmentsPerStaff30d: 0 }, signals: [] });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   const search = async (event: FormEvent) => {
     event.preventDefault();
@@ -83,6 +101,48 @@ export function SafetyScreen({ token }: { token: string }) {
 
       {error !== null && <p className="error">{error}</p>}
       {done !== null && <p className="saved">{done}</p>}
+
+      <div className="panel" style={{ marginBottom: 16 }}>
+        <div className="panelhead">
+          <div>
+            <h3>Fraud signals</h3>
+            <p className="sub">Counts above the agreed pilot thresholds</p>
+          </div>
+          <span className={signals !== null && signals.signals.length > 0 ? 'pill warn' : 'pill active'}>
+            <span className="dot" aria-hidden="true" />
+            {signals === null ? 'Loading' : signals.signals.length === 0 ? 'Clear' : `${signals.signals.length} flagged`}
+          </span>
+        </div>
+        {signals === null ? (
+          <p className="emptynote">Reading the last 30 days…</p>
+        ) : signals.signals.length === 0 ? (
+          <p className="emptynote">No cashier, customer or staff member is above the thresholds.</p>
+        ) : (
+          <div className="grid" style={{ gap: 8 }}>
+            {signals.signals.map((signal) => (
+              <div
+                key={`${signal.kind}-${signal.subject}`}
+                className="supportcustomer"
+                style={{ justifyContent: 'space-between', display: 'flex', gap: 12 }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <strong>{signal.label}</strong>
+                  <span>{signal.subject} · {signal.window}</span>
+                </div>
+                <span className="pill warn">
+                  {signal.count} / {signal.threshold}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+        <p className="emptynote" style={{ marginTop: 10 }}>
+          Thresholds: {signals?.thresholds.awardsPerCashierDay ?? 50_000} awards per cashier per day,{' '}
+          {signals?.thresholds.redemptionsPerCustomer30d ?? 60} redemptions per customer per 30 days,{' '}
+          {signals?.thresholds.reversalsPerStaff30d ?? 10} reversals and{' '}
+          {signals?.thresholds.adjustmentsPerStaff30d ?? 20} adjustments per staff member per 30 days.
+        </p>
+      </div>
 
       <div className="grid two">
         <div className="panel">

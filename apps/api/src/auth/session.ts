@@ -12,6 +12,12 @@
 export interface AuthenticatedPrincipal {
   staffUserId: string;
   email: string;
+  /**
+   * When the token's second factor was completed, from Supabase's `amr`
+   * claim. Null when the token carries no usable timestamp; dangerous
+   * actions then require a fresh sign-in (C6).
+   */
+  mfaAt?: Date | null;
 }
 
 export interface SessionResolver {

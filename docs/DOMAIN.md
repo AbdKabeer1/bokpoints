@@ -128,11 +128,13 @@ Each app reads env at build time (Vite) or bundle time (Expo). Production values
 VITE_SUPABASE_URL=https://<project>.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=<publishable key>
 VITE_API_BASE=https://api.omapointii.store
+VITE_SENTRY_DSN=              # optional; create the project first
 
 # apps/customer
 EXPO_PUBLIC_SUPABASE_URL=https://<project>.supabase.co
 EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<publishable key>
 EXPO_PUBLIC_API_BASE=https://api.omapointii.store
+EXPO_PUBLIC_SENTRY_DSN=      # optional; create the project first
 ```
 
 Local development keeps `VITE_API_BASE` empty (the Vite proxy handles `/v1`) and the
@@ -145,6 +147,7 @@ DATABASE_URL=postgresql://...        # Supabase session pooler for IPv4 networks
 CORS_ORIGINS=https://app.omapointii.store,https://till.omapointii.store,https://portal.omapointii.store,https://admin.omapointii.store
 TRUST_PROXY=1                        # Render/Vercel sit behind a proxy
 NODE_ENV=production
+SENTRY_DSN=                          # optional; API errors and 5xx
 ```
 
 `CORS_ORIGINS` is an exact allow-list: no wildcard, no trailing slash. The admin console

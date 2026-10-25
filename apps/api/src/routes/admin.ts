@@ -5,6 +5,7 @@ import {
   adminAnonymiseCustomerRequestSchema,
   adminAnonymiseCustomerResponseSchema,
   adminCustomerParamsSchema,
+  adminSafetySignalsResponseSchema,
   adminStoreDetailSchema,
   adminStoreStatusRequestSchema,
   adminStoreStatusResponseSchema,
@@ -21,7 +22,7 @@ import {
   storeIdParamsSchema,
 } from '@bokpoints/shared';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
-import { authorizeAdminRequest } from '../auth/authorize.js';
+import { authorizeAdminRequest, hasRecentMfa } from '../auth/authorize.js';
 import {
   auditLogEntries,
   customers,
@@ -495,6 +496,14 @@ export const adminRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
       if (!auth.ok) {
         return reply.code(auth.status).send({ error: auth.error });
       }
+      if (!hasRecentMfa(auth.mfaAt)) {
+        return reply.code(403).send({
+          error: {
+            code: 'MFA_STEP_UP_REQUIRED',
+            message: 'Sign in again with your authenticator before changing a store status',
+          },
+        });
+      }
 
       const { storeId } = request.params;
       const found = await db
@@ -558,6 +567,14 @@ export const adminRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
         anyOf: ['customer.anonymise'],
       });
       if (!auth.ok) return reply.code(auth.status).send({ error: auth.error });
+      if (!hasRecentMfa(auth.mfaAt)) {
+        return reply.code(403).send({
+          error: {
+            code: 'MFA_STEP_UP_REQUIRED',
+            message: 'Sign in again with your authenticator before anonymising a customer',
+          },
+        });
+      }
 
       const result = await anonymiseCustomer(db, request.params.customerId, {
         actorId: auth.staffUserId,
@@ -580,6 +597,128 @@ export const adminRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
       }
 
       return reply.send({ customerId: result.customerId, deleted: true as const });
+    },
+  );
+
+
+  /**
+   * C8: the first simple fraud view. Counts the things a pilot store can
+   * actually see — heavy awarding, repeat redemptions, reversals and manual
+   * adjustments — and returns only the rows over the agreed thresholds.
+   */
+  app.get(
+    '/v1/admin/safety/signals',
+    {
+      config: { rateLimit: rateLimit ?? { max: 30, timeWindow: '1 minute' } },
+      schema: {
+        response: {
+          200: adminSafetySignalsResponseSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const auth = await authorizeAdminRequest(db, sessionResolver, {
+        token: bearer(request.headers.authorization),
+        anyOf: ['audit.view'],
+      });
+      if (!auth.ok) return reply.code(auth.status).send({ error: auth.error });
+
+      const thresholds = {
+        awardsPerCashierDay: 50_000,
+        redemptionsPerCustomer30d: 60,
+        reversalsPerStaff30d: 10,
+        adjustmentsPerStaff30d: 20,
+      };
+
+      const awards = await db.execute(sql`
+        SELECT s.name, s.email, count(*)::int AS count
+        FROM points_ledger_entries e
+        INNER JOIN staff_users s ON s.id = e.staff_id
+        WHERE e.type = 'earn'
+          AND (e.created_at AT TIME ZONE 'Europe/Helsinki')::date =
+              (now() AT TIME ZONE 'Europe/Helsinki')::date
+        GROUP BY s.id, s.name, s.email
+        HAVING count(*) > ${thresholds.awardsPerCashierDay}
+        ORDER BY count DESC
+      `);
+
+      const redemptions = await db.execute(sql`
+        SELECT c.name, c.email, count(*)::int AS count
+        FROM points_ledger_entries e
+        INNER JOIN customers c ON c.id = e.customer_id
+        WHERE e.type = 'redeem'
+          AND e.created_at >= now() - interval '30 days'
+        GROUP BY c.id, c.name, c.email
+        HAVING count(*) > ${thresholds.redemptionsPerCustomer30d}
+        ORDER BY count DESC
+      `);
+
+      const reversals = await db.execute(sql`
+        SELECT s.name, s.email, count(*)::int AS count
+        FROM points_ledger_entries e
+        INNER JOIN staff_users s ON s.id = e.staff_id
+        WHERE e.type = 'reversal'
+          AND e.created_at >= now() - interval '30 days'
+        GROUP BY s.id, s.name, s.email
+        HAVING count(*) > ${thresholds.reversalsPerStaff30d}
+        ORDER BY count DESC
+      `);
+
+      const adjustments = await db.execute(sql`
+        SELECT s.name, s.email, count(*)::int AS count
+        FROM points_ledger_entries e
+        INNER JOIN staff_users s ON s.id = e.staff_id
+        WHERE e.type = 'adjust'
+          AND e.created_at >= now() - interval '30 days'
+        GROUP BY s.id, s.name, s.email
+        HAVING count(*) > ${thresholds.adjustmentsPerStaff30d}
+        ORDER BY count DESC
+      `);
+
+      const subject = (row: Record<string, unknown>): string => {
+        const name = typeof row.name === 'string' ? row.name.trim() : '';
+        const email = typeof row.email === 'string' ? row.email : '';
+        return name === '' ? email : `${name} (${email})`;
+      };
+
+      const signals = [
+        ...awards.rows.map((row) => ({
+          kind: 'awards_per_cashier_day' as const,
+          label: 'Awards per cashier today',
+          subject: subject(row as Record<string, unknown>),
+          count: Number((row as Record<string, unknown>).count ?? 0),
+          threshold: thresholds.awardsPerCashierDay,
+          window: 'today (Helsinki)',
+        })),
+        ...redemptions.rows.map((row) => ({
+          kind: 'redemptions_per_customer_30d' as const,
+          label: 'Redemptions per customer',
+          subject: subject(row as Record<string, unknown>),
+          count: Number((row as Record<string, unknown>).count ?? 0),
+          threshold: thresholds.redemptionsPerCustomer30d,
+          window: 'last 30 days',
+        })),
+        ...reversals.rows.map((row) => ({
+          kind: 'reversals_per_staff_30d' as const,
+          label: 'Reversals per staff member',
+          subject: subject(row as Record<string, unknown>),
+          count: Number((row as Record<string, unknown>).count ?? 0),
+          threshold: thresholds.reversalsPerStaff30d,
+          window: 'last 30 days',
+        })),
+        ...adjustments.rows.map((row) => ({
+          kind: 'adjustments_per_staff_30d' as const,
+          label: 'Adjustments per staff member',
+          subject: subject(row as Record<string, unknown>),
+          count: Number((row as Record<string, unknown>).count ?? 0),
+          threshold: thresholds.adjustmentsPerStaff30d,
+          window: 'last 30 days',
+        })),
+      ];
+
+      return reply.send({ thresholds, signals });
     },
   );
 

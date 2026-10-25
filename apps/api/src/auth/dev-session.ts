@@ -21,7 +21,11 @@ import type {
  * `store_members` by the authorization layer, so a caller cannot promote
  * themselves by sending a different token.
  */
-export function createDevSessionResolver(db: Database): SessionResolver {
+export function createDevSessionResolver(
+  db: Database,
+  options: { mfaAt?: Date | null } = {},
+): SessionResolver {
+  const mfaAt = options.mfaAt === undefined ? new Date() : options.mfaAt;
   return {
     async resolve(token: string): Promise<AuthenticatedPrincipal | null> {
       const rows = await db
@@ -32,7 +36,7 @@ export function createDevSessionResolver(db: Database): SessionResolver {
 
       const found = rows[0];
       if (!found) return null;
-      return { staffUserId: found.id, email: found.email };
+      return { staffUserId: found.id, email: found.email, mfaAt };
     },
   };
 }

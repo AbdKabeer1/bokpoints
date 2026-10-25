@@ -1090,3 +1090,31 @@ export const adminAnonymiseCustomerResponseSchema = z.object({
   customerId: z.string().uuid(),
   deleted: z.literal(true),
 });
+
+/* ── C8: fraud and abuse signals ────────────────────────────────────────── */
+
+export const safetySignalKindSchema = z.enum([
+  'awards_per_cashier_day',
+  'redemptions_per_customer_30d',
+  'reversals_per_staff_30d',
+  'adjustments_per_staff_30d',
+]);
+
+export const safetySignalSchema = z.object({
+  kind: safetySignalKindSchema,
+  label: z.string(),
+  subject: z.string(),
+  count: z.number().int(),
+  threshold: z.number().int(),
+  window: z.string(),
+});
+
+export const adminSafetySignalsResponseSchema = z.object({
+  thresholds: z.object({
+    awardsPerCashierDay: z.number().int(),
+    redemptionsPerCustomer30d: z.number().int(),
+    reversalsPerStaff30d: z.number().int(),
+    adjustmentsPerStaff30d: z.number().int(),
+  }),
+  signals: z.array(safetySignalSchema),
+});

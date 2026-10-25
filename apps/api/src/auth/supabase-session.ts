@@ -31,6 +31,30 @@ const ALGORITHMS = ['ES256', 'RS256'];
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/**
+ * Supabase puts completed authentication methods in `amr`. The MFA entry
+ * carries a Unix timestamp; use the newest second-factor timestamp so a
+ * dangerous action can demand a recent step-up (C6).
+ */
+function mfaTimestamp(payload: JWTPayload): Date | null {
+  const amr = payload['amr'];
+  if (!Array.isArray(amr)) return null;
+  let newest: number | null = null;
+  for (const entry of amr) {
+    if (typeof entry !== 'object' || entry === null) continue;
+    const method = (entry as { method?: unknown }).method;
+    const timestamp = (entry as { timestamp?: unknown }).timestamp;
+    if (
+      (method === 'totp' || method === 'mfa' || method === 'webauthn') &&
+      typeof timestamp === 'number'
+    ) {
+      const millis = timestamp < 1_000_000_000_000 ? timestamp * 1000 : timestamp;
+      if (newest === null || millis > newest) newest = millis;
+    }
+  }
+  return newest === null ? null : new Date(newest);
+}
+
 type VerifyToken = (token: string) => Promise<JWTPayload | null>;
 
 /**
@@ -97,7 +121,7 @@ export function createSupabaseSessionResolver(options: SupabaseResolverOptions):
       if (payload['aal'] !== 'aal2') throw new MfaRequiredError();
 
       // The email comes from our own record, not from the token.
-      return { staffUserId: staff.id, email: staff.email };
+      return { staffUserId: staff.id, email: staff.email, mfaAt: mfaTimestamp(payload) };
     },
   };
 }

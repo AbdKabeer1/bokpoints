@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/node';
 import { buildApp } from './app.js';
 import { createDevCustomerResolver, createDevSessionResolver } from './auth/dev-session.js';
 import type { CustomerSessionResolver, SessionResolver } from './auth/session.js';
@@ -7,6 +8,15 @@ import {
 } from './auth/supabase-session.js';
 import { createDb, createPool } from './db/client.js';
 import { loadEnv } from './env.js';
+
+const sentryDsn = process.env['SENTRY_DSN'];
+if (sentryDsn !== undefined && sentryDsn !== '') {
+  Sentry.init({
+    dsn: sentryDsn,
+    environment: process.env['NODE_ENV'] ?? 'development',
+    tracesSampleRate: 0,
+  });
+}
 
 const env = loadEnv();
 
@@ -125,6 +135,7 @@ const app = await buildApp({
 
 app.addHook('onClose', async () => {
   await pool.end();
+  if (sentryDsn !== undefined && sentryDsn !== '') await Sentry.close(2000);
 });
 
 await app.listen({ port: env.PORT, host: env.HOST });

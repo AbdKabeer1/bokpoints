@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/node';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
@@ -148,6 +149,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       });
     }
     request.log.error(error);
+    Sentry.captureException(error);
     return reply.code(status).send({
       error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' },
     });

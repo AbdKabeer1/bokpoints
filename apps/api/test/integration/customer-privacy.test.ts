@@ -250,4 +250,33 @@ describe('customer privacy (A5)', () => {
       reason: 'Customer asked us to erase the account',
     });
   });
+
+  it('requires a recent MFA step-up before admin anonymisation', async () => {
+    const me = await request('GET', '/v1/customer/me', A);
+    const customerId = me.json().customer.id as string;
+    const adminId = randomUUID();
+    await pool.query(
+      "INSERT INTO staff_users (id, email, name, is_admin) VALUES ($1, 'admin@test.dev', 'Admin', true)",
+      [adminId],
+    );
+
+    const app = await buildApp({
+      db,
+      logger: false,
+      customerResolver: createDevCustomerResolver(),
+      sessionResolver: createDevSessionResolver(db, {
+        mfaAt: new Date(Date.now() - 11 * 60 * 1000),
+      }),
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: `/v1/admin/customers/${customerId}/anonymise`,
+      headers: { authorization: 'Bearer admin@test.dev' },
+      payload: { reason: 'Customer asked us to erase the account', confirmation: 'ANONYMISE' },
+    });
+    await app.close();
+
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error.code).toBe('MFA_STEP_UP_REQUIRED');
+  });
 });

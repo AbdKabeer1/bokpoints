@@ -32,8 +32,21 @@ export type AuthResult =
  * who is not an admin is refused before any capability is considered.
  */
 export type AdminAuthResult =
-  | { ok: true; staffUserId: string; role: Role }
+  | { ok: true; staffUserId: string; role: Role; mfaAt: Date | null }
   | { ok: false; status: 401 | 403; error: { code: AuthErrorCode; message: string } };
+
+/** C6: dangerous actions need a second factor completed within this window. */
+export const STEP_UP_WINDOW_MS = 10 * 60 * 1000;
+
+export function hasRecentMfa(
+  mfaAt: Date | null | undefined,
+  now: Date = new Date(),
+): boolean {
+  if (!(mfaAt instanceof Date)) return false;
+  const age = now.getTime() - mfaAt.getTime();
+  // A little clock skew is allowed, but a future timestamp is not a step-up.
+  return age >= -60_000 && age <= STEP_UP_WINDOW_MS;
+}
 
 export interface AuthorizeAdminOptions {
   token: string | undefined;
@@ -95,7 +108,7 @@ export async function authorizeAdminRequest(
     return failure(403, 'FORBIDDEN', 'Your role does not allow this action');
   }
 
-  return { ok: true, staffUserId: principal.staffUserId, role };
+  return { ok: true, staffUserId: principal.staffUserId, role, mfaAt: principal.mfaAt ?? null };
 }
 
 /**
@@ -159,7 +172,7 @@ const failure = (
   status: 401 | 403,
   code: AuthErrorCode,
   message: string,
-): AuthResult => ({ ok: false, status, error: { code, message } });
+): Extract<AuthResult, { ok: false }> => ({ ok: false, status, error: { code, message } });
 
 export interface AuthorizeOptions {
   token: string | undefined;

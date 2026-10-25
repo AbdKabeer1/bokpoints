@@ -2,6 +2,7 @@ import {
   adminAnalyticsResponseSchema,
   adminAnonymiseCustomerRequestSchema,
   adminAnonymiseCustomerResponseSchema,
+  adminSafetySignalsResponseSchema,
   adminStoreDetailSchema,
   adminStoreStatusRequestSchema,
   adminStoreStatusResponseSchema,
@@ -122,6 +123,13 @@ export const searchSupport = (token: string, query: string) =>
     path: '/v1/admin/support',
     token,
     query: { query },
+  });
+
+export const getSafetySignals = (token: string) =>
+  request(adminSafetySignalsResponseSchema, {
+    method: 'GET',
+    path: '/v1/admin/safety/signals',
+    token,
   });
 
 export const getAnalytics = (token: string) =>
