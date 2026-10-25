@@ -1,10 +1,28 @@
 # STATUS
 
 **Project:** BOKPOINTS, a B2B2C loyalty platform for SMEs in Finland / EU.
-**Phase:** MVP, worked through `BOKPOINTS The Way Forward.md` one work package at a time. WP0-WP3 are complete, and the interface-completion pass (D-147) has put a real interface in front of every user: customer app, cashier till, merchant dashboard and platform-admin console. **Next up:** apply A's incoming dashboard reference images across all four surfaces, then offline awarding.
-**Last updated:** 24 Oct 2026, after Build 22 (platform admin console). The four surfaces are live: code-first customer wallet, cashier till, merchant dashboard, and platform control room with store triage, support search and reasoned suspension. The hosted database is at migration 0016. 87 unit and 283 integration tests green.
+**Phase:** MVP built; security hardening. P0 items A1–A6 are complete. The builder-side P1/P2 items A5, B1, B3, B5, C5, C6, C7, C9 and C11 are applied; B2/B9 are partly applied. **Next up:** B4 pilot end-to-end test, C8 fraud signals (needs thresholds), B8 Sentry (needs a DSN), and the manual platform checks in C1–C4, C10, C12 and C13.
+**Last updated:** 25 Oct 2026, after the security hardening pass. 397 tests green; typecheck, lint and builds clean.
 
 ## Done
+
+- **Security hardening A5 — customer export and deletion.** New
+  `GET /v1/customer/me/export` returns only the caller's profile, consents,
+  masked credentials, balances and ledger. `POST /v1/customer/me/delete`
+  needs a fresh email code, anonymises the row, revokes credentials, removes
+  consents and campaign copies, keeps the ledger, writes a no-personal-data
+  audit entry, and deletes the Supabase Auth user. If Auth deletion fails,
+  `auth_user_id` stays so the old token is refused and the action can be
+  retried. Platform admin Safety has the same action with reason and typed
+  confirmation; customer Settings has Download my data and Delete my account.
+
+- **Security hardening pass (B1/B3/B5/C5/C6/C7/C9/C11).** Global per-caller
+  rate limit with `Retry-After`; CI builds all apps, reports the dependency
+  audit, runs gitleaks and Dependabot; the till says “Offline · cannot award”;
+  security headers on all four Vercel apps; OpenAPI off with docs in
+  production and request timeouts; a default-deny route walk; a bundle secret
+  check; `omapointii` URL scheme; and an `AWARDING_ENABLED` kill switch that
+  answers 503 on the award route.
 
 - **Build 26 — customer app rebuild (D-157).** New cool/violet palette and Manrope-only
   typography. Five tabs with icon + word: Home, Coupons, Offers, Inbox, Stores; You sits in
