@@ -6,10 +6,10 @@ import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto
  * once. It exists so a discount can only be quoted from a fresh, online,
  * customer-present code — a screenshot of last week's QR is worthless.
  *
- * The signing key is derived from the Supabase secret key, which production
- * already refuses to start without; the development fallback only ever runs
- * outside production. Nothing here is used offline: D-133 has no offline
- * discounts.
+ * The signing key is the dedicated DISCOUNT_PROOF_SECRET. Until that value is
+ * installed in Render it falls back to the Supabase secret key so a deploy
+ * never takes the till down; the development fallback only runs outside
+ * production. Nothing here is used offline: D-133 has no offline discounts.
  */
 const PREFIX = 'POKDSC';
 export const PROOF_TTL_MS = 60_000;
@@ -24,11 +24,10 @@ export interface ProofPayload {
 }
 
 function signingKey(): Buffer {
-  const secret = process.env['DISCOUNT_PROOF_SECRET'] ?? (
-    process.env.NODE_ENV === 'production'
-      ? ''
-      : 'dev-discount-proof-secret'
-  );
+  const secret =
+    process.env['DISCOUNT_PROOF_SECRET'] ??
+    process.env['SUPABASE_SECRET_KEY'] ??
+    'dev-discount-proof-secret';
   return createHash('sha256').update(secret).digest();
 }
 
