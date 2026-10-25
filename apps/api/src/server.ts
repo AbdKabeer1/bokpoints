@@ -120,6 +120,7 @@ const app = await buildApp({
   // Behind the load balancer the rate limiter must key on the caller, not
   // on the proxy (D-095).
   trustProxy: env.TRUST_PROXY,
+  awardingEnabled: env.AWARDING_ENABLED,
 });
 
 app.addHook('onClose', async () => {

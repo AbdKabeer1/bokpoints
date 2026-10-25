@@ -51,8 +51,12 @@ export interface BuildAppOptions {
   /** Overrides the Supabase-backed logo store (tests use a stub). */
   logoStore?: LogoStore | null | undefined;
   logger?: boolean;
-  /** Overrides the rate limits. Used by the tests to keep them small. */
+  /** Overrides the per-route rate limits. Used by the tests to keep them small. */
   rateLimit?: RateLimitOptions | undefined;
+  /** Global default per caller. `false` disables the global limiter in tests. */
+  globalRateLimit?: RateLimitOptions | false | undefined;
+  /** C11 kill switch; false turns awarding off for every store. */
+  awardingEnabled?: boolean | undefined;
   /**
    * Whether the interactive API documentation is served. Off in production.
    */
@@ -79,6 +83,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   const app = Fastify({
     logger: options.logger ?? false,
     trustProxy: options.trustProxy as unknown as boolean,
+    connectionTimeout: 10_000,
+    requestTimeout: 30_000,
+    keepAliveTimeout: 5_000,
   }).withTypeProvider<ZodTypeProvider>();
 
   app.setValidatorCompiler(validatorCompiler);
@@ -100,10 +107,14 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     methods: ['GET', 'HEAD', 'POST', 'PATCH', 'OPTIONS'],
   });
 
-  // Rate limiting is applied per route, not globally: the scanning and
-  // awarding endpoints need it, the health check does not (AGENT.md
-  // section 8).
-  await app.register(rateLimit, { global: false });
+  // Global default per caller (B1), with tighter per-route limits on the
+  // expensive and sensitive endpoints below. @fastify/rate-limit sends
+  // Retry-After on a 429.
+  const globalLimit = options.globalRateLimit ?? { max: 300, timeWindow: '1 minute' };
+  await app.register(rateLimit, {
+    global: globalLimit !== false,
+    ...(globalLimit === false ? {} : { max: globalLimit.max, timeWindow: globalLimit.timeWindow }),
+  });
 
   // FR-API-3: the API is versioned and documented from the start. The
   // document is generated from the same Zod schemas that validate the
@@ -151,13 +162,16 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
 
   app.get('/v1/ping', async () => ({ pong: true }));
 
-  app.get('/v1/openapi.json', async () => app.swagger());
+  if (enableDocs) {
+    app.get('/v1/openapi.json', async () => app.swagger());
+  }
 
   if (options.db) {
     await app.register(storeRoutes, {
       db: options.db,
       sessionResolver: options.sessionResolver,
       rateLimit: options.rateLimit,
+      awardingEnabled: options.awardingEnabled ?? true,
       logoStore:
         options.logoStore === undefined
           ? createLogoStore(process.env.SUPABASE_URL, process.env.SUPABASE_SECRET_KEY)

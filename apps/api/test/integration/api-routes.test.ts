@@ -579,11 +579,11 @@ describe('the interactive documentation', () => {
     await app.close();
   });
 
-  it('still serves the OpenAPI document itself', async () => {
+  it('does not serve the OpenAPI document when docs are off', async () => {
     const app = await buildApp({ db, enableDocs: false });
     const res = await app.inject({ method: 'GET', url: '/v1/openapi.json' });
 
-    expect(res.statusCode).toBe(200);
+    expect(res.statusCode).toBe(404);
     await app.close();
   });
 });

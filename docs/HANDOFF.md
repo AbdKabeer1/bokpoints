@@ -49,63 +49,25 @@ Admin onboards stores. Stores add staff and **create their own earning rules** (
 
 ## 5. Next steps (in order)
 
-The order is the Way Forward's work packages (D-128). One package is finished and
-recorded before the next starts.
+The WP0–WP8 plan is history: the product is built and in security hardening.
+The authoritative remaining list is `packages/shared/BOKPOINTS_Security_and_Hardening_Plan.md`.
 
-1. **WP0 — security fixes.** Done (this session): invites never alter an existing
-   account (D-119); a verified email before a customer account is created or claimed
-   (D-120, D-127). Live data checked.
-2. **WP1 — decisions and documents.** Done (this session): PRD, FRD, DECISIONS
-   (D-115 to D-128), this file and `handoff/STATUS.md`.
-3. **WP2 — store-owned earning rules (backend).** *In progress, more than half done:*
-   the engine (`calculatePurchase`), the `earning_rules` table, migration `0009` that
-   converts every `points_rules` row into a per-euro rule and moves the ceiling onto the
-   store, and the wiring of award and preview to the rule set with the breakdown stored on
-   every award. Next: owner endpoints (list, create, edit, pause, simulate) with a
-   `rules.manage` capability and audit, the every-Nth-visit rule type, and removing the
-   transitional `points_rules` fallback.
-4. **WP3 — sale record and quote-then-confirm.** The sale carries the amount before
-   discount, the discount and the amount actually paid, and points are earned on the
-   amount actually paid (D-129). One automatic basket threshold discount, no stacking
-   (D-131), funded by the store (D-130). The ledger gains `sale_id` and a `reversal_of`
-   hook for POS refunds (D-132).
-5. **Rotating QR, before any discount is enabled.** Signed, short-lived (about 60 s),
-   one-time-per-store, verified online (D-133). Static `CUS-` codes keep earning points
-   in the meantime; no discount is awarded offline.
-6. **WP4 — cashier screen** (quote, payment, confirm, sound and visual on read, and a
-   clear "discount needs a fresh scan" path). **WP5 — owner screen** (rules with
-   simulator, plus adjustments and the store audit log: Build 6B lands here, D-128).
-   **WP6 — customer app** shows each store's rules in plain language.
-8. **WP7 — pilot readiness:** domain and email sender, email invitations (retires the
-   Supabase-id field), subscription billing and the pricing meter, terms and privacy,
-   signage and a scanner list. 9. **WP8 — pilot:** two or three stores, about four
-   weeks, recording what they ask for.
+1. **Security hardening P0 — finished.** A1 public diagnostics removed; A2
+   TRUST_PROXY hop count; A3 verified database TLS; A4 Render Starter plan;
+   A5 customer export and anonymising deletion (API, admin Safety, customer
+   Settings); A6 dedicated discount proof secret.
+2. **Security hardening P1 — in progress.** B1 global rate limits are in.
+   Remaining builder work: B3 CI hardening, B2 document drift, B9 dependency
+   allowlist, C5 security headers, C6 API timeouts/OpenAPI and recent step-up,
+   C11 kill switch, B5 explicit offline till message, B8 Sentry wiring,
+   C9 deep links, B4 pilot end-to-end test, C7 permission matrix.
+3. **Manual platform work** — 2FA on every account, Supabase CAPTCHA/RLS
+   checks, registrar lock and CAA, tested backups, uptime monitor, staging
+   project, privacy notice/terms and the legal review.
+4. **Pilot** — two or three stores, each cashier on their own account, with
+   the kill switch and rollback runbook tested first.
 
-Decided but built with the POS adapter (when a pilot store names its POS): POS refunds
-and voids as bounded, idempotent reversals tied to the sale (D-132), and per-device
-credentials for terminals and cameras in `cashier_devices` — hashed secret, store/branch
-bound, scopes identify/quote/confirm/reversal, revocable, rate-limited, audited (D-135).
-The sale record in WP3 lays the hooks so neither needs a rewrite.
-
-Not scheduled by the plan of record, still MVP — raise with A before it slips:
-**offline awarding** (build step 8, highest technical risk) and the **rest of FR-CUS**
-(consents, data export and deletion, lost card / new QR).
-
-Deferred by A, wanting its own design round later: the **discount/campaign engine**
-(customer activates an offer, the cashier applies it, the price drops and points are
-earned on the reduced price). Its open question — one activation per customer, or
-repeatable, or a validity window the owner sets — is parked for that round. The Way
-Forward's parking lot now governs it too: campaigns build when several stores ask.
-
-Parallel, non-code tasks for A:
-
-- Choose the pilot area and approach two or three stores.
-- Decide the pricing tiers (D-126 proposes 19/39/69 EUR by active customers), the
-  domain name and who owns the email sender account.
-- Open the accounts needed (see the table above) and plan app store review time.
-- Arrange a legal and privacy review (terms, privacy notice, marketing consent, keeping
-  pending-customer emails for 1 year, points terms).
-
+Do not re-open WP2 as "in progress": builds 19–26 finished it.
 ## 6. Open questions
 
 Confirmed by A (no longer open):

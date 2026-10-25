@@ -101,6 +101,8 @@ export interface RouteOptions {
   logoStore?: LogoStore | null | undefined;
   /** Deletes a Supabase Auth user after customer anonymisation (A5). */
   deleteAuthUser?: AuthUserDeleter | undefined;
+  /** C11 kill switch; false turns awarding off for every store. */
+  awardingEnabled?: boolean | undefined;
 }
 
 const bearer = (header: string | undefined): string | undefined =>
@@ -240,11 +242,20 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
           403: apiErrorSchema,
           404: apiErrorSchema,
           409: apiErrorSchema,
+          503: apiErrorSchema,
         },
       },
     },
     async (request, reply) => {
       const { storeId } = request.params;
+      if (options.awardingEnabled === false) {
+        return reply.code(503).send({
+          error: {
+            code: 'AWARDING_DISABLED',
+            message: 'Awarding is turned off platform-wide right now',
+          },
+        });
+      }
       const auth = await authorizeStoreRequest(db, sessionResolver, {
         token: bearer(request.headers.authorization),
         storeId,
@@ -361,11 +372,20 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
           403: apiErrorSchema,
           404: apiErrorSchema,
           409: apiErrorSchema,
+          503: apiErrorSchema,
         },
       },
     },
     async (request, reply) => {
       const { storeId } = request.params;
+      if (options.awardingEnabled === false) {
+        return reply.code(503).send({
+          error: {
+            code: 'AWARDING_DISABLED',
+            message: 'Awarding is turned off platform-wide right now',
+          },
+        });
+      }
       const auth = await authorizeStoreRequest(db, sessionResolver, {
         token: bearer(request.headers.authorization),
         storeId,

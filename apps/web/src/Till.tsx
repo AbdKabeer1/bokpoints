@@ -476,7 +476,7 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
         <div className="who">
           <span className={connection.online ? 'statuschip' : 'statuschip offline'}>
             <span className="statusdot" aria-hidden="true" />
-            {connection.online ? 'Online' : 'Offline'} · synced {connection.time}
+            {connection.online ? `Online · synced ${connection.time}` : 'Offline · cannot award'}
           </span>
           <span className="muted whoemail">{staffEmail}</span>
           <button className="ghost small" type="button" onClick={onSignOut}>

@@ -108,4 +108,32 @@ describe('rate limiting behind a proxy (D-095)', () => {
     expect(second.statusCode).toBe(429);
     await app.close();
   });
+
+  it('applies a global limit to a previously unlimited route and sends Retry-After', async () => {
+    const app = await buildApp({
+      db,
+      globalRateLimit: { max: 2, timeWindow: '1 minute' },
+    });
+    const first = await app.inject({ method: 'GET', url: '/v1/health' });
+    const second = await app.inject({ method: 'GET', url: '/v1/health' });
+    const third = await app.inject({ method: 'GET', url: '/v1/health' });
+
+    expect(first.statusCode).toBe(200);
+    expect(second.statusCode).toBe(200);
+    expect(third.statusCode).toBe(429);
+    expect(third.headers['retry-after']).toBeDefined();
+    await app.close();
+  });
+
+  it('turns awarding off for every store with the kill switch', async () => {
+    const app = await buildApp({
+      db,
+      sessionResolver: createDevSessionResolver(db),
+      awardingEnabled: false,
+    });
+    const res = await app.inject(awardRequest());
+    expect(res.statusCode).toBe(503);
+    expect(res.json().error.code).toBe('AWARDING_DISABLED');
+    await app.close();
+  });
 });
