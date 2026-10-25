@@ -16,6 +16,11 @@ const isLocalHost = (connectionString: string): boolean =>
  */
 export function poolConfig(connectionString: string): PoolConfig {
   if (isLocalHost(connectionString)) return { connectionString };
+  const ca = process.env['DATABASE_CA_CERT'];
+  if (ca) {
+    return { connectionString, ssl: { ca, rejectUnauthorized: true } };
+  }
+  // No CA provided: encrypted but not verified. Acceptable for local dev only.
   return { connectionString, ssl: { rejectUnauthorized: false } };
 }
 

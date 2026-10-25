@@ -21,6 +21,11 @@ if (env.NODE_ENV === 'production' && !process.env.DISCOUNT_PROOF_SECRET) {
   throw new Error('DISCOUNT_PROOF_SECRET is required in production');
 }
 
+// Database TLS certificate must be verified in production.
+if (env.NODE_ENV === 'production' && !process.env.DATABASE_CA_CERT) {
+  throw new Error('DATABASE_CA_CERT is required in production');
+}
+
 // The verified-email check (D-120) and the Auth Admin calls need the
 // secret key. Without it the API would answer sign-ins with a silent
 // "not verified" for everyone, so production refuses to start.
