@@ -1284,6 +1284,7 @@ export async function reverseSale(db: Database, input: ReverseSaleInput): Promis
         ),
       );
     let restoredPoints = 0;
+    const restoredBatches: { entryId: string; points: number }[] = [];
     for (const redeem of redeemRows) {
       const restored = -redeem.points;
       const insertedRestore = await tx
@@ -1301,13 +1302,7 @@ export async function reverseSale(db: Database, input: ReverseSaleInput): Promis
         .returning({ id: pointsLedgerEntries.id });
       const restoreEntryId = insertedRestore[0]?.id;
       if (restoreEntryId !== undefined) {
-        await createBatch(tx, {
-          earnEntryId: restoreEntryId,
-          customerId: sale.customerId,
-          storeId: input.storeId,
-          originalPoints: restored,
-          expiresAt: expiryDateForEarn(new Date()),
-        });
+        restoredBatches.push({ entryId: restoreEntryId, points: restored });
       }
       await applyBalanceDelta(tx, sale.customerId, input.storeId, restored);
       restoredPoints += restored;
@@ -1356,6 +1351,18 @@ export async function reverseSale(db: Database, input: ReverseSaleInput): Promis
       // below zero; the whole transaction then rolls back and the sale
       // stays completed.
       await applyGuardedBalanceDelta(tx, sale.customerId, input.storeId, points);
+    }
+
+    // The restored reward points become fresh batches only after the earn
+    // has been drawn down, so the earn reversal cannot consume them.
+    for (const restore of restoredBatches) {
+      await createBatch(tx, {
+        earnEntryId: restore.entryId,
+        customerId: sale.customerId,
+        storeId: input.storeId,
+        originalPoints: restore.points,
+        expiresAt: expiryDateForEarn(new Date()),
+      });
     }
 
     await tx.update(sales).set({ status: 'reversed' }).where(eq(sales.id, input.saleId));
