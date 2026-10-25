@@ -5,6 +5,8 @@ import type { CustomerPrincipal } from '../auth/session.js';
 import type { Database } from './client.js';
 import { isUniqueViolation } from './errors.js';
 import {
+  auditLogEntries,
+  campaignDeliveries,
   credentials,
   customerStoreLinks,
   customers,
@@ -630,4 +632,218 @@ export async function customerStoreRewards(
     .from(storeRewards)
     .where(and(eq(storeRewards.storeId, storeId), eq(storeRewards.active, true)))
     .orderBy(asc(storeRewards.pointsCost));
+}
+
+
+/* ── Privacy: export and deletion (A5) ──────────────────────────────────── */
+
+export interface CustomerExportResult {
+  exportedAt: string;
+  profile: {
+    id: string;
+    email: string;
+    name: string;
+    phone: string | null;
+    language: string;
+    status: string;
+    createdAt: string;
+  };
+  consents: {
+    storeId: string;
+    storeName: string;
+    joinedAt: string;
+    marketingConsent: boolean;
+  }[];
+  credentials: {
+    type: string;
+    identifier: string;
+    status: string;
+    createdAt: string;
+  }[];
+  balances: { storeId: string; storeName: string; points: number }[];
+  ledger: {
+    id: string;
+    storeId: string;
+    storeName: string;
+    type: string;
+    points: number;
+    amountCents: number | null;
+    reason: string | null;
+    createdAt: string;
+  }[];
+}
+
+const maskIdentifier = (value: string): string =>
+  value.length <= 10 ? '••••' : `${value.slice(0, 6)}…${value.slice(-4)}`;
+
+/** Everything the customer is entitled to receive, and nothing else. */
+export async function exportCustomerData(
+  db: Database,
+  customerId: string,
+): Promise<CustomerExportResult | null> {
+  const profileRows = await db
+    .select()
+    .from(customers)
+    .where(eq(customers.id, customerId))
+    .limit(1);
+  const profile = profileRows[0];
+  if (!profile) return null;
+
+  const consents = await db
+    .select({
+      storeId: customerStoreLinks.storeId,
+      storeName: stores.name,
+      joinedAt: customerStoreLinks.joinedAt,
+      marketingConsent: customerStoreLinks.marketingConsent,
+    })
+    .from(customerStoreLinks)
+    .innerJoin(stores, eq(stores.id, customerStoreLinks.storeId))
+    .where(eq(customerStoreLinks.customerId, customerId))
+    .orderBy(asc(stores.name));
+
+  const credentialRows = await db
+    .select({
+      type: credentials.type,
+      identifier: credentials.identifier,
+      status: credentials.status,
+      createdAt: credentials.createdAt,
+    })
+    .from(credentials)
+    .where(eq(credentials.customerId, customerId))
+    .orderBy(desc(credentials.createdAt));
+
+  const balances = await db
+    .select({
+      storeId: pointsBalances.storeId,
+      storeName: stores.name,
+      points: pointsBalances.balance,
+    })
+    .from(pointsBalances)
+    .innerJoin(stores, eq(stores.id, pointsBalances.storeId))
+    .where(eq(pointsBalances.customerId, customerId))
+    .orderBy(asc(stores.name));
+
+  const ledger = await db
+    .select({
+      id: pointsLedgerEntries.id,
+      storeId: pointsLedgerEntries.storeId,
+      storeName: stores.name,
+      type: pointsLedgerEntries.type,
+      points: pointsLedgerEntries.points,
+      amountCents: pointsLedgerEntries.amountCents,
+      reason: pointsLedgerEntries.reason,
+      createdAt: pointsLedgerEntries.createdAt,
+    })
+    .from(pointsLedgerEntries)
+    .innerJoin(stores, eq(stores.id, pointsLedgerEntries.storeId))
+    .where(eq(pointsLedgerEntries.customerId, customerId))
+    .orderBy(desc(pointsLedgerEntries.createdAt));
+
+  return {
+    exportedAt: new Date().toISOString(),
+    profile: {
+      id: profile.id,
+      email: profile.email,
+      name: profile.name,
+      phone: profile.phone,
+      language: profile.language,
+      status: profile.status,
+      createdAt: profile.createdAt.toISOString(),
+    },
+    consents: consents.map((row) => ({
+      ...row,
+      joinedAt: row.joinedAt.toISOString(),
+    })),
+    credentials: credentialRows.map((row) => ({
+      ...row,
+      identifier: maskIdentifier(row.identifier),
+      createdAt: row.createdAt.toISOString(),
+    })),
+    balances,
+    ledger: ledger.map((row) => ({
+      ...row,
+      createdAt: row.createdAt.toISOString(),
+    })),
+  };
+}
+
+export interface AnonymiseCustomerResult {
+  customerId: string;
+  authUserId: string | null;
+  alreadyDeleted: boolean;
+}
+
+/**
+ * Anonymises the identity while leaving the ledger untouched.
+ *
+ * `auth_user_id` stays until the Supabase user is actually deleted: while it
+ * is present the old token still resolves to this row, sees `deleted`, and is
+ * refused. That prevents a failed Auth deletion from letting the old token
+ * claim a fresh account.
+ */
+export async function anonymiseCustomer(
+  db: Database,
+  customerId: string,
+  options: {
+    actorId?: string | undefined;
+    actorRole: 'customer' | 'admin';
+    reason?: string | undefined;
+  },
+): Promise<AnonymiseCustomerResult | null> {
+  return db.transaction(async (tx) => {
+    const rows = await tx
+      .select()
+      .from(customers)
+      .where(eq(customers.id, customerId))
+      .for('update')
+      .limit(1);
+    const row = rows[0];
+    if (!row) return null;
+
+    if (row.status === 'deleted') {
+      return { customerId: row.id, authUserId: row.authUserId, alreadyDeleted: true };
+    }
+
+    await tx
+      .update(customers)
+      .set({
+        email: `deleted+${row.id}@invalid.local`,
+        name: '',
+        phone: null,
+        emailVerifiedAt: null,
+        status: 'deleted',
+        updatedAt: new Date(),
+      })
+      .where(eq(customers.id, row.id));
+
+    await tx
+      .update(credentials)
+      .set({ status: 'revoked' })
+      .where(eq(credentials.customerId, row.id));
+
+    // Consents and campaign copies are personal data; the ledger is not.
+    await tx.delete(customerStoreLinks).where(eq(customerStoreLinks.customerId, row.id));
+    await tx.delete(campaignDeliveries).where(eq(campaignDeliveries.customerId, row.id));
+
+    await tx.insert(auditLogEntries).values({
+      actorId: options.actorId ?? null,
+      actorRole: options.actorRole,
+      action: 'customer.anonymise',
+      targetType: 'customer',
+      targetId: row.id,
+      reason: options.reason ?? null,
+      before: { status: row.status },
+      after: { status: 'deleted' },
+    });
+
+    return { customerId: row.id, authUserId: row.authUserId, alreadyDeleted: false };
+  });
+}
+
+/** Called only after Supabase has actually deleted the Auth user. */
+export async function clearCustomerAuthUserId(db: Database, customerId: string): Promise<void> {
+  await db
+    .update(customers)
+    .set({ authUserId: null, updatedAt: new Date() })
+    .where(eq(customers.id, customerId));
 }

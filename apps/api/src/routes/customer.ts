@@ -3,6 +3,9 @@ import {
   apiErrorSchema,
   customerExpiringQuerySchema,
   customerExpiringResponseSchema,
+  customerExportSchema,
+  deleteCustomerRequestSchema,
+  deleteCustomerResponseSchema,
   customerHistoryResponseSchema,
   customerMeResponseSchema,
   customerNotificationParamsSchema,
@@ -23,10 +26,13 @@ import type { Database } from '../db/client.js';
 import { sql } from 'drizzle-orm';
 import {
   CustomerError,
+  anonymiseCustomer,
+  clearCustomerAuthUserId,
   customerExpiring,
   customerStoreHistory,
   customerStoreRewards,
   customerStores,
+  exportCustomerData,
   provisionCustomer,
   updateCustomerProfile,
 } from '../db/customers.js';
@@ -36,6 +42,7 @@ import {
   setStoreConsent,
 } from '../db/campaigns.js';
 import type { CustomerProfile } from '../db/customers.js';
+import type { AuthUserDeleter, EmailOtpVerifier } from '../auth/supabase-admin.js';
 import { issueDiscountProof, proofExpiresAt } from '../db/discount-proof.js';
 import { discountRules } from '../db/schema.js';
 import { and, eq } from 'drizzle-orm';
@@ -44,6 +51,10 @@ export interface CustomerRouteOptions {
   db: Database;
   customerResolver?: CustomerSessionResolver | undefined;
   rateLimit?: { max: number; timeWindow: string } | undefined;
+  /** Verifies a fresh email one-time code before deletion (A5). */
+  otpVerifier?: EmailOtpVerifier | undefined;
+  /** Deletes the Supabase Auth user after the ledger-safe anonymisation. */
+  deleteAuthUser?: AuthUserDeleter | undefined;
 }
 
 const bearer = (header: string | undefined): string | undefined =>
@@ -662,4 +673,124 @@ export const customerRoutes: FastifyPluginAsyncZod<CustomerRouteOptions> = async
       });
     },
   );
+  /**
+   * A5: the customer's own data as JSON. Rate-limited to a few requests an
+   * hour because it reads their whole ledger.
+   */
+  app.get(
+    '/v1/customer/me/export',
+    {
+      config: { rateLimit: { max: 5, timeWindow: '1 hour' } },
+      schema: {
+        response: {
+          200: customerExportSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+          404: apiErrorSchema,
+          409: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const principal = await resolve(request.headers.authorization);
+      if (principal === null) {
+        return reply
+          .code(401)
+          .send({ error: { code: 'INVALID_TOKEN', message: 'That access token is not valid' } });
+      }
+
+      const customer = await provision(principal);
+      if (customer instanceof CustomerError) {
+        return reply
+          .code(customerErrorStatus(customer.code))
+          .send({ error: { code: customer.code, message: customer.message } });
+      }
+
+      const data = await exportCustomerData(db, customer.id);
+      if (data === null) {
+        return reply
+          .code(404)
+          .send({ error: { code: 'CUSTOMER_NOT_FOUND', message: 'No such customer' } });
+      }
+      return reply.send(data);
+    },
+  );
+
+  /**
+   * A5: anonymise the customer and keep the ledger. A fresh one-time code is
+   * required because deletion cannot be undone. If Supabase Auth deletion
+   * fails, auth_user_id stays on the deleted row so the old token is refused,
+   * and the request can be retried.
+   */
+  app.post(
+    '/v1/customer/me/delete',
+    {
+      config: { rateLimit: { max: 3, timeWindow: '1 hour' } },
+      schema: {
+        body: deleteCustomerRequestSchema,
+        response: {
+          200: deleteCustomerResponseSchema,
+          400: apiErrorSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+          404: apiErrorSchema,
+          409: apiErrorSchema,
+          503: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const principal = await resolve(request.headers.authorization);
+      if (principal === null) {
+        return reply
+          .code(401)
+          .send({ error: { code: 'INVALID_TOKEN', message: 'That access token is not valid' } });
+      }
+
+      const customer = await provision(principal);
+      if (customer instanceof CustomerError) {
+        if (customer.code === 'ACCOUNT_DELETED') return reply.send({ deleted: true as const });
+        return reply
+          .code(customerErrorStatus(customer.code))
+          .send({ error: { code: customer.code, message: customer.message } });
+      }
+
+      if (options.otpVerifier === undefined) {
+        return reply.code(503).send({
+          error: {
+            code: 'OTP_UNAVAILABLE',
+            message: 'A fresh sign-in code cannot be checked right now',
+          },
+        });
+      }
+
+      const valid = await options.otpVerifier(customer.email, request.body.code);
+      if (!valid) {
+        return reply.code(403).send({
+          error: { code: 'CODE_INVALID', message: 'That code is not valid or has expired' },
+        });
+      }
+
+      const result = await anonymiseCustomer(db, customer.id, { actorRole: 'customer' });
+      if (result === null) {
+        return reply
+          .code(404)
+          .send({ error: { code: 'CUSTOMER_NOT_FOUND', message: 'No such customer' } });
+      }
+
+      if (result.authUserId !== null && options.deleteAuthUser !== undefined) {
+        try {
+          await options.deleteAuthUser(result.authUserId);
+          await clearCustomerAuthUserId(db, result.customerId);
+        } catch {
+          // Keep the link: the old token then resolves to a deleted row and
+          // is refused. An admin can retry the Auth deletion later.
+          request.log.warn({ customerId: result.customerId }, 'Auth user deletion failed');
+        }
+      }
+
+      return reply.send({ deleted: true as const });
+    },
+  );
+
 };

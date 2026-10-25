@@ -194,3 +194,49 @@ export const setStoreConsent = (token: string, storeId: string, marketingConsent
     'PATCH',
     { marketingConsent },
   );
+
+/* ── Privacy (A5) ───────────────────────────────────────────────────────── */
+
+export interface CustomerExport {
+  exportedAt: string;
+  profile: {
+    id: string;
+    email: string;
+    name: string;
+    phone: string | null;
+    language: string;
+    status: string;
+    createdAt: string;
+  };
+  consents: {
+    storeId: string;
+    storeName: string;
+    joinedAt: string;
+    marketingConsent: boolean;
+  }[];
+  credentials: {
+    type: string;
+    identifier: string;
+    status: string;
+    createdAt: string;
+  }[];
+  balances: { storeId: string; storeName: string; points: number }[];
+  ledger: {
+    id: string;
+    storeId: string;
+    storeName: string;
+    type: string;
+    points: number;
+    amountCents: number | null;
+    reason: string | null;
+    createdAt: string;
+  }[];
+}
+
+/** Everything the customer is entitled to receive, and nothing else. */
+export const exportMyData = (token: string) =>
+  request<CustomerExport>('/v1/customer/me/export', token);
+
+/** Irreversible. The caller must have requested a fresh email code first. */
+export const deleteMyAccount = (token: string, code: string) =>
+  request<{ deleted: true }>('/v1/customer/me/delete', token, 'POST', { code });

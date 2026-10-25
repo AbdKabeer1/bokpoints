@@ -2,6 +2,9 @@ import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import {
   adjustmentResponseSchema,
   adminAnalyticsResponseSchema,
+  adminAnonymiseCustomerRequestSchema,
+  adminAnonymiseCustomerResponseSchema,
+  adminCustomerParamsSchema,
   adminStoreDetailSchema,
   adminStoreStatusRequestSchema,
   adminStoreStatusResponseSchema,
@@ -32,6 +35,7 @@ import {
   subscriptions,
 } from '../db/schema.js';
 import { LedgerError, recordFraudClawback, type LedgerErrorCode } from '../db/ledger.js';
+import { anonymiseCustomer, clearCustomerAuthUserId } from '../db/customers.js';
 import { createStaffAccountForInvite, StaffAccountError } from '../db/staff.js';
 import { LEDGER_ERROR_STATUS } from './stores.js';
 import type { RouteOptions } from './stores.js';
@@ -524,6 +528,58 @@ export const adminRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
       });
 
       return reply.send({ storeId, status: request.body.status });
+    },
+  );
+
+
+  /**
+   * A5: anonymise a customer from the platform console. The ledger stays;
+   * the identity, credentials, consents and campaign copies go.
+   */
+  app.post(
+    '/v1/admin/customers/:customerId/anonymise',
+    {
+      config: { rateLimit: rateLimit ?? { max: 5, timeWindow: '1 hour' } },
+      schema: {
+        params: adminCustomerParamsSchema,
+        body: adminAnonymiseCustomerRequestSchema,
+        response: {
+          200: adminAnonymiseCustomerResponseSchema,
+          400: apiErrorSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+          404: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const auth = await authorizeAdminRequest(db, sessionResolver, {
+        token: bearer(request.headers.authorization),
+        anyOf: ['customer.anonymise'],
+      });
+      if (!auth.ok) return reply.code(auth.status).send({ error: auth.error });
+
+      const result = await anonymiseCustomer(db, request.params.customerId, {
+        actorId: auth.staffUserId,
+        actorRole: 'admin',
+        reason: request.body.reason,
+      });
+      if (result === null) {
+        return reply
+          .code(404)
+          .send({ error: { code: 'CUSTOMER_NOT_FOUND', message: 'No such customer' } });
+      }
+
+      if (result.authUserId !== null && options.deleteAuthUser !== undefined) {
+        try {
+          await options.deleteAuthUser(result.authUserId);
+          await clearCustomerAuthUserId(db, result.customerId);
+        } catch {
+          request.log.warn({ customerId: result.customerId }, 'Auth user deletion failed');
+        }
+      }
+
+      return reply.send({ customerId: result.customerId, deleted: true as const });
     },
   );
 

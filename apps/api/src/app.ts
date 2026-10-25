@@ -11,6 +11,12 @@ import {
   type ZodTypeProvider,
 } from 'fastify-type-provider-zod';
 import type { CustomerSessionResolver, SessionResolver } from './auth/session.js';
+import {
+  createAuthUserDeleterFromEnv,
+  createEmailOtpVerifierFromEnv,
+  type AuthUserDeleter,
+  type EmailOtpVerifier,
+} from './auth/supabase-admin.js';
 import type { Database } from './db/client.js';
 import { createLogoStore, type LogoStore } from './db/logo-storage.js';
 import { adminRoutes } from './routes/admin.js';
@@ -32,6 +38,10 @@ export interface BuildAppOptions {
   sessionResolver?: SessionResolver | undefined;
   /** Verifies customer tokens (D-111); separate because customers need no MFA. */
   customerResolver?: CustomerSessionResolver | undefined;
+  /** Verifies a fresh email code before deletion (A5). */
+  customerOtpVerifier?: EmailOtpVerifier | undefined;
+  /** Deletes a Supabase Auth user after anonymisation (A5). */
+  deleteAuthUser?: AuthUserDeleter | undefined;
   /**
    * Browser origins allowed to call the API (D-112). Empty means no CORS:
    * browser clients then use a same-origin proxy, as the till's Vite dev
@@ -157,6 +167,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       db: options.db,
       sessionResolver: options.sessionResolver,
       rateLimit: options.rateLimit,
+      deleteAuthUser: options.deleteAuthUser ?? createAuthUserDeleterFromEnv(),
     });
     await app.register(staffRoutes, {
       db: options.db,
@@ -172,6 +183,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       db: options.db,
       customerResolver: options.customerResolver,
       rateLimit: options.rateLimit,
+      otpVerifier: options.customerOtpVerifier ?? createEmailOtpVerifierFromEnv(),
+      deleteAuthUser: options.deleteAuthUser ?? createAuthUserDeleterFromEnv(),
     });
     await app.register(storeCustomerRoutes, {
       db: options.db,

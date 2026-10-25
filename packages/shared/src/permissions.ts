@@ -22,6 +22,7 @@ export type Capability =
   | 'customers.list'
   | 'customers.register'
   | 'customers.lookup'
+  | 'customer.anonymise'
   | 'customers.view_scanned'
   | 'products.manage'
   | 'campaigns.manage'
@@ -69,6 +70,7 @@ const MATRIX: Record<Role, Partial<Record<Capability, PermissionDecision>>> = {
     'devices.manage': grant('platform'),
     // FRD section 2: support lookup only, not the store customer list.
     'customers.lookup': grant('platform'),
+    'customer.anonymise': grant('platform'),
     'consent.manage_own': grant('own'),
     'audit.view': grant('platform'),
   },

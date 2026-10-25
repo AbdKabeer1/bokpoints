@@ -215,7 +215,7 @@ export function App() {
               {tab === 'support' && (
                 <SupportScreen token={phase.token} onOpenStore={setOpenStoreId} />
               )}
-              {tab === 'safety' && <SafetyScreen />}
+              {tab === 'safety' && <SafetyScreen token={phase.token} />}
               {tab === 'audit' && <AuditScreen token={phase.token} />}
               {tab === 'settings' && (
                 <SettingsScreen me={phase.me} onSignOut={() => void handleSignOut()} />

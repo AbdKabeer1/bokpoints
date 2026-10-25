@@ -1,7 +1,23 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  Platform,
+  Pressable,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import Feather from '@expo/vector-icons/Feather';
-import { ApiError, updateMe, type Me } from '../lib/api';
+import {
+  ApiError,
+  deleteMyAccount,
+  exportMyData,
+  updateMe,
+  type Me,
+} from '../lib/api';
+import { sendEmailCode } from '../lib/session';
 import { colors, fonts, layout } from '../lib/theme';
 
 interface SettingsProps {
@@ -13,8 +29,8 @@ interface SettingsProps {
 }
 
 /**
- * Name, language and the way out. Saves straight to the customer's profile;
- * nothing here needs a password.
+ * Name, language, privacy and the way out. Saves straight to the customer's
+ * profile; deletion is the only action that asks for a fresh email code.
  */
 export function SettingsScreen({ token, me, onSaved, onBack, onSignOut }: SettingsProps) {
   const [name, setName] = useState(me.customer.name);
@@ -22,6 +38,15 @@ export function SettingsScreen({ token, me, onSaved, onBack, onSignOut }: Settin
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [exporting, setExporting] = useState(false);
+  const [exported, setExported] = useState(false);
+
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteStep, setDeleteStep] = useState<'confirm' | 'code'>('confirm');
+  const [deleteCode, setDeleteCode] = useState('');
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const save = async () => {
     setSaving(true);
@@ -42,6 +67,66 @@ export function SettingsScreen({ token, me, onSaved, onBack, onSignOut }: Settin
       );
     } finally {
       setSaving(false);
+    }
+  };
+
+  const download = async () => {
+    setExporting(true);
+    setExported(false);
+    setError(null);
+    try {
+      const data = await exportMyData(token);
+      const json = JSON.stringify(data, null, 2);
+      if (Platform.OS === 'web') {
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'omapointii-data.json';
+        link.click();
+        URL.revokeObjectURL(url);
+      } else {
+        await Share.share({ message: json, title: 'My OmaPointii data' });
+      }
+      setExported(true);
+    } catch {
+      setError('We could not prepare your data. Try again in a moment.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const requestDeleteCode = async () => {
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await sendEmailCode(me.customer.email);
+      setDeleteStep('code');
+    } catch {
+      setDeleteError('We could not send a code. Try again in a moment.');
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (deleteCode.trim().length < 6) {
+      setDeleteError('Enter the code from your email.');
+      return;
+    }
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await deleteMyAccount(token, deleteCode.trim());
+      onSignOut();
+    } catch (caught) {
+      setDeleteError(
+        caught instanceof ApiError && caught.code === 'CODE_INVALID'
+          ? 'That code is not valid or has expired. Request a new one.'
+          : 'We could not delete the account. Try again in a moment.',
+      );
+    } finally {
+      setDeleteBusy(false);
     }
   };
 
@@ -94,13 +179,124 @@ export function SettingsScreen({ token, me, onSaved, onBack, onSignOut }: Settin
         </Pressable>
       </View>
 
+      <Text style={styles.sectionLabel}>Privacy</Text>
+
+      <View style={styles.card}>
+        <View style={styles.privacyRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.privacyTitle}>Download my data</Text>
+            <Text style={styles.privacyBody}>
+              Your profile, consents, balances and every points entry, as a JSON file.
+            </Text>
+          </View>
+        </View>
+        <Pressable
+          style={[styles.secondaryButton, exporting && styles.saveButtonBusy]}
+          onPress={() => void download()}
+          disabled={exporting}
+        >
+          <Feather name="download" size={15} color={colors.text} />
+          <Text style={styles.secondaryText}>{exporting ? 'Preparing…' : 'Download'}</Text>
+        </Pressable>
+        {exported && <Text style={styles.saved}>Your data is ready.</Text>}
+
+        <View style={styles.divider} />
+
+        <View style={styles.privacyRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.privacyTitle}>Delete my account</Text>
+            <Text style={styles.privacyBody}>
+              Removes your name, email, code and store consents. The stores keep their points
+              totals, but the entries no longer identify you. This cannot be undone.
+            </Text>
+          </View>
+        </View>
+
+        {!deleteOpen ? (
+          <Pressable
+            style={styles.dangerButton}
+            onPress={() => {
+              setDeleteOpen(true);
+              setDeleteStep('confirm');
+              setDeleteCode('');
+              setDeleteError(null);
+            }}
+          >
+            <Text style={styles.dangerText}>Delete my account</Text>
+          </Pressable>
+        ) : (
+          <View style={styles.deleteBox}>
+            {deleteStep === 'confirm' ? (
+              <>
+                <Text style={styles.deleteWarn}>
+                  We will send a sign-in code to {me.customer.email}. Enter it to confirm.
+                </Text>
+                {deleteError !== null && <Text style={styles.error}>{deleteError}</Text>}
+                <Pressable
+                  style={[styles.dangerButton, deleteBusy && styles.saveButtonBusy]}
+                  onPress={() => void requestDeleteCode()}
+                  disabled={deleteBusy}
+                >
+                  <Text style={styles.dangerText}>
+                    {deleteBusy ? 'Sending…' : 'Send sign-in code'}
+                  </Text>
+                </Pressable>
+              </>
+            ) : (
+              <>
+                <Text style={styles.deleteWarn}>
+                  Enter the code we sent to your email. It proves this is still you.
+                </Text>
+                <TextInput
+                  value={deleteCode}
+                  onChangeText={setDeleteCode}
+                  placeholder="6-digit code"
+                  placeholderTextColor={colors.muted}
+                  keyboardType="number-pad"
+                  maxLength={10}
+                  editable={!deleteBusy}
+                  style={styles.input}
+                />
+                {deleteError !== null && <Text style={styles.error}>{deleteError}</Text>}
+                <Pressable
+                  style={[styles.dangerButton, deleteBusy && styles.saveButtonBusy]}
+                  onPress={() => void confirmDelete()}
+                  disabled={deleteBusy}
+                >
+                  <Text style={styles.dangerText}>
+                    {deleteBusy ? 'Deleting…' : 'Delete permanently'}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => void requestDeleteCode()}
+                  disabled={deleteBusy}
+                  hitSlop={8}
+                >
+                  <Text style={styles.resend}>Send a new code</Text>
+                </Pressable>
+              </>
+            )}
+            <Pressable
+              onPress={() => {
+                setDeleteOpen(false);
+                setDeleteCode('');
+                setDeleteError(null);
+              }}
+              hitSlop={8}
+            >
+              <Text style={styles.cancel}>Cancel</Text>
+            </Pressable>
+          </View>
+        )}
+      </View>
+
       <Pressable style={styles.signOutBox} onPress={onSignOut} hitSlop={8}>
         <Text style={styles.signOutText}>Sign out of OmaPointii</Text>
       </Pressable>
 
       <Text style={styles.fine}>
-        Your points are held per store. Deleting your account and exporting your data arrive
-        with the app's privacy tools.
+        Your points are held per store. Export and deletion are handled by the OmaPointii API;
+        the app never stores a copy.
       </Text>
     </ScrollView>
   );
@@ -222,6 +418,92 @@ const styles = StyleSheet.create({
     color: colors.onEspresso,
     fontFamily: fonts.bodyBold,
     fontSize: 14.5,
+  },
+  sectionLabel: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 10,
+    letterSpacing: 1.1,
+    textTransform: 'uppercase',
+    color: colors.muted,
+    marginTop: 26,
+    marginBottom: 8,
+  },
+  privacyRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  privacyTitle: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 15,
+    color: colors.text,
+  },
+  privacyBody: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.muted,
+    marginTop: 4,
+  },
+  secondaryButton: {
+    marginTop: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.lineStrong,
+    backgroundColor: colors.background,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  secondaryText: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 13,
+    color: colors.text,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.line,
+    marginVertical: 20,
+  },
+  dangerButton: {
+    marginTop: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#EBCBBE',
+    backgroundColor: colors.terracottaSoft,
+    paddingVertical: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dangerText: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 13,
+    color: colors.terracottaInk,
+  },
+  deleteBox: {
+    marginTop: 10,
+  },
+  deleteWarn: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.muted,
+    marginTop: 4,
+  },
+  resend: {
+    fontFamily: fonts.bodySemi,
+    fontSize: 12,
+    color: colors.terracottaInk,
+    textAlign: 'center',
+    marginTop: 12,
+  },
+  cancel: {
+    fontFamily: fonts.bodySemi,
+    fontSize: 12,
+    color: colors.muted,
+    textAlign: 'center',
+    marginTop: 10,
   },
   signOutBox: {
     marginTop: 22,

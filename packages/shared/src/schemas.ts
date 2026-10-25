@@ -1018,3 +1018,75 @@ export const customerOfferSchema = z.object({
 export const customerOffersResponseSchema = z.object({
   offers: z.array(customerOfferSchema),
 });
+
+/* ── Customer privacy: export and deletion (A5) ─────────────────────────── */
+
+export const customerExportSchema = z.object({
+  exportedAt: z.string(),
+  profile: z.object({
+    id: z.string().uuid(),
+    email: z.string(),
+    name: z.string(),
+    phone: z.string().nullable(),
+    language: z.string(),
+    status: z.string(),
+    createdAt: z.string(),
+  }),
+  consents: z.array(
+    z.object({
+      storeId: z.string().uuid(),
+      storeName: z.string(),
+      joinedAt: z.string(),
+      marketingConsent: z.boolean(),
+    }),
+  ),
+  credentials: z.array(
+    z.object({
+      type: z.string(),
+      identifier: z.string(),
+      status: z.string(),
+      createdAt: z.string(),
+    }),
+  ),
+  balances: z.array(
+    z.object({
+      storeId: z.string().uuid(),
+      storeName: z.string(),
+      points: z.number().int(),
+    }),
+  ),
+  ledger: z.array(
+    z.object({
+      id: z.string().uuid(),
+      storeId: z.string().uuid(),
+      storeName: z.string(),
+      type: z.string(),
+      points: z.number().int(),
+      amountCents: z.number().int().nullable(),
+      reason: z.string().nullable(),
+      createdAt: z.string(),
+    }),
+  ),
+});
+
+export const deleteCustomerRequestSchema = z.object({
+  code: z.string().trim().min(6).max(10),
+});
+
+export const deleteCustomerResponseSchema = z.object({
+  deleted: z.literal(true),
+});
+
+export const adminCustomerParamsSchema = z.object({
+  customerId: z.string().uuid(),
+});
+
+export const adminAnonymiseCustomerRequestSchema = z.object({
+  reason: z.string().trim().min(3).max(500),
+  confirmation: z.literal('ANONYMISE'),
+});
+
+export const adminAnonymiseCustomerResponseSchema = z.object({
+  customerId: z.string().uuid(),
+  deleted: z.literal(true),
+});

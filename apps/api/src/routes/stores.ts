@@ -51,6 +51,7 @@ import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { authorizeStoreRequest } from '../auth/authorize.js';
 import type { SessionResolver } from '../auth/session.js';
 import type { Database } from '../db/client.js';
+import type { AuthUserDeleter } from '../auth/supabase-admin.js';
 import {
   LogoStoreError,
   MAX_LOGO_BYTES,
@@ -98,6 +99,8 @@ export interface RouteOptions {
   rateLimit?: { max: number; timeWindow: string } | undefined;
   /** Null when no storage is configured; the logo routes then answer 503. */
   logoStore?: LogoStore | null | undefined;
+  /** Deletes a Supabase Auth user after customer anonymisation (A5). */
+  deleteAuthUser?: AuthUserDeleter | undefined;
 }
 
 const bearer = (header: string | undefined): string | undefined =>

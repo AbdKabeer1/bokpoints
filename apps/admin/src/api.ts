@@ -1,5 +1,7 @@
 import {
   adminAnalyticsResponseSchema,
+  adminAnonymiseCustomerRequestSchema,
+  adminAnonymiseCustomerResponseSchema,
   adminStoreDetailSchema,
   adminStoreStatusRequestSchema,
   adminStoreStatusResponseSchema,
@@ -100,6 +102,18 @@ export const setStoreStatus = (
     path: `/v1/admin/stores/${storeId}/status`,
     token,
     body: adminStoreStatusRequestSchema.parse(body),
+  });
+
+export const anonymiseCustomerAsAdmin = (
+  token: string,
+  customerId: string,
+  body: { reason: string; confirmation: 'ANONYMISE' },
+) =>
+  request(adminAnonymiseCustomerResponseSchema, {
+    method: 'POST',
+    path: `/v1/admin/customers/${customerId}/anonymise`,
+    token,
+    body: adminAnonymiseCustomerRequestSchema.parse(body),
   });
 
 export const searchSupport = (token: string, query: string) =>

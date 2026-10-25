@@ -61,3 +61,83 @@ export function createEmailVerifierFromEnv(): EmailVerifier {
     secretKey: process.env['SUPABASE_SECRET_KEY'] ?? '',
   });
 }
+
+/* ── Fresh-sign-in proof and Auth user deletion (A5) ───────────────────── */
+
+export interface AuthAdminOptions {
+  supabaseUrl: string;
+  secretKey: string;
+  fetchImpl?: typeof fetch | undefined;
+}
+
+export type EmailOtpVerifier = (email: string, token: string) => Promise<boolean>;
+export type AuthUserDeleter = (authUserId: string) => Promise<void>;
+
+/**
+ * Verifies a fresh one-time code against Supabase Auth. The code is the
+ * customer proving they still control the inbox before an irreversible
+ * deletion; the API receives it, not the app's local session.
+ */
+export function createEmailOtpVerifier(options: AuthAdminOptions): EmailOtpVerifier {
+  const fetchImpl = options.fetchImpl ?? fetch;
+
+  return async (email: string, token: string): Promise<boolean> => {
+    if (options.supabaseUrl === '' || options.secretKey === '') return false;
+    try {
+      const base = options.supabaseUrl.replace(/\/+$/, '');
+      const response = await fetchImpl(`${base}/auth/v1/verify`, {
+        method: 'POST',
+        headers: {
+          apikey: options.secretKey,
+          Authorization: `Bearer ${options.secretKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, token, type: 'email' }),
+        signal: AbortSignal.timeout(5_000),
+      });
+      return response.ok;
+    } catch {
+      return false;
+    }
+  };
+}
+
+/** Deletes the Supabase Auth user; 404 means it was already gone. */
+export function createAuthUserDeleter(options: AuthAdminOptions): AuthUserDeleter {
+  const fetchImpl = options.fetchImpl ?? fetch;
+
+  return async (authUserId: string): Promise<void> => {
+    if (options.supabaseUrl === '' || options.secretKey === '') {
+      throw new Error('Supabase Auth admin is not configured');
+    }
+    const base = options.supabaseUrl.replace(/\/+$/, '');
+    const response = await fetchImpl(
+      `${base}/auth/v1/admin/users/${encodeURIComponent(authUserId)}`,
+      {
+        method: 'DELETE',
+        headers: {
+          apikey: options.secretKey,
+          Authorization: `Bearer ${options.secretKey}`,
+        },
+        signal: AbortSignal.timeout(5_000),
+      },
+    );
+    if (!response.ok && response.status !== 404) {
+      throw new Error(`Supabase Auth user deletion failed with status ${response.status}`);
+    }
+  };
+}
+
+export function createEmailOtpVerifierFromEnv(): EmailOtpVerifier {
+  return createEmailOtpVerifier({
+    supabaseUrl: process.env['SUPABASE_URL'] ?? '',
+    secretKey: process.env['SUPABASE_SECRET_KEY'] ?? '',
+  });
+}
+
+export function createAuthUserDeleterFromEnv(): AuthUserDeleter {
+  return createAuthUserDeleter({
+    supabaseUrl: process.env['SUPABASE_URL'] ?? '',
+    secretKey: process.env['SUPABASE_SECRET_KEY'] ?? '',
+  });
+}
