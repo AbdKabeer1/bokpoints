@@ -22,7 +22,15 @@ export const envSchema = z.object({
   CORS_ORIGINS: z.string().optional(),
   SUPABASE_URL: z.preprocess(
     (value) => (value === '' ? undefined : value),
-    z.string().url().optional(),
+    z
+      .string()
+      .url()
+      // `z.url()` accepts any scheme, including the `ttps://` typo that took
+      // production down for an afternoon.
+      .refine((value) => /^https?:\/\//.test(value), {
+        message: 'SUPABASE_URL must start with http:// or https://',
+      })
+      .optional(),
   ),
   /**
    * The Supabase secret key, used server-side only: the verified-email
