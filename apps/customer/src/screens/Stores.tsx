@@ -9,10 +9,18 @@ interface StoresProps {
   directory: DirectoryStore[] | null;
   visited: StoreSummary[];
   onOpenStore: (store: StoreSummary) => void;
+  onEnableLocation: () => void;
+  locating: boolean;
 }
 
 /** Every active business on OmaPointii, with the customer's own state. */
-export function Stores({ directory, visited, onOpenStore }: StoresProps) {
+export function Stores({
+  directory,
+  visited,
+  onOpenStore,
+  onEnableLocation,
+  locating,
+}: StoresProps) {
   const [query, setQuery] = useState('');
 
   const visitedById = useMemo(
@@ -97,7 +105,12 @@ export function Stores({ directory, visited, onOpenStore }: StoresProps) {
       </View>
 
       {directory && directory.length > 0 && directory[0]?.distanceKm == null && (
-        <Text style={styles.hint}>Turn on location to see businesses near you.</Text>
+        <Pressable style={styles.hintButton} onPress={onEnableLocation} disabled={locating}>
+          <Feather name="map-pin" size={14} color={colors.text} />
+          <Text style={styles.hintButtonText}>
+            {locating ? 'Finding your location…' : 'Turn on location to see nearby businesses'}
+          </Text>
+        </Pressable>
       )}
 
       {mine.length > 0 && (
@@ -225,5 +238,22 @@ const styles = StyleSheet.create({
     color: colors.muted,
     marginTop: 8,
     marginBottom: 8,
+  },
+  hintButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 12,
+  },
+  hintButtonText: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 12,
+    color: colors.text,
   },
 });

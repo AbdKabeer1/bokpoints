@@ -80,6 +80,7 @@ export function Home({ token, me, onMeChanged, onSignOut }: HomeProps) {
   const [openStore, setOpenStore] = useState<StoreSummary | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
+  const [locating, setLocating] = useState(false);
 
   const load = useCallback(async (coords?: { lat?: number; lon?: number }) => {
     try {
@@ -113,6 +114,13 @@ export function Home({ token, me, onMeChanged, onSignOut }: HomeProps) {
     const coords = await requestLocation();
     await load(coords ?? undefined);
     setRefreshing(false);
+  };
+
+  const enableLocation = async () => {
+    setLocating(true);
+    const coords = await requestLocation();
+    if (coords) await load(coords);
+    setLocating(false);
   };
 
   const toggleConsent = (storeId: string, next: boolean) => {
@@ -314,7 +322,13 @@ export function Home({ token, me, onMeChanged, onSignOut }: HomeProps) {
           />
         )}
         {tab === 'stores' && (
-          <Stores directory={directory} visited={stores ?? []} onOpenStore={setOpenStore} />
+          <Stores
+            directory={directory}
+            visited={stores ?? []}
+            onOpenStore={setOpenStore}
+            onEnableLocation={() => void enableLocation()}
+            locating={locating}
+          />
         )}
         {tab === 'you' && (
           <You
