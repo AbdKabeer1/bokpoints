@@ -90,38 +90,54 @@ export function Home({ token, me, onMeChanged, onSignOut }: HomeProps) {
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
 
+  const loadNearby = useCallback(
+    async (lat: number, lon: number) => {
+      try {
+        const near = await Promise.race([
+          getNearby(token, lat, lon),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('nearby timeout')), 12_000),
+          ),
+        ]);
+        setNearby(near.places);
+        setAttribution(near.attribution);
+      } catch {
+        setNearby([]);
+        setAttribution('');
+      }
+    },
+    [token],
+  );
+
   const load = useCallback(async (coords?: { lat?: number; lon?: number }) => {
     try {
-      const [mine, expiringList, inbox] = await Promise.all([
+      const [mine, all, expiringList, inbox] = await Promise.allSettled([
         getStores(token),
+        getDirectory(token, coords?.lat, coords?.lon),
         getExpiring(token),
         getNotifications(token),
       ]);
 
-      const hasCoords = coords?.lat != null && coords?.lon != null;
-      const all = await getDirectory(token, coords?.lat, coords?.lon);
-
-      let discovered: { places: NearbyPlace[]; attribution: string } = {
-        places: [],
-        attribution: '',
-      };
-      if (hasCoords) {
-        try {
-          const near = await getNearby(token, coords!.lat!, coords!.lon!);
-          discovered = { places: near.places, attribution: near.attribution };
-        } catch {
-          discovered = { places: [], attribution: '' };
-        }
+      if (mine.status === 'fulfilled') setStores(mine.value.stores);
+      if (all.status === 'fulfilled') {
+        setDirectory(all.value.stores);
+        setError(null);
+      } else {
+        setDirectory((current) => current ?? []);
+        setError('We could not load the business directory just now.');
+      }
+      if (expiringList.status === 'fulfilled') setExpiring(expiringList.value.items);
+      if (inbox.status === 'fulfilled') {
+        setNotifications(inbox.value.notifications);
+        setUnread(inbox.value.unread);
       }
 
-      setStores(mine.stores);
-      setDirectory(all.stores);
-      setNearby(discovered.places);
-      setAttribution(discovered.attribution);
-      setExpiring(expiringList.items);
-      setNotifications(inbox.notifications);
-      setUnread(inbox.unread);
-      setError(null);
+      if (coords?.lat != null && coords?.lon != null) {
+        void loadNearby(coords.lat, coords.lon);
+      } else {
+        setNearby([]);
+        setAttribution('');
+      }
     } catch (caught) {
       setError(
         caught instanceof ApiError
@@ -129,7 +145,7 @@ export function Home({ token, me, onMeChanged, onSignOut }: HomeProps) {
           : 'Check your connection and pull down to refresh.',
       );
     }
-  }, [token]);
+  }, [token, loadNearby]);
 
   useEffect(() => {
     void load();
@@ -151,6 +167,7 @@ export function Home({ token, me, onMeChanged, onSignOut }: HomeProps) {
       setLocationError(
         'Location is not available in this browser. Open OmaPointii in Safari or Chrome.',
       );
+      await load();
       setLocating(false);
       return;
     }
@@ -158,6 +175,7 @@ export function Home({ token, me, onMeChanged, onSignOut }: HomeProps) {
       setLocationError(
         'Location is blocked for this site. Allow it in your browser settings, then tap again.',
       );
+      await load();
       setLocating(false);
       return;
     }
@@ -167,6 +185,7 @@ export function Home({ token, me, onMeChanged, onSignOut }: HomeProps) {
       setLocationError(
         'We could not read your location. Turn on location services and try again.',
       );
+      await load();
       setLocating(false);
       return;
     }

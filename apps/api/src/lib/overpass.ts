@@ -90,6 +90,11 @@ export async function discoverNearby(
   input: { lat: number; lon: number; radiusKm: number },
   fetchImpl: typeof fetch = fetch,
 ): Promise<NearbyPlace[]> {
+  const geoapifyKey = process.env.GEOAPIFY_API_KEY;
+  if (geoapifyKey) {
+    return discoverGeoapify(input, geoapifyKey, fetchImpl);
+  }
+
   const radiusKm = Math.min(Math.max(input.radiusKm, 1), 20);
   const radiusM = Math.round(radiusKm * 1000);
 
@@ -149,6 +154,113 @@ out center 120;`;
         website: tags.website ?? tags['contact:website'] ?? null,
         phone: tags.phone ?? tags['contact:phone'] ?? null,
         openingHours: tags.opening_hours ?? null,
+      });
+    }
+
+    return places.sort((a, b) => a.distanceKm - b.distanceKm).slice(0, 120);
+  } catch {
+    return [];
+  }
+}
+
+interface GeoapifyFeature {
+  properties?: {
+    place_id?: string;
+    name?: string;
+    categories?: string[];
+    address_line1?: string;
+    address_line2?: string;
+    website?: string;
+    phone?: string;
+    opening_hours?: string;
+    lat?: number;
+    lon?: number;
+  };
+}
+
+const GEOAPIFY_CATEGORIES = [
+  'catering.restaurant',
+  'catering.cafe',
+  'catering.bar',
+  'catering.pub',
+  'catering.fast_food',
+  'catering.ice_cream',
+  'commercial.shop',
+  'commercial.supermarket',
+  'commercial.bakery',
+  'health.pharmacy',
+  'entertainment.cinema',
+  'entertainment.theatre',
+  'tourism.hotel',
+  'sport.fitness',
+].join(',');
+
+function geoapifyCategory(categories: string[]): string | null {
+  const first = categories[0] ?? '';
+  if (first.startsWith('catering.restaurant')) return 'Restaurant';
+  if (first.startsWith('catering.cafe')) return 'Cafe';
+  if (first.startsWith('catering.bar')) return 'Bar';
+  if (first.startsWith('catering.pub')) return 'Pub';
+  if (first.startsWith('catering.fast_food')) return 'Fast food';
+  if (first.startsWith('catering.ice_cream')) return 'Ice cream';
+  if (first.startsWith('commercial.supermarket')) return 'Supermarket';
+  if (first.startsWith('commercial.bakery')) return 'Bakery';
+  if (first.startsWith('commercial.shop')) return 'Shop';
+  if (first.startsWith('health.pharmacy')) return 'Pharmacy';
+  if (first.startsWith('entertainment.cinema')) return 'Cinema';
+  if (first.startsWith('entertainment.theatre')) return 'Theatre';
+  if (first.startsWith('tourism.hotel')) return 'Hotel';
+  if (first.startsWith('sport.fitness')) return 'Gym';
+  return null;
+}
+
+async function discoverGeoapify(
+  input: { lat: number; lon: number; radiusKm: number },
+  apiKey: string,
+  fetchImpl: typeof fetch,
+): Promise<NearbyPlace[]> {
+  const radiusKm = Math.min(Math.max(input.radiusKm, 1), 20);
+  const radiusM = Math.round(radiusKm * 1000);
+
+  const url = new URL('https://api.geoapify.com/v2/places');
+  url.searchParams.set('categories', GEOAPIFY_CATEGORIES);
+  url.searchParams.set('filter', `circle:${input.lon},${input.lat},${radiusM}`);
+  url.searchParams.set('limit', '120');
+  url.searchParams.set('apiKey', apiKey);
+
+  try {
+    const response = await fetchImpl(url.toString(), {
+      headers: { accept: 'application/json' },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!response.ok) return [];
+
+    const json = (await response.json()) as { features?: GeoapifyFeature[] };
+    const features = Array.isArray(json.features) ? json.features : [];
+
+    const places: NearbyPlace[] = [];
+    for (const feature of features) {
+      const props = feature.properties;
+      if (props === undefined) continue;
+      const name = props.name?.trim();
+      const lat = props.lat;
+      const lon = props.lon;
+      if (!name || typeof lat !== 'number' || typeof lon !== 'number') continue;
+
+      const category = geoapifyCategory(props.categories ?? []);
+      if (category === null) continue;
+
+      places.push({
+        osmId: props.place_id ?? `${lat},${lon}`,
+        name,
+        category,
+        address: props.address_line1 ?? props.address_line2 ?? null,
+        distanceKm: Number(haversineKm(input.lat, input.lon, lat, lon).toFixed(1)),
+        latitude: lat,
+        longitude: lon,
+        website: props.website ?? null,
+        phone: props.phone ?? null,
+        openingHours: props.opening_hours ?? null,
       });
     }
 

@@ -46,3 +46,5 @@ services:
         sync: false
       - key: SENTRY_DSN
         sync: false
+      - key: GEOAPIFY_API_KEY
+        sync: false
