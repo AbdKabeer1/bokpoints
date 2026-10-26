@@ -201,21 +201,25 @@ const GEOAPIFY_CATEGORIES = [
 ].join(',');
 
 function geoapifyCategory(categories: string[]): string | null {
-  const first = categories[0] ?? '';
-  if (first.startsWith('catering.restaurant')) return 'Restaurant';
-  if (first.startsWith('catering.cafe')) return 'Cafe';
-  if (first.startsWith('catering.bar')) return 'Bar';
-  if (first.startsWith('catering.pub')) return 'Pub';
-  if (first.startsWith('catering.fast_food')) return 'Fast food';
-  if (first.startsWith('catering.ice_cream')) return 'Ice cream';
-  if (first.startsWith('commercial.supermarket')) return 'Supermarket';
-  if (first.startsWith('commercial.food_and_drink.bakery')) return 'Bakery';
-  if (first.startsWith('commercial.shopping_mall')) return 'Shopping mall';
-  if (first.startsWith('healthcare.pharmacy')) return 'Pharmacy';
-  if (first.startsWith('entertainment.cinema')) return 'Cinema';
-  if (first.startsWith('entertainment.culture.theatre')) return 'Theatre';
-  if (first.startsWith('accommodation.hotel')) return 'Hotel';
-  if (first.startsWith('sport.fitness')) return 'Gym';
+  // Geoapify returns every level of the category hierarchy, and the order is
+  // not guaranteed to put the most specific one first. Match the whole list.
+  const has = (prefix: string) =>
+    categories.some((category) => category === prefix || category.startsWith(`${prefix}.`));
+
+  if (has('catering.restaurant')) return 'Restaurant';
+  if (has('catering.cafe')) return 'Cafe';
+  if (has('catering.bar')) return 'Bar';
+  if (has('catering.pub')) return 'Pub';
+  if (has('catering.fast_food')) return 'Fast food';
+  if (has('catering.ice_cream')) return 'Ice cream';
+  if (has('commercial.supermarket')) return 'Supermarket';
+  if (has('commercial.food_and_drink.bakery')) return 'Bakery';
+  if (has('commercial.shopping_mall')) return 'Shopping mall';
+  if (has('healthcare.pharmacy')) return 'Pharmacy';
+  if (has('entertainment.cinema')) return 'Cinema';
+  if (has('entertainment.culture.theatre')) return 'Theatre';
+  if (has('accommodation.hotel')) return 'Hotel';
+  if (has('sport.fitness')) return 'Gym';
   return null;
 }
 
@@ -287,7 +291,8 @@ async function discoverGeoapify(
     }
 
     if (places.length === 0) {
-      lastError = `features ${features.length}, skipped ${skipped}, first ${JSON.stringify(features[0]).slice(0, 400)}`;
+      const first = features[0]?.properties;
+      lastError = `features ${features.length}, skipped ${skipped}, categories ${JSON.stringify(first?.categories)}`;
       return [];
     }
 
