@@ -65,6 +65,7 @@ export interface NearbyResponse {
   available: boolean;
   attribution: string;
   provider?: string;
+  providerError?: string;
 }
 
 export interface StoreOffer {

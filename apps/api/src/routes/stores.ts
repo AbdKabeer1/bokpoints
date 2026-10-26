@@ -64,7 +64,7 @@ import {
   type LogoStore,
 } from '../db/logo-storage.js';
 import { geocodeAddress } from '../lib/geocode.js';
-import { discoverNearby, type NearbyPlace } from '../lib/overpass.js';
+import { discoverNearby, lastDiscoveryError, type NearbyPlace } from '../lib/overpass.js';
 import {
   getBalance,
   LedgerError,
@@ -1198,6 +1198,7 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
           available: cached.places.length > 0,
           attribution: '© OpenStreetMap contributors',
           provider: ownerDiscoverProvider,
+          providerError: lastDiscoveryError() ?? undefined,
         });
       }
 
@@ -1213,6 +1214,7 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
         available: places.length > 0,
         attribution: '© OpenStreetMap contributors',
         provider: ownerDiscoverProvider,
+        providerError: lastDiscoveryError() ?? undefined,
       });
     },
   );

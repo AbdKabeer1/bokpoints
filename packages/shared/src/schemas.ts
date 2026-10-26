@@ -1048,6 +1048,7 @@ export const discoverResponseSchema = z.object({
   available: z.boolean(),
   attribution: z.string(),
   provider: z.string().optional(),
+  providerError: z.string().optional(),
 });
 
 /* ── Owner portal: nearby business leads (D-170) ────────────────────────── */

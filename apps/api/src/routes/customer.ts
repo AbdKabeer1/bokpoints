@@ -50,7 +50,7 @@ import type { CustomerProfile } from '../db/customers.js';
 import type { AuthUserDeleter, EmailOtpVerifier } from '../auth/supabase-admin.js';
 import { recordFeedback } from '../db/feedback.js';
 import { issueDiscountProof, proofExpiresAt } from '../db/discount-proof.js';
-import { discoverNearby, type NearbyPlace } from '../lib/overpass.js';
+import { discoverNearby, lastDiscoveryError, type NearbyPlace } from '../lib/overpass.js';
 import { discountRules } from '../db/schema.js';
 import { and, eq } from 'drizzle-orm';
 
@@ -514,6 +514,7 @@ export const customerRoutes: FastifyPluginAsyncZod<CustomerRouteOptions> = async
           available: cached.places.length > 0,
           attribution: ATTRIBUTION,
           provider,
+          providerError: lastDiscoveryError() ?? undefined,
         });
       }
 
@@ -529,6 +530,7 @@ export const customerRoutes: FastifyPluginAsyncZod<CustomerRouteOptions> = async
         available: places.length > 0,
         attribution: ATTRIBUTION,
         provider,
+        providerError: lastDiscoveryError() ?? undefined,
       });
     },
   );

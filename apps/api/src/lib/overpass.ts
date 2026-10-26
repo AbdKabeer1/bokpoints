@@ -20,6 +20,11 @@ interface OsmElement {
   tags?: Record<string, string>;
 }
 
+let lastError: string | null = null;
+
+/** The last discovery failure, for the API's diagnostic field. */
+export const lastDiscoveryError = (): string | null => lastError;
+
 const AMENITY_CATEGORIES: Record<string, string> = {
   restaurant: 'Restaurant',
   cafe: 'Cafe',
@@ -234,7 +239,10 @@ async function discoverGeoapify(
       headers: { accept: 'application/json' },
       signal: AbortSignal.timeout(8000),
     });
-    if (!response.ok) return [];
+    if (!response.ok) {
+      lastError = `HTTP ${response.status}: ${(await response.text()).slice(0, 300)}`;
+      return [];
+    }
 
     const json = (await response.json()) as { features?: GeoapifyFeature[] };
     const features = Array.isArray(json.features) ? json.features : [];
@@ -265,8 +273,10 @@ async function discoverGeoapify(
       });
     }
 
+    lastError = null;
     return places.sort((a, b) => a.distanceKm - b.distanceKm).slice(0, 120);
-  } catch {
+  } catch (error) {
+    lastError = error instanceof Error ? error.message : String(error);
     return [];
   }
 }
