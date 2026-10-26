@@ -58,6 +58,7 @@ import {
   sniffImageType,
   type LogoStore,
 } from '../db/logo-storage.js';
+import { geocodeAddress } from '../lib/geocode.js';
 import {
   getBalance,
   LedgerError,
@@ -1087,6 +1088,26 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
         brandColor: before.brandColor,
         logoUrl: before.logoUrl,
       };
+
+      // Geocode address for nearby sorting (D-167). Failures are silent.
+      if (body.address !== undefined && body.address !== before.address) {
+        const newAddress = body.address ?? '';
+        if (newAddress.trim()) {
+          const coords = await geocodeAddress(newAddress);
+          if (coords) {
+            await db
+              .update(stores)
+              .set({ latitude: coords.latitude, longitude: coords.longitude })
+              .where(eq(stores.id, storeId));
+          }
+        } else {
+          // Clear coordinates when address is emptied
+          await db
+            .update(stores)
+            .set({ latitude: null, longitude: null })
+            .where(eq(stores.id, storeId));
+        }
+      }
 
       await db.insert(auditLogEntries).values({
         actorId: auth.staffUserId,

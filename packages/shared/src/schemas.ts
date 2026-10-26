@@ -995,6 +995,11 @@ export const adminSubscriptionsResponseSchema = z.object({
 
 /* ── Customer app: the store directory (D-157) ──────────────────────────── */
 
+export const directoryQuerySchema = z.object({
+  lat: z.coerce.number().min(-90).max(90).optional(),
+  lon: z.coerce.number().min(-180).max(180).optional(),
+});
+
 export const directoryStoreSchema = z.object({
   storeId: z.string().uuid(),
   name: z.string(),
@@ -1004,6 +1009,7 @@ export const directoryStoreSchema = z.object({
   /** True when this customer already has a link or a balance at the store. */
   visited: z.boolean(),
   balance: z.number().int(),
+  distanceKm: z.number().min(0).nullable().optional(),
 });
 
 export const directoryResponseSchema = z.object({

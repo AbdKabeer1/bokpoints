@@ -22,6 +22,7 @@ import {
   type Notification,
   type StoreSummary,
 } from '../lib/api';
+import { requestLocation } from '../lib/location';
 import { expiryLabel, formatDate } from '../lib/format';
 import { colors, fonts, formatPoints, layout } from '../lib/theme';
 import { Card, SegmentBar, StoreAvatar } from '../components/ui';
@@ -82,12 +83,13 @@ export function Home({ token, me, onMeChanged, onSignOut }: HomeProps) {
 
   const load = useCallback(async () => {
     try {
-      const [mine, all, expiringList, inbox] = await Promise.all([
+      const [mine, expiringList, inbox] = await Promise.all([
         getStores(token),
-        getDirectory(token),
         getExpiring(token),
         getNotifications(token),
       ]);
+      const coords = await requestLocation();
+      const all = await getDirectory(token, coords?.lat, coords?.lon);
       setStores(mine.stores);
       setDirectory(all.stores);
       setExpiring(expiringList.items);

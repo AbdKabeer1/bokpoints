@@ -34,6 +34,7 @@ export function Stores({ directory, visited, onOpenStore }: StoresProps) {
 
   const renderStore = (store: DirectoryStore) => {
     const summary = visitedById.get(store.storeId);
+    const hasDistance = typeof store.distanceKm === 'number';
     return (
       <Pressable
         key={store.storeId}
@@ -56,6 +57,7 @@ export function Stores({ directory, visited, onOpenStore }: StoresProps) {
           <Text style={styles.name}>{store.name}</Text>
           <Text style={styles.meta} numberOfLines={1}>
             {store.address ?? 'Helsinki'}
+            {hasDistance ? ` · ${store.distanceKm} km` : ''}
           </Text>
         </View>
         {summary === undefined ? (
@@ -93,6 +95,10 @@ export function Stores({ directory, visited, onOpenStore }: StoresProps) {
           returnKeyType="search"
         />
       </View>
+
+      {directory && directory.length > 0 && directory[0]?.distanceKm == null && (
+        <Text style={styles.hint}>Turn on location to see businesses near you.</Text>
+      )}
 
       {mine.length > 0 && (
         <>
@@ -212,5 +218,12 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     color: colors.muted,
     marginTop: 18,
+  },
+  hint: {
+    fontFamily: fonts.body,
+    fontSize: 11.5,
+    color: colors.muted,
+    marginTop: 8,
+    marginBottom: 8,
   },
 });

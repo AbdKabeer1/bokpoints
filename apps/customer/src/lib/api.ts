@@ -41,6 +41,7 @@ export interface DirectoryStore {
   logoUrl: string | null;
   visited: boolean;
   balance: number;
+  distanceKm?: number | null;
 }
 
 export interface StoreOffer {
@@ -140,8 +141,11 @@ export const getStores = (token: string) =>
   request<{ stores: StoreSummary[] }>('/v1/customer/me/stores', token);
 
 /** Every active store on the platform, with this customer's visit state. */
-export const getDirectory = (token: string) =>
-  request<{ stores: DirectoryStore[] }>('/v1/customer/stores', token);
+export const getDirectory = (token: string, lat?: number, lon?: number) =>
+  request<{ stores: DirectoryStore[] }>(
+    `/v1/customer/stores${lat != null && lon != null ? `?lat=${lat}&lon=${lon}` : ''}`,
+    token
+  );
 
 export const getHistory = (token: string, storeId: string) =>
   request<History>(`/v1/customer/me/stores/${storeId}/history`, token);

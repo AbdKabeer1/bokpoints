@@ -16,6 +16,7 @@ import {
   customerStoreRewardsResponseSchema,
   customerStoresResponseSchema,
   discountProofIssueResponseSchema,
+  directoryQuerySchema,
   directoryResponseSchema,
   notificationReadResponseSchema,
   storeConsentRequestSchema,
@@ -360,6 +361,7 @@ export const customerRoutes: FastifyPluginAsyncZod<CustomerRouteOptions> = async
     {
       config: { rateLimit: rateLimit ?? { max: 60, timeWindow: '1 minute' } },
       schema: {
+        querystring: directoryQuerySchema,
         response: {
           200: directoryResponseSchema,
           401: apiErrorSchema,
@@ -382,6 +384,9 @@ export const customerRoutes: FastifyPluginAsyncZod<CustomerRouteOptions> = async
           .send({ error: { code: customer.code, message: customer.message } });
       }
 
+      const query = request.query as { lat?: number; lon?: number };
+      const hasLocation = typeof query.lat === 'number' && typeof query.lon === 'number';
+
       const rows = await db.execute(sql`
         SELECT
           s.id AS "storeId",
@@ -389,6 +394,8 @@ export const customerRoutes: FastifyPluginAsyncZod<CustomerRouteOptions> = async
           s.address,
           s.brand_color AS "brandColor",
           s.logo_url AS "logoUrl",
+          s.latitude,
+          s.longitude,
           (link.id IS NOT NULL) AS "visited",
           coalesce(b.balance, 0)::int AS "balance"
         FROM stores s
@@ -401,17 +408,47 @@ export const customerRoutes: FastifyPluginAsyncZod<CustomerRouteOptions> = async
         LIMIT 200
       `);
 
-      return reply.send({
-        stores: (rows.rows as Record<string, unknown>[]).map((row) => ({
-          storeId: String(row.storeId),
-          name: String(row.name),
-          address: row.address === null ? null : String(row.address),
-          brandColor: row.brandColor === null ? null : String(row.brandColor),
-          logoUrl: row.logoUrl === null ? null : String(row.logoUrl),
-          visited: Boolean(row.visited),
-          balance: Number(row.balance ?? 0),
-        })),
-      });
+      const haversine = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+        const R = 6371;
+        const toRad = (d: number) => (d * Math.PI) / 180;
+        const dLat = toRad(lat2 - lat1);
+        const dLon = toRad(lon2 - lon1);
+        const a =
+          Math.sin(dLat / 2) ** 2 +
+          Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      };
+
+      const storesOut = (rows.rows as Array<Record<string, unknown>>)
+        .map((row) => {
+          const lat = row.latitude != null ? Number(row.latitude) : null;
+          const lon = row.longitude != null ? Number(row.longitude) : null;
+          let distanceKm: number | null = null;
+          if (hasLocation && lat != null && lon != null) {
+            distanceKm = Number(haversine(query.lat!, query.lon!, lat, lon).toFixed(1));
+          }
+          return {
+            storeId: String(row.storeId),
+            name: String(row.name),
+            address: row.address === null ? null : String(row.address),
+            brandColor: row.brandColor === null ? null : String(row.brandColor),
+            logoUrl: row.logoUrl === null ? null : String(row.logoUrl),
+            visited: Boolean(row.visited),
+            balance: Number(row.balance ?? 0),
+            distanceKm,
+          };
+        })
+        .sort((a, b) => {
+          if (hasLocation) {
+            if (a.distanceKm == null && b.distanceKm == null) return a.name.localeCompare(b.name);
+            if (a.distanceKm == null) return 1;
+            if (b.distanceKm == null) return -1;
+            if (a.distanceKm !== b.distanceKm) return a.distanceKm - b.distanceKm;
+          }
+          return 0;
+        });
+
+      return reply.send({ stores: storesOut });
     },
   );
 
