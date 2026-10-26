@@ -41,6 +41,16 @@ async function injectCustomer(method: 'GET' | 'POST' | 'PATCH', url: string, tok
   return res;
 }
 
+type DirectoryStore = {
+  name: string;
+  distanceKm?: number | null;
+};
+
+function directoryStores(payload: string): DirectoryStore[] {
+  const body = JSON.parse(payload) as { stores?: DirectoryStore[] };
+  return body.stores ?? [];
+}
+
 beforeAll(async () => {
   pool = createPool(DATABASE_URL);
   await applyMigrations(pool);
@@ -76,10 +86,7 @@ describe('store nearby', () => {
     );
 
     const getRes = await inject('GET', `/v1/stores/${storeId}/profile`, ownerEmail);
-    if (getRes.statusCode !== 200) {
-      console.log('GET ERROR', getRes.statusCode, getRes.payload);
-    }
-    expect(getRes.statusCode).toBe(200);
+    expect(getRes.statusCode, getRes.payload).toBe(200);
 
     const res = await inject(
       'PATCH',
@@ -88,13 +95,7 @@ describe('store nearby', () => {
       { address: 'Mannerheimintie 10, Helsinki' }
     );
 
-    // Debug
-    if (res.statusCode !== 200) {
-      // @ts-ignore
-      console.log('ERROR', res.statusCode, res.payload);
-    }
-
-    expect(res.statusCode).toBe(200);
+    expect(res.statusCode, res.payload).toBe(200);
 
     const row = await db.select()
       .from(stores)
@@ -129,11 +130,11 @@ describe('store nearby', () => {
 
     const res = await injectCustomer('GET', `/v1/customer/stores?lat=60.17&lon=24.94`, customerEmail);
     expect(res.statusCode).toBe(200);
-    const storesList = (res.json() as any).stores;
-    expect(storesList[0].name).toBe('Near Store');
-    expect(Number(storesList[0].distanceKm)).toBeLessThan(1);
-    expect(storesList[1].name).toBe('Far Store');
-    expect(Number(storesList[1].distanceKm)).toBeGreaterThan(20);
+    const storesList = directoryStores(res.payload);
+    expect(storesList[0]?.name).toBe('Near Store');
+    expect(Number(storesList[0]?.distanceKm)).toBeLessThan(1);
+    expect(storesList[1]?.name).toBe('Far Store');
+    expect(Number(storesList[1]?.distanceKm)).toBeGreaterThan(20);
   });
 
   it('keeps alphabetical order without coordinates', async () => {
@@ -153,9 +154,9 @@ describe('store nearby', () => {
 
     const res = await injectCustomer('GET', `/v1/customer/stores`, customerEmail);
     expect(res.statusCode).toBe(200);
-    const storesList = (res.json() as any).stores;
-    expect(storesList[0].name).toBe('Alpha Store');
-    expect(storesList[0].distanceKm).toBeNull();
+    const storesList = directoryStores(res.payload);
+    expect(storesList[0]?.name).toBe('Alpha Store');
+    expect(storesList[0]?.distanceKm ?? null).toBeNull();
   });
 });
 
