@@ -245,18 +245,32 @@ async function discoverGeoapify(
 
     const json = (await response.json()) as { features?: GeoapifyFeature[] };
     const features = Array.isArray(json.features) ? json.features : [];
+    if (features.length === 0) {
+      lastError = `empty response: ${JSON.stringify(json).slice(0, 300)}`;
+      return [];
+    }
 
+    let skipped = 0;
     const places: NearbyPlace[] = [];
     for (const feature of features) {
       const props = feature.properties;
-      if (props === undefined) continue;
+      if (props === undefined) {
+        skipped += 1;
+        continue;
+      }
       const name = props.name?.trim();
       const lat = props.lat;
       const lon = props.lon;
-      if (!name || typeof lat !== 'number' || typeof lon !== 'number') continue;
+      if (!name || typeof lat !== 'number' || typeof lon !== 'number') {
+        skipped += 1;
+        continue;
+      }
 
       const category = geoapifyCategory(props.categories ?? []);
-      if (category === null) continue;
+      if (category === null) {
+        skipped += 1;
+        continue;
+      }
 
       places.push({
         osmId: props.place_id ?? `${lat},${lon}`,
@@ -270,6 +284,11 @@ async function discoverGeoapify(
         phone: props.phone ?? null,
         openingHours: props.opening_hours ?? null,
       });
+    }
+
+    if (places.length === 0) {
+      lastError = `features ${features.length}, skipped ${skipped}, first ${JSON.stringify(features[0]).slice(0, 400)}`;
+      return [];
     }
 
     lastError = null;
