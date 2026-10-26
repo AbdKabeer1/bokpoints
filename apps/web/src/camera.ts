@@ -51,3 +51,22 @@ export function cameraProblem(caught: unknown): string {
   }
   return 'The live camera did not start. Try again, type the code, or use Take QR photo.';
 }
+
+export type TillPanelMode = 'recorded' | 'camera' | 'register' | 'scan' | 'customer';
+
+/**
+ * The camera belongs to the find-customer step, so it must win before the
+ * `hasCustomer` branch. Keeping this order in one tested function prevents a
+ * nested ternary from silently hiding the scanner again.
+ */
+export function tillPanelMode(input: {
+  hasRecordedSale: boolean;
+  cameraOpen: boolean;
+  hasCustomer: boolean;
+  registerOpen: boolean;
+}): TillPanelMode {
+  if (input.hasRecordedSale) return 'recorded';
+  if (input.cameraOpen) return 'camera';
+  if (input.hasCustomer) return 'customer';
+  return input.registerOpen ? 'register' : 'scan';
+}

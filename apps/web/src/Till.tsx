@@ -17,7 +17,7 @@ import {
   type TillReward,
 } from './api';
 import { APP_VERSION } from '@bokpoints/shared';
-import { cameraProblem, requestCameraAccess } from './camera';
+import { cameraProblem, requestCameraAccess, tillPanelMode } from './camera';
 import { cashierMessage, HELP_LINE } from './errors';
 import { formatCents, formatDate, isEmail, normalizeScan, parseAmountToCents } from './format';
 import { ScanCamera } from './ScanCamera';
@@ -456,6 +456,12 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
 
   const cents = parseAmountToCents(amount);
   const stageIndex = recorded !== null ? 4 : paid !== null ? 3 : customer !== null ? 2 : 1;
+  const panelMode = tillPanelMode({
+    hasRecordedSale: recorded !== null,
+    cameraOpen,
+    hasCustomer: customer !== null,
+    registerOpen,
+  });
 
   const previewLine = () => {
     if (amount.trim() === '') return 'Type what the register charged.';
@@ -525,7 +531,7 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
       </nav>
 
       <section className={flashOk ? 'card tillcard flash-ok' : 'card tillcard'}>
-        {recorded !== null ? (
+        {panelMode === 'recorded' && recorded !== null ? (
           <div className="result">
             <div className="resultmark" aria-hidden="true">✓</div>
             <p className="eyebrow">Recorded</p>
@@ -543,6 +549,15 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
               Next customer
             </button>
           </div>
+        ) : panelMode === 'camera' ? (
+          <ScanCamera
+            initialProblem={cameraInitialProblem}
+            onRead={(text) => void handleCameraRead(text)}
+            onClose={() => {
+              setCameraOpen(false);
+              setCameraInitialProblem(null);
+            }}
+          />
         ) : customer === null ? (
           registerOpen ? (
             <form className="scan" onSubmit={(event) => void handleRegister(event)}>
@@ -651,15 +666,6 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
             )}
             </>
           )
-        ) : cameraOpen ? (
-          <ScanCamera
-            initialProblem={cameraInitialProblem}
-            onRead={(text) => void handleCameraRead(text)}
-            onClose={() => {
-              setCameraOpen(false);
-              setCameraInitialProblem(null);
-            }}
-          />
         ) : (
           <div className="customer">
             <p className="eyebrow">Customer</p>

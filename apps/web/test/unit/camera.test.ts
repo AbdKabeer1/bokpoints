@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { cameraProblem, chooseRearCamera, requestCameraAccess } from '../../src/camera';
+import {
+  cameraProblem,
+  chooseRearCamera,
+  requestCameraAccess,
+  tillPanelMode,
+} from '../../src/camera';
 
 describe('requestCameraAccess', () => {
   it('requests the rear camera from the click and releases the permission stream', async () => {
@@ -44,5 +49,18 @@ describe('cameraProblem', () => {
     );
     expect(cameraProblem(new DOMException('No camera', 'NotFoundError'))).toContain('camera');
     expect(cameraProblem('unknown')).toContain('Take QR photo');
+  });
+});
+
+describe('tillPanelMode', () => {
+  it('shows the camera before a customer has been identified', () => {
+    expect(
+      tillPanelMode({
+        hasRecordedSale: false,
+        cameraOpen: true,
+        hasCustomer: false,
+        registerOpen: false,
+      }),
+    ).toBe('camera');
   });
 });

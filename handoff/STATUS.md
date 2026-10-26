@@ -8,10 +8,12 @@
 
 - **Till phone-camera fix.** `Scan with camera` now requests rear-camera
   permission directly from the cashier's tap (instead of waiting for a React
-  effect), selects the labelled rear camera by device ID, and shows a visible
+  effect), and the camera view now precedes the no-customer branch; previously
+  `cameraOpen` was set but its component was only rendered after a customer
+  existed. It selects the labelled rear camera by device ID and shows a visible
   opening/error state. `Take QR photo` uses the phone's native rear camera as
-  a fallback and scans the captured image. Four unit tests cover permission,
-  stream release, rear-camera selection and actionable browser errors.
+  a fallback and scans the captured image. Five unit tests cover permission,
+  stream release, rear-camera selection, errors and the render-state priority.
 
 - **Product readiness pass.** Global in-app notification preference (D-162),
   feedback from customer, owner and admin surfaces stored in one queue and read
