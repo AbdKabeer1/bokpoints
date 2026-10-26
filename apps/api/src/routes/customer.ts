@@ -101,6 +101,7 @@ export const customerRoutes: FastifyPluginAsyncZod<CustomerRouteOptions> = async
   const discoverCache = new Map<string, { places: NearbyPlace[]; at: number }>();
   const DISCOVER_TTL_MS = 5 * 60 * 1000;
   const ATTRIBUTION = '© OpenStreetMap contributors';
+  const provider = process.env.GEOAPIFY_API_KEY ? 'geoapify' : 'overpass';
 
   const resolve = async (
     header: string | undefined,
@@ -512,6 +513,7 @@ export const customerRoutes: FastifyPluginAsyncZod<CustomerRouteOptions> = async
           places: cached.places,
           available: cached.places.length > 0,
           attribution: ATTRIBUTION,
+          provider,
         });
       }
 
@@ -526,6 +528,7 @@ export const customerRoutes: FastifyPluginAsyncZod<CustomerRouteOptions> = async
         places,
         available: places.length > 0,
         attribution: ATTRIBUTION,
+        provider,
       });
     },
   );

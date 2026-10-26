@@ -185,10 +185,10 @@ const GEOAPIFY_CATEGORIES = [
   'catering.pub',
   'catering.fast_food',
   'catering.ice_cream',
-  'commercial.shop',
   'commercial.supermarket',
   'commercial.bakery',
-  'health.pharmacy',
+  'commercial.shopping_mall',
+  'healthcare.pharmacy',
   'entertainment.cinema',
   'entertainment.theatre',
   'tourism.hotel',
@@ -205,8 +205,9 @@ function geoapifyCategory(categories: string[]): string | null {
   if (first.startsWith('catering.ice_cream')) return 'Ice cream';
   if (first.startsWith('commercial.supermarket')) return 'Supermarket';
   if (first.startsWith('commercial.bakery')) return 'Bakery';
+  if (first.startsWith('commercial.shopping_mall')) return 'Shopping mall';
   if (first.startsWith('commercial.shop')) return 'Shop';
-  if (first.startsWith('health.pharmacy')) return 'Pharmacy';
+  if (first.startsWith('healthcare.pharmacy')) return 'Pharmacy';
   if (first.startsWith('entertainment.cinema')) return 'Cinema';
   if (first.startsWith('entertainment.theatre')) return 'Theatre';
   if (first.startsWith('tourism.hotel')) return 'Hotel';

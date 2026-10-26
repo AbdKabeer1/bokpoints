@@ -64,6 +64,7 @@ export interface NearbyResponse {
   places: NearbyPlace[];
   available: boolean;
   attribution: string;
+  provider?: string;
 }
 
 export interface StoreOffer {

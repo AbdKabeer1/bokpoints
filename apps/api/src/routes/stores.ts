@@ -169,6 +169,7 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
   const { db, sessionResolver, rateLimit, logoStore } = options;
   const ownerDiscoverCache = new Map<string, { places: NearbyPlace[]; at: number }>();
   const OWNER_DISCOVER_TTL_MS = 5 * 60 * 1000;
+  const ownerDiscoverProvider = process.env.GEOAPIFY_API_KEY ? 'geoapify' : 'overpass';
 
   /**
    * Resolve a credential to a customer. The cashier sees the first name and,
@@ -1196,6 +1197,7 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
           places: cached.places,
           available: cached.places.length > 0,
           attribution: '© OpenStreetMap contributors',
+          provider: ownerDiscoverProvider,
         });
       }
 
@@ -1210,6 +1212,7 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
         places,
         available: places.length > 0,
         attribution: '© OpenStreetMap contributors',
+        provider: ownerDiscoverProvider,
       });
     },
   );

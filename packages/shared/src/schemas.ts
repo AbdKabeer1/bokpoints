@@ -1047,6 +1047,7 @@ export const discoverResponseSchema = z.object({
   places: z.array(nearbyPlaceSchema),
   available: z.boolean(),
   attribution: z.string(),
+  provider: z.string().optional(),
 });
 
 /* ── Owner portal: nearby business leads (D-170) ────────────────────────── */
