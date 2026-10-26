@@ -17,6 +17,7 @@ import {
   type TillReward,
 } from './api';
 import { APP_VERSION } from '@bokpoints/shared';
+import { cameraProblem, requestCameraAccess } from './camera';
 import { cashierMessage, HELP_LINE } from './errors';
 import { formatCents, formatDate, isEmail, normalizeScan, parseAmountToCents } from './format';
 import { ScanCamera } from './ScanCamera';
@@ -120,6 +121,8 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
   const [registerName, setRegisterName] = useState('');
   const [registerError, setRegisterError] = useState<string | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraStarting, setCameraStarting] = useState(false);
+  const [cameraInitialProblem, setCameraInitialProblem] = useState<string | null>(null);
   const [recent, setRecent] = useState<RecentAwards['entries'] | null>(null);
   // The store's catalog for the progress bar, loaded as soon as a customer is
   // known — before the amount — so the card can show the next reward.
@@ -309,6 +312,28 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
   const handleScan = async (event: FormEvent) => {
     event.preventDefault();
     await runIdentify(normalizeScan(scanValue));
+  };
+
+  /**
+   * Ask while this function still belongs to the cashier's tap. In
+   * particular, iPhone Safari may not show a permission prompt when the first
+   * getUserMedia call happens later from a component effect.
+   */
+  const openCamera = async () => {
+    setCameraStarting(true);
+    setError(null);
+    try {
+      await requestCameraAccess();
+      setCameraInitialProblem(null);
+      setCameraOpen(true);
+    } catch (caught) {
+      // Still open the panel: Take QR photo launches the phone's native
+      // camera even when a live browser stream is unavailable.
+      setCameraInitialProblem(cameraProblem(caught));
+      setCameraOpen(true);
+    } finally {
+      setCameraStarting(false);
+    }
   };
 
   /** A camera read: keep the camera open on a miss so they can try again. */
@@ -601,13 +626,10 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
               <button
                 className="ghost"
                 type="button"
-                onClick={() => {
-                  setError(null);
-                  setCameraOpen(true);
-                }}
-                disabled={busy}
+                onClick={() => void openCamera()}
+                disabled={busy || cameraStarting}
               >
-                Scan with camera
+                {cameraStarting ? 'Opening camera…' : 'Scan with camera'}
               </button>
             </form>
             {recent !== null && recent.length > 0 && (
@@ -631,8 +653,12 @@ export function Till({ token, staffEmail, membership, onSignOut }: TillProps) {
           )
         ) : cameraOpen ? (
           <ScanCamera
+            initialProblem={cameraInitialProblem}
             onRead={(text) => void handleCameraRead(text)}
-            onClose={() => setCameraOpen(false)}
+            onClose={() => {
+              setCameraOpen(false);
+              setCameraInitialProblem(null);
+            }}
           />
         ) : (
           <div className="customer">
