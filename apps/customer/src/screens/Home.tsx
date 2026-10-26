@@ -24,7 +24,7 @@ import {
   type Notification,
   type StoreSummary,
 } from '../lib/api';
-import { requestLocation } from '../lib/location';
+import { requestLocation, locationAvailability } from '../lib/location';
 import { expiryLabel, formatDate } from '../lib/format';
 import { colors, fonts, formatPoints, layout } from '../lib/theme';
 import { Card, SegmentBar, StoreAvatar } from '../components/ui';
@@ -88,6 +88,7 @@ export function Home({ token, me, onMeChanged, onSignOut }: HomeProps) {
   const [qrOpen, setQrOpen] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<MergedPlace | null>(null);
   const [locating, setLocating] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
 
   const load = useCallback(async (coords?: { lat?: number; lon?: number }) => {
     try {
@@ -143,8 +144,33 @@ export function Home({ token, me, onMeChanged, onSignOut }: HomeProps) {
 
   const enableLocation = async () => {
     setLocating(true);
+    setLocationError(null);
+
+    const availability = await locationAvailability();
+    if (availability === 'unsupported') {
+      setLocationError(
+        'Location is not available in this browser. Open OmaPointii in Safari or Chrome.',
+      );
+      setLocating(false);
+      return;
+    }
+    if (availability === 'denied') {
+      setLocationError(
+        'Location is blocked for this site. Allow it in your browser settings, then tap again.',
+      );
+      setLocating(false);
+      return;
+    }
+
     const coords = await requestLocation();
-    if (coords) await load(coords);
+    if (coords === null) {
+      setLocationError(
+        'We could not read your location. Turn on location services and try again.',
+      );
+      setLocating(false);
+      return;
+    }
+    await load(coords);
     setLocating(false);
   };
 
@@ -355,6 +381,7 @@ export function Home({ token, me, onMeChanged, onSignOut }: HomeProps) {
             onOpenPlace={setSelectedPlace}
             onEnableLocation={() => void enableLocation()}
             locating={locating}
+            locationError={locationError}
           />
         )}
         {tab === 'you' && (

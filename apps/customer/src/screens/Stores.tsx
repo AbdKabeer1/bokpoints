@@ -14,6 +14,7 @@ interface StoresProps {
   onOpenPlace: (place: MergedPlace) => void;
   onEnableLocation: () => void;
   locating: boolean;
+  locationError: string | null;
 }
 
 /** Nearby businesses: OmaPointii stores plus OpenStreetMap discovery. */
@@ -25,6 +26,7 @@ export function Stores({
   onOpenPlace,
   onEnableLocation,
   locating,
+  locationError,
 }: StoresProps) {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<string>('all');
@@ -160,6 +162,8 @@ export function Stores({
           </Text>
         </Pressable>
       )}
+
+      {locationError !== null && <Text style={styles.error}>{locationError}</Text>}
 
       {filtered.length > 0 && (
         <>
@@ -331,5 +335,13 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: colors.muted,
     marginTop: 8,
+  },
+  error: {
+    fontFamily: fonts.body,
+    fontSize: 11.5,
+    lineHeight: 17,
+    color: colors.danger,
+    marginTop: -4,
+    marginBottom: 10,
   },
 });
