@@ -1013,11 +1013,76 @@ export const directoryStoreSchema = z.object({
   /** True when this customer already has a link or a balance at the store. */
   visited: z.boolean(),
   balance: z.number().int(),
+  /** Completed earns at this store for this customer. */
+  visitCount: z.number().int(),
   distanceKm: z.number().min(0).nullable().optional(),
 });
 
 export const directoryResponseSchema = z.object({
   stores: z.array(directoryStoreSchema),
+});
+
+/* ── Customer app: unregistered nearby places (OpenStreetMap, D-169) ─────── */
+
+export const discoverQuerySchema = z.object({
+  lat: z.coerce.number().min(-90).max(90),
+  lon: z.coerce.number().min(-180).max(180),
+  radiusKm: z.coerce.number().min(1).max(20).default(10),
+});
+
+export const nearbyPlaceSchema = z.object({
+  osmId: z.string(),
+  name: z.string(),
+  category: z.string(),
+  address: z.string().nullable(),
+  distanceKm: z.number().min(0),
+  latitude: z.number(),
+  longitude: z.number(),
+  website: z.string().nullable(),
+  phone: z.string().nullable(),
+  openingHours: z.string().nullable(),
+});
+
+export const discoverResponseSchema = z.object({
+  places: z.array(nearbyPlaceSchema),
+  available: z.boolean(),
+  attribution: z.string(),
+});
+
+/* ── Owner portal: nearby business leads (D-170) ────────────────────────── */
+
+export const leadCreateRequestSchema = z.object({
+  osmId: z.string().trim().min(1).max(120),
+  name: z.string().trim().min(1).max(160),
+  category: z.string().trim().max(80).nullable(),
+  address: z.string().trim().max(240).nullable(),
+  website: z.string().trim().max(320).nullable(),
+  phone: z.string().trim().max(80).nullable(),
+  openingHours: z.string().trim().max(240).nullable(),
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+  distanceKm: z.number().min(0),
+});
+
+export const businessLeadSchema = z.object({
+  leadId: z.string().uuid(),
+  storeId: z.string().uuid(),
+  osmId: z.string(),
+  name: z.string(),
+  category: z.string().nullable(),
+  address: z.string().nullable(),
+  website: z.string().nullable(),
+  phone: z.string().nullable(),
+  openingHours: z.string().nullable(),
+  latitude: z.number().nullable(),
+  longitude: z.number().nullable(),
+  distanceKm: z.number().nullable(),
+  status: z.string(),
+  createdAt: z.string(),
+});
+
+export const leadsResponseSchema = z.object({
+  leads: z.array(businessLeadSchema),
 });
 
 /* ── Customer app: store offers (active basket discounts) ────────────────── */

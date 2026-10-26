@@ -1,23 +1,28 @@
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import Feather from '@expo/vector-icons/Feather';
-import type { DirectoryStore, StoreSummary } from '../lib/api';
+import type { DirectoryStore, NearbyPlace, StoreSummary } from '../lib/api';
+import { mergePlaces, type MergedPlace } from '../lib/nearby';
 import { colors, fonts, formatPoints } from '../lib/theme';
 import { Pill, StoreAvatar } from '../components/ui';
 
 interface StoresProps {
   directory: DirectoryStore[] | null;
+  nearby: NearbyPlace[];
+  attribution: string;
   visited: StoreSummary[];
-  onOpenStore: (store: StoreSummary) => void;
+  onOpenPlace: (place: MergedPlace) => void;
   onEnableLocation: () => void;
   locating: boolean;
 }
 
-/** Every active business on OmaPointii, with the customer's own state. */
+/** Nearby businesses: OmaPointii stores plus OpenStreetMap discovery. */
 export function Stores({
   directory,
+  nearby,
+  attribution,
   visited,
-  onOpenStore,
+  onOpenPlace,
   onEnableLocation,
   locating,
 }: StoresProps) {
@@ -29,58 +34,63 @@ export function Stores({
     [visited],
   );
 
+  const merged = useMemo(
+    () => mergePlaces(directory ?? [], nearby),
+    [directory, nearby],
+  );
+
   const categories = useMemo(() => {
     const seen = new Set<string>();
-    for (const store of directory ?? []) {
-      const value = store.category?.trim();
+    for (const place of merged) {
+      const value = place.category?.trim();
       if (value) seen.add(value);
     }
     return Array.from(seen).sort((a, b) => a.localeCompare(b));
-  }, [directory]);
+  }, [merged]);
 
-  const filtered = (directory ?? []).filter((store) => {
+  const filtered = merged.filter((place) => {
     const needle = query.trim().toLowerCase();
-    if (category !== 'all' && (store.category ?? '') !== category) return false;
+    if (category !== 'all' && (place.category ?? '') !== category) return false;
     if (needle === '') return true;
     return (
-      store.name.toLowerCase().includes(needle) ||
-      (store.address ?? '').toLowerCase().includes(needle) ||
-      (store.category ?? '').toLowerCase().includes(needle)
+      place.name.toLowerCase().includes(needle) ||
+      (place.address ?? '').toLowerCase().includes(needle) ||
+      (place.category ?? '').toLowerCase().includes(needle)
     );
   });
 
-  const mine = filtered.filter((store) => visitedById.has(store.storeId));
-  const others = filtered.filter((store) => !visitedById.has(store.storeId));
+  const renderPlace = (place: MergedPlace) => {
+    const summary =
+      place.storeId === null ? undefined : visitedById.get(place.storeId);
+    const hasDistance = typeof place.distanceKm === 'number';
 
-  const renderStore = (store: DirectoryStore) => {
-    const summary = visitedById.get(store.storeId);
-    const hasDistance = typeof store.distanceKm === 'number';
     return (
       <Pressable
-        key={store.storeId}
+        key={place.id}
         style={styles.row}
-        disabled={summary === undefined}
-        onPress={() => {
-          if (summary !== undefined) onOpenStore(summary);
-        }}
+        onPress={() => onOpenPlace(place)}
         accessibilityLabel={
-          summary === undefined ? store.name : `Open ${store.name}, ${summary.balance} points`
+          summary === undefined
+            ? `Details for ${place.name}`
+            : `Open ${place.name}, ${summary.balance} points`
         }
       >
         <StoreAvatar
-          name={store.name}
-          color={store.brandColor}
-          logoUrl={store.logoUrl}
+          name={place.name}
+          color={summary?.brandColor ?? null}
+          logoUrl={summary?.logoUrl ?? null}
           size={46}
         />
         <View style={{ flex: 1 }}>
-          <Text style={styles.name}>{store.name}</Text>
+          <Text style={styles.name}>{place.name}</Text>
           <Text style={styles.meta} numberOfLines={1}>
-            {[store.category, store.address ?? 'Helsinki'].filter(Boolean).join(' · ')}
-            {hasDistance ? ` · ${store.distanceKm} km` : ''}
+            {[place.category, place.address ?? 'Helsinki'].filter(Boolean).join(' · ')}
+            {hasDistance ? ` · ${place.distanceKm} km` : ''}
           </Text>
         </View>
-        {summary === undefined ? (
+        {!place.registered ? (
+          <Pill label="Not on OmaPointii" tone="grey" dot={false} />
+        ) : summary === undefined ? (
           <Pill label="New" tone="grey" dot={false} />
         ) : (
           <View style={styles.balanceBox}>
@@ -92,6 +102,8 @@ export function Stores({
     );
   };
 
+  const hasDistance = merged.some((place) => typeof place.distanceKm === 'number');
+
   return (
     <View>
       <View style={styles.head}>
@@ -99,7 +111,9 @@ export function Stores({
         <Text style={styles.sub}>
           {directory === null
             ? 'Loading…'
-            : `${directory.length} ${directory.length === 1 ? 'business' : 'businesses'} on OmaPointii`}
+            : hasDistance
+              ? `${merged.length} ${merged.length === 1 ? 'business' : 'businesses'} near you`
+              : `${merged.length} ${merged.length === 1 ? 'business' : 'businesses'} on OmaPointii`}
         </Text>
       </View>
 
@@ -108,7 +122,7 @@ export function Stores({
         <TextInput
           value={query}
           onChangeText={setQuery}
-          placeholder="Search stores"
+          placeholder="Search nearby businesses"
           placeholderTextColor={colors.muted}
           style={styles.searchInput}
           autoCapitalize="none"
@@ -138,7 +152,7 @@ export function Stores({
         </View>
       )}
 
-      {directory && directory.length > 0 && directory[0]?.distanceKm == null && (
+      {!hasDistance && (
         <Pressable style={styles.hintButton} onPress={onEnableLocation} disabled={locating}>
           <Feather name="map-pin" size={14} color={colors.text} />
           <Text style={styles.hintButtonText}>
@@ -147,31 +161,27 @@ export function Stores({
         </Pressable>
       )}
 
-      {mine.length > 0 && (
+      {filtered.length > 0 && (
         <>
-          <Text style={styles.section}>Your stores</Text>
-          {mine.map(renderStore)}
-        </>
-      )}
-
-      {others.length > 0 && (
-        <>
-          <Text style={styles.section}>{mine.length > 0 ? 'New to you' : 'All stores'}</Text>
-          {others.map(renderStore)}
+          <Text style={styles.section}>{hasDistance ? 'Nearby' : 'All businesses'}</Text>
+          {filtered.map(renderPlace)}
         </>
       )}
 
       {directory !== null && filtered.length === 0 && (
         <Text style={styles.empty}>
           {query.trim() === ''
-            ? 'No stores are open on OmaPointii yet.'
+            ? 'No businesses near you yet.'
             : `Nothing matches “${query.trim()}”.`}
         </Text>
       )}
 
+      {attribution !== '' && <Text style={styles.attribution}>{attribution}</Text>}
+
       <Text style={styles.fine}>
-        Visit any store and show your code at the till. Points stay with that store, and its
-        coupons appear under Coupons.
+        Visit any OmaPointii store and show your code at the till. Points stay with that store,
+        and its coupons appear under Coupons. Businesses marked “Not on OmaPointii” are nearby
+        places from OpenStreetMap.
       </Text>
     </View>
   );
@@ -315,5 +325,11 @@ const styles = StyleSheet.create({
   },
   chipTextActive: {
     color: colors.card,
+  },
+  attribution: {
+    fontFamily: fonts.body,
+    fontSize: 10,
+    color: colors.muted,
+    marginTop: 8,
   },
 });

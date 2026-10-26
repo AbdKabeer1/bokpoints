@@ -28,6 +28,7 @@ import { meRoutes } from './routes/me.js';
 import { staffRoutes } from './routes/staff.js';
 import { storeCustomerRoutes } from './routes/store-customers.js';
 import { storeRoutes } from './routes/stores.js';
+import type { discoverNearby } from './lib/overpass.js';
 
 export interface RateLimitOptions {
   max: number;
@@ -51,6 +52,8 @@ export interface BuildAppOptions {
   corsOrigins?: string[] | undefined;
   /** Overrides the Supabase-backed logo store (tests use a stub). */
   logoStore?: LogoStore | null | undefined;
+  /** Overrides the Overpass discovery client in tests. */
+  discover?: typeof discoverNearby | undefined;
   logger?: boolean;
   /** Overrides the per-route rate limits. Used by the tests to keep them small. */
   rateLimit?: RateLimitOptions | undefined;
@@ -199,6 +202,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       db: options.db,
       customerResolver: options.customerResolver,
       rateLimit: options.rateLimit,
+      discover: options.discover,
       otpVerifier: options.customerOtpVerifier ?? createEmailOtpVerifierFromEnv(),
       deleteAuthUser: options.deleteAuthUser ?? createAuthUserDeleterFromEnv(),
     });

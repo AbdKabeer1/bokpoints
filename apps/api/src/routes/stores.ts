@@ -38,6 +38,11 @@ import {
   storeLogoUpdateRequestSchema,
   storeProfileUpdateRequestSchema,
   storeReportsResponseSchema,
+  discoverQuerySchema,
+  discoverResponseSchema,
+  leadCreateRequestSchema,
+  businessLeadSchema,
+  leadsResponseSchema,
   discountProofVerifyRequestSchema,
   discountProofVerifyResponseSchema,
   idempotencyKeyHeaderSchema,
@@ -59,6 +64,7 @@ import {
   type LogoStore,
 } from '../db/logo-storage.js';
 import { geocodeAddress } from '../lib/geocode.js';
+import { discoverNearby, type NearbyPlace } from '../lib/overpass.js';
 import {
   getBalance,
   LedgerError,
@@ -71,6 +77,7 @@ import { checkDiscountProof } from '../db/discount-proof.js';
 import { discountFor, type DiscountKind } from '@bokpoints/shared';
 import {
   auditLogEntries,
+  businessLeads,
   credentials,
   customers,
   earningRules,
@@ -136,6 +143,23 @@ export const LEDGER_ERROR_STATUS = {
   PROOF_BELOW_THRESHOLD: 400,
 } as const satisfies Record<LedgerErrorCode, number>;
 
+const leadBody = (lead: typeof businessLeads.$inferSelect) => ({
+  leadId: lead.id,
+  storeId: lead.storeId,
+  osmId: lead.osmId,
+  name: lead.name,
+  category: lead.category,
+  address: lead.address,
+  website: lead.website,
+  phone: lead.phone,
+  openingHours: lead.openingHours,
+  latitude: lead.latitude,
+  longitude: lead.longitude,
+  distanceKm: lead.distanceKm,
+  status: lead.status,
+  createdAt: lead.createdAt.toISOString(),
+});
+
 /**
  * The three operations the Cashier screen needs, and that a future POS
  * integration will use through the same API (FR-API-1): identify a customer,
@@ -143,6 +167,8 @@ export const LEDGER_ERROR_STATUS = {
  */
 export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, options) => {
   const { db, sessionResolver, rateLimit, logoStore } = options;
+  const ownerDiscoverCache = new Map<string, { places: NearbyPlace[]; at: number }>();
+  const OWNER_DISCOVER_TTL_MS = 5 * 60 * 1000;
 
   /**
    * Resolve a credential to a customer. The cashier sees the first name and,
@@ -1131,6 +1157,167 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
       });
 
       return reply.send(updated);
+    },
+  );
+
+  /**
+   * Nearby businesses for an owner to invite (D-170). Same Overpass source as
+   * the customer app, with a five-minute cache.
+   */
+  app.get(
+    '/v1/stores/:storeId/discover',
+    {
+      config: { rateLimit: rateLimit ?? { max: 20, timeWindow: '1 minute' } },
+      schema: {
+        params: storeIdParamsSchema,
+        querystring: discoverQuerySchema,
+        response: {
+          200: discoverResponseSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+          404: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { storeId } = request.params;
+      const auth = await authorizeStoreRequest(db, sessionResolver, {
+        token: bearer(request.headers.authorization),
+        storeId,
+        anyOf: ['store.manage'],
+      });
+      if (!auth.ok) return reply.code(auth.status).send({ error: auth.error });
+
+      const query = request.query;
+      const key = `${storeId}:${query.lat.toFixed(3)},${query.lon.toFixed(3)},${query.radiusKm}`;
+      const cached = ownerDiscoverCache.get(key);
+      if (cached !== undefined && Date.now() - cached.at < OWNER_DISCOVER_TTL_MS) {
+        return reply.send({
+          places: cached.places,
+          available: cached.places.length > 0,
+          attribution: '© OpenStreetMap contributors',
+        });
+      }
+
+      const places = await discoverNearby({
+        lat: query.lat,
+        lon: query.lon,
+        radiusKm: query.radiusKm,
+      });
+      ownerDiscoverCache.set(key, { places, at: Date.now() });
+
+      return reply.send({
+        places,
+        available: places.length > 0,
+        attribution: '© OpenStreetMap contributors',
+      });
+    },
+  );
+
+  /** The owner's invited nearby businesses. */
+  app.get(
+    '/v1/stores/:storeId/leads',
+    {
+      config: { rateLimit: rateLimit ?? { max: 60, timeWindow: '1 minute' } },
+      schema: {
+        params: storeIdParamsSchema,
+        response: {
+          200: leadsResponseSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { storeId } = request.params;
+      const auth = await authorizeStoreRequest(db, sessionResolver, {
+        token: bearer(request.headers.authorization),
+        storeId,
+        anyOf: ['store.manage'],
+      });
+      if (!auth.ok) return reply.code(auth.status).send({ error: auth.error });
+
+      const rows = await db
+        .select()
+        .from(businessLeads)
+        .where(eq(businessLeads.storeId, storeId))
+        .orderBy(desc(businessLeads.createdAt))
+        .limit(100);
+
+      return reply.send({ leads: rows.map(leadBody) });
+    },
+  );
+
+  /** Invite one nearby business; the same place cannot be invited twice. */
+  app.post(
+    '/v1/stores/:storeId/leads',
+    {
+      config: { rateLimit: rateLimit ?? { max: 30, timeWindow: '1 minute' } },
+      schema: {
+        params: storeIdParamsSchema,
+        body: leadCreateRequestSchema,
+        response: {
+          200: businessLeadSchema,
+          201: businessLeadSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { storeId } = request.params;
+      const auth = await authorizeStoreRequest(db, sessionResolver, {
+        token: bearer(request.headers.authorization),
+        storeId,
+        anyOf: ['store.manage'],
+      });
+      if (!auth.ok) return reply.code(auth.status).send({ error: auth.error });
+
+      const body = request.body;
+      const inserted = await db
+        .insert(businessLeads)
+        .values({
+          storeId,
+          staffId: auth.staffUserId,
+          osmId: body.osmId,
+          name: body.name,
+          category: body.category,
+          address: body.address,
+          website: body.website,
+          phone: body.phone,
+          openingHours: body.openingHours,
+          latitude: body.latitude,
+          longitude: body.longitude,
+          distanceKm: body.distanceKm,
+        })
+        .onConflictDoNothing()
+        .returning();
+
+      const lead = inserted[0];
+      if (lead !== undefined) {
+        await db.insert(auditLogEntries).values({
+          actorId: auth.staffUserId,
+          action: 'store.lead',
+          storeId,
+          targetType: 'business_lead',
+          targetId: lead.id,
+          after: { name: lead.name, osmId: lead.osmId },
+        });
+        return reply.code(201).send(leadBody(lead));
+      }
+
+      const existing = await db
+        .select()
+        .from(businessLeads)
+        .where(and(eq(businessLeads.storeId, storeId), eq(businessLeads.osmId, body.osmId)))
+        .limit(1);
+      const found = existing[0];
+      if (found === undefined) {
+        return reply
+          .code(403)
+          .send({ error: { code: 'FORBIDDEN', message: 'Could not save the invite' } });
+      }
+      return reply.send(leadBody(found));
     },
   );
 

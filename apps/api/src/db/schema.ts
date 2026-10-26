@@ -746,3 +746,38 @@ export const campaignDeliveries = pgTable(
     index('campaign_deliveries_customer_idx').on(t.customerId, t.createdAt),
   ],
 ).enableRLS();
+
+/**
+ * A nearby business an owner wants OmaPointii to invite (D-170). The lead is
+ * store-scoped: the admin Support/outreach view can read it, and the unique
+ * (store, osm) pair stops the same place being invited twice by one store.
+ */
+export const businessLeads = pgTable(
+  'business_leads',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    storeId: uuid('store_id')
+      .notNull()
+      .references(() => stores.id, { onDelete: 'cascade' }),
+    staffId: uuid('staff_id')
+      .notNull()
+      .references(() => staffUsers.id),
+    osmId: text('osm_id').notNull(),
+    name: text('name').notNull(),
+    category: text('category'),
+    address: text('address'),
+    website: text('website'),
+    phone: text('phone'),
+    openingHours: text('opening_hours'),
+    latitude: doublePrecision('latitude'),
+    longitude: doublePrecision('longitude'),
+    distanceKm: doublePrecision('distance_km'),
+    status: text('status').notNull().default('invited'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('business_leads_store_osm_unique').on(t.storeId, t.osmId),
+    check('business_leads_status_check', sql`${t.status} in ('invited', 'contacted', 'joined', 'declined')`),
+    index('business_leads_store_idx').on(t.storeId, t.createdAt),
+  ],
+).enableRLS();

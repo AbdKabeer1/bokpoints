@@ -42,7 +42,28 @@ export interface DirectoryStore {
   logoUrl: string | null;
   visited: boolean;
   balance: number;
+  visitCount: number;
   distanceKm?: number | null;
+}
+
+/** A business discovered from OpenStreetMap that may not be on OmaPointii. */
+export interface NearbyPlace {
+  osmId: string;
+  name: string;
+  category: string;
+  address: string | null;
+  distanceKm: number;
+  latitude: number;
+  longitude: number;
+  website: string | null;
+  phone: string | null;
+  openingHours: string | null;
+}
+
+export interface NearbyResponse {
+  places: NearbyPlace[];
+  available: boolean;
+  attribution: string;
 }
 
 export interface StoreOffer {
@@ -145,6 +166,13 @@ export const getStores = (token: string) =>
 export const getDirectory = (token: string, lat?: number, lon?: number) =>
   request<{ stores: DirectoryStore[] }>(
     `/v1/customer/stores${lat != null && lon != null ? `?lat=${lat}&lon=${lon}` : ''}`,
+    token
+  );
+
+/** Named businesses near a point, including places not on OmaPointii. */
+export const getNearby = (token: string, lat: number, lon: number, radiusKm = 10) =>
+  request<NearbyResponse>(
+    `/v1/customer/discover?lat=${lat}&lon=${lon}&radiusKm=${radiusKm}`,
     token
   );
 

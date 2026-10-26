@@ -18,6 +18,8 @@
   bypass the HTTP cache, so the canonical URLs cannot retain the old camera UI.
 - **Nearby stores feature shipped.** Store coordinates stored on profile save via Nominatim geocoding; `/v1/customer/stores` accepts lat/lon and returns distance-sorted directory; customer app requests location on Stores tab, re-sorts on refresh, shows distance and hint when denied. D-167 recorded.
 - **Store categories shipped (D-168).** Owners set a category on the store profile; the directory returns it; the customer Stores tab has category chips (All, Cafe, Restaurant, Shop…). Migration 0020 applied to production.
+- **Overpass nearby discovery shipped (D-169).** `/v1/customer/discover` queries OpenStreetMap for nearby restaurants, cafés, shops, hotels and gyms; the customer app merges them with OmaPointii stores, sorts by distance, filters by category, and opens a detail sheet with contact details.
+- **Owner business invites shipped (D-170).** Owner portal has a Nearby businesses screen with location, contact details and Invite; leads are stored in `business_leads` (migration 0021 applied to production).
 
 - **Product readiness pass.** Global in-app notification preference (D-162),
   feedback from customer, owner and admin surfaces stored in one queue and read

@@ -13,12 +13,14 @@ import {
   ApiError,
   getDirectory,
   getExpiring,
+  getNearby,
   getNotifications,
   getStores,
   setStoreConsent,
   type DirectoryStore,
   type ExpiringItem,
   type Me,
+  type NearbyPlace,
   type Notification,
   type StoreSummary,
 } from '../lib/api';
@@ -27,6 +29,8 @@ import { expiryLabel, formatDate } from '../lib/format';
 import { colors, fonts, formatPoints, layout } from '../lib/theme';
 import { Card, SegmentBar, StoreAvatar } from '../components/ui';
 import { QrSheet } from '../components/QrSheet';
+import { PlaceSheet } from '../components/PlaceSheet';
+import type { MergedPlace } from '../lib/nearby';
 import { Coupons } from './Coupons';
 import { Offers } from './Offers';
 import { Inbox } from './Inbox';
@@ -72,6 +76,8 @@ export function Home({ token, me, onMeChanged, onSignOut }: HomeProps) {
   const [tab, setTab] = useState<Tab>('home');
   const [stores, setStores] = useState<StoreSummary[] | null>(null);
   const [directory, setDirectory] = useState<DirectoryStore[] | null>(null);
+  const [nearby, setNearby] = useState<NearbyPlace[]>([]);
+  const [attribution, setAttribution] = useState('');
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unread, setUnread] = useState(0);
   const [expiring, setExpiring] = useState<ExpiringItem[]>([]);
@@ -80,6 +86,7 @@ export function Home({ token, me, onMeChanged, onSignOut }: HomeProps) {
   const [openStore, setOpenStore] = useState<StoreSummary | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
+  const [selectedPlace, setSelectedPlace] = useState<MergedPlace | null>(null);
   const [locating, setLocating] = useState(false);
 
   const load = useCallback(async (coords?: { lat?: number; lon?: number }) => {
@@ -89,9 +96,27 @@ export function Home({ token, me, onMeChanged, onSignOut }: HomeProps) {
         getExpiring(token),
         getNotifications(token),
       ]);
+
+      const hasCoords = coords?.lat != null && coords?.lon != null;
       const all = await getDirectory(token, coords?.lat, coords?.lon);
+
+      let discovered: { places: NearbyPlace[]; attribution: string } = {
+        places: [],
+        attribution: '',
+      };
+      if (hasCoords) {
+        try {
+          const near = await getNearby(token, coords!.lat!, coords!.lon!);
+          discovered = { places: near.places, attribution: near.attribution };
+        } catch {
+          discovered = { places: [], attribution: '' };
+        }
+      }
+
       setStores(mine.stores);
       setDirectory(all.stores);
+      setNearby(discovered.places);
+      setAttribution(discovered.attribution);
       setExpiring(expiringList.items);
       setNotifications(inbox.notifications);
       setUnread(inbox.unread);
@@ -324,8 +349,10 @@ export function Home({ token, me, onMeChanged, onSignOut }: HomeProps) {
         {tab === 'stores' && (
           <Stores
             directory={directory}
+            nearby={nearby}
+            attribution={attribution}
             visited={stores ?? []}
-            onOpenStore={setOpenStore}
+            onOpenPlace={setSelectedPlace}
             onEnableLocation={() => void enableLocation()}
             locating={locating}
           />
@@ -389,6 +416,18 @@ export function Home({ token, me, onMeChanged, onSignOut }: HomeProps) {
           );
         })}
       </View>
+
+      <PlaceSheet
+        visible={selectedPlace !== null}
+        place={selectedPlace}
+        summary={
+          selectedPlace?.storeId != null
+            ? (stores ?? []).find((store) => store.storeId === selectedPlace.storeId)
+            : undefined
+        }
+        onClose={() => setSelectedPlace(null)}
+        onOpenStore={setOpenStore}
+      />
 
       <QrSheet
         visible={qrOpen}

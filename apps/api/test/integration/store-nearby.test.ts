@@ -158,3 +158,47 @@ describe('store nearby', () => {
     expect(storesList[0].distanceKm).toBeNull();
   });
 });
+
+describe('owner business leads', () => {
+  it('invites a nearby business once and lists it', async () => {
+    const storeId = randomUUID();
+    const staffId = randomUUID();
+    const email = 'owner-lead@test.dev';
+
+    await pool.query(
+      `INSERT INTO stores (id, name, status) VALUES ($1, $2, $3)`,
+      [storeId, 'Lead Store', 'active'],
+    );
+    await pool.query(
+      `INSERT INTO staff_users (id, email, name) VALUES ($1, $2, $3)`,
+      [staffId, email, 'Lead Owner'],
+    );
+    await pool.query(
+      `INSERT INTO store_members (id, store_id, user_id, role, status) VALUES ($1, $2, $3, $4, $5)`,
+      [randomUUID(), storeId, staffId, 'owner', 'active'],
+    );
+
+    const body = {
+      osmId: 'node/123',
+      name: 'Cafe Lead',
+      category: 'Cafe',
+      address: 'Testikatu 1',
+      website: 'https://example.test',
+      phone: '+358 40 123 4567',
+      openingHours: 'Mo-Fr 08:00-18:00',
+      latitude: 60.17,
+      longitude: 24.94,
+      distanceKm: 0.3,
+    };
+
+    const first = await inject('POST', `/v1/stores/${storeId}/leads`, email, body);
+    expect(first.statusCode).toBe(201);
+
+    const second = await inject('POST', `/v1/stores/${storeId}/leads`, email, body);
+    expect(second.statusCode).toBe(200);
+
+    const list = await inject('GET', `/v1/stores/${storeId}/leads`, email);
+    expect(list.statusCode).toBe(200);
+    expect((list.json() as { leads: unknown[] }).leads).toHaveLength(1);
+  });
+});

@@ -38,6 +38,7 @@ export type Tab =
   | 'customers'
   | 'profile'
   | 'branches'
+  | 'nearby'
   | 'people'
   | 'sign'
   | 'reports'
@@ -76,6 +77,7 @@ export const NAV: { label: string; items: NavItem[] }[] = [
     items: [
       { id: 'profile', label: 'Store profile', icon: Store },
       { id: 'branches', label: 'Branches', icon: MapPin },
+      { id: 'nearby', label: 'Nearby businesses', icon: MapPin },
       { id: 'people', label: 'People', icon: UserCog },
       { id: 'sign', label: 'Counter sign', icon: Printer },
     ],

@@ -19,6 +19,7 @@ import { DiscountScreen } from './screens/Discount';
 import { ReportsScreen } from './screens/Reports';
 import { BranchesScreen } from './screens/Branches';
 import { ProfileScreen } from './screens/Profile';
+import { NearbyScreen } from './screens/Nearby';
 import { CounterSignScreen } from './screens/CounterSign';
 import { SettingsScreen } from './screens/Settings';
 
@@ -191,6 +192,9 @@ export function App() {
           )}
           {tab === 'profile' && (
             <ProfileScreen token={phase.token} storeId={membership.storeId} />
+          )}
+          {tab === 'nearby' && (
+            <NearbyScreen token={phase.token} storeId={membership.storeId} />
           )}
           {tab === 'sign' && (
             <CounterSignScreen token={phase.token} storeId={membership.storeId} />

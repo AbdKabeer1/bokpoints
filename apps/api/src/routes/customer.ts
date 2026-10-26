@@ -18,6 +18,8 @@ import {
   discountProofIssueResponseSchema,
   directoryQuerySchema,
   directoryResponseSchema,
+  discoverQuerySchema,
+  discoverResponseSchema,
   notificationReadResponseSchema,
   storeConsentRequestSchema,
   storeConsentResponseSchema,
@@ -48,6 +50,7 @@ import type { CustomerProfile } from '../db/customers.js';
 import type { AuthUserDeleter, EmailOtpVerifier } from '../auth/supabase-admin.js';
 import { recordFeedback } from '../db/feedback.js';
 import { issueDiscountProof, proofExpiresAt } from '../db/discount-proof.js';
+import { discoverNearby, type NearbyPlace } from '../lib/overpass.js';
 import { discountRules } from '../db/schema.js';
 import { and, eq } from 'drizzle-orm';
 
@@ -55,6 +58,8 @@ export interface CustomerRouteOptions {
   db: Database;
   customerResolver?: CustomerSessionResolver | undefined;
   rateLimit?: { max: number; timeWindow: string } | undefined;
+  /** Overrides the Overpass client in tests. */
+  discover?: typeof discoverNearby | undefined;
   /** Verifies a fresh email one-time code before deletion (A5). */
   otpVerifier?: EmailOtpVerifier | undefined;
   /** Deletes the Supabase Auth user after the ledger-safe anonymisation. */
@@ -92,6 +97,10 @@ export const customerRoutes: FastifyPluginAsyncZod<CustomerRouteOptions> = async
   options,
 ) => {
   const { db, customerResolver, rateLimit } = options;
+  const discover = options.discover ?? discoverNearby;
+  const discoverCache = new Map<string, { places: NearbyPlace[]; at: number }>();
+  const DISCOVER_TTL_MS = 5 * 60 * 1000;
+  const ATTRIBUTION = '© OpenStreetMap contributors';
 
   const resolve = async (
     header: string | undefined,
@@ -398,7 +407,14 @@ export const customerRoutes: FastifyPluginAsyncZod<CustomerRouteOptions> = async
           s.latitude,
           s.longitude,
           (link.id IS NOT NULL) AS "visited",
-          coalesce(b.balance, 0)::int AS "balance"
+          coalesce(b.balance, 0)::int AS "balance",
+          (
+            SELECT count(*)::int
+            FROM points_ledger_entries ple
+            WHERE ple.customer_id = ${customer.id}
+              AND ple.store_id = s.id
+              AND ple.type = 'earn'
+          ) AS "visitCount"
         FROM stores s
         LEFT JOIN customer_store_links link
           ON link.store_id = s.id AND link.customer_id = ${customer.id}
@@ -437,6 +453,7 @@ export const customerRoutes: FastifyPluginAsyncZod<CustomerRouteOptions> = async
             logoUrl: row.logoUrl === null ? null : String(row.logoUrl),
             visited: Boolean(row.visited),
             balance: Number(row.balance ?? 0),
+            visitCount: Number(row.visitCount ?? 0),
             distanceKm,
           };
         })
@@ -451,6 +468,65 @@ export const customerRoutes: FastifyPluginAsyncZod<CustomerRouteOptions> = async
         });
 
       return reply.send({ stores: storesOut });
+    },
+  );
+
+  /**
+   * Every named business near a point, including places that are not on
+   * OmaPointii (D-169). Discovered with OpenStreetMap Overpass; cached for five
+   * minutes because Overpass is a shared public service.
+   */
+  app.get(
+    '/v1/customer/discover',
+    {
+      config: { rateLimit: rateLimit ?? { max: 20, timeWindow: '1 minute' } },
+      schema: {
+        querystring: discoverQuerySchema,
+        response: {
+          200: discoverResponseSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+          409: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const principal = await resolve(request.headers.authorization);
+      if (principal === null) {
+        return reply
+          .code(401)
+          .send({ error: { code: 'INVALID_TOKEN', message: 'That access token is not valid' } });
+      }
+      const customer = await provision(principal);
+      if (customer instanceof CustomerError) {
+        return reply
+          .code(customerErrorStatus(customer.code))
+          .send({ error: { code: customer.code, message: customer.message } });
+      }
+
+      const query = request.query;
+      const key = `${query.lat.toFixed(3)},${query.lon.toFixed(3)},${query.radiusKm}`;
+      const cached = discoverCache.get(key);
+      if (cached !== undefined && Date.now() - cached.at < DISCOVER_TTL_MS) {
+        return reply.send({
+          places: cached.places,
+          available: cached.places.length > 0,
+          attribution: ATTRIBUTION,
+        });
+      }
+
+      const places = await discover({
+        lat: query.lat,
+        lon: query.lon,
+        radiusKm: query.radiusKm,
+      });
+      discoverCache.set(key, { places, at: Date.now() });
+
+      return reply.send({
+        places,
+        available: places.length > 0,
+        attribution: ATTRIBUTION,
+      });
     },
   );
 

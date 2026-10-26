@@ -22,6 +22,10 @@ import {
   campaignCreateRequestSchema,
   campaignRowSchema,
   campaignsResponseSchema,
+  discoverResponseSchema,
+  businessLeadSchema,
+  leadCreateRequestSchema,
+  leadsResponseSchema,
   discountRuleResponseSchema,
   discountRuleRowSchema,
   discountRuleSetRequestSchema,
@@ -297,6 +301,50 @@ export const updateProfile = (
     path: `/v1/stores/${storeId}/profile`,
     token,
     body: storeProfileUpdateRequestSchema.parse(body),
+  });
+
+export const getNearbyBusinesses = (
+  token: string,
+  storeId: string,
+  lat: number,
+  lon: number,
+  radiusKm = 10,
+) =>
+  request(discoverResponseSchema, {
+    method: 'GET',
+    path: `/v1/stores/${storeId}/discover`,
+    token,
+    query: { lat: String(lat), lon: String(lon), radiusKm: String(radiusKm) },
+  });
+
+export const getLeads = (token: string, storeId: string) =>
+  request(leadsResponseSchema, {
+    method: 'GET',
+    path: `/v1/stores/${storeId}/leads`,
+    token,
+  });
+
+export const inviteLead = (
+  token: string,
+  storeId: string,
+  body: {
+    osmId: string;
+    name: string;
+    category: string | null;
+    address: string | null;
+    website: string | null;
+    phone: string | null;
+    openingHours: string | null;
+    latitude: number;
+    longitude: number;
+    distanceKm: number;
+  },
+) =>
+  request(businessLeadSchema, {
+    method: 'POST',
+    path: `/v1/stores/${storeId}/leads`,
+    token,
+    body: leadCreateRequestSchema.parse(body),
   });
 
 export const uploadLogo = (
