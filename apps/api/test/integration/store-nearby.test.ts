@@ -13,19 +13,24 @@ const DATABASE_URL =
 let pool: ReturnType<typeof createPool>;
 let db: Database;
 
-async function inject(method: string, url: string, token: string, body?: unknown) {
+async function inject(
+  method: 'GET' | 'POST' | 'PATCH',
+  url: string,
+  token: string,
+  body?: object,
+) {
   const app = await buildApp({ db, sessionResolver: createDevSessionResolver(db) });
   const res = await app.inject({
     method,
     url,
     headers: { authorization: `Bearer ${token}` },
-    payload: body,
+    ...(body === undefined ? {} : { payload: body }),
   });
   await app.close();
   return res;
 }
 
-async function injectCustomer(method: string, url: string, token: string) {
+async function injectCustomer(method: 'GET' | 'POST' | 'PATCH', url: string, token: string) {
   const app = await buildApp({ db, customerResolver: createDevCustomerResolver() });
   const res = await app.inject({
     method,

@@ -81,14 +81,13 @@ export function Home({ token, me, onMeChanged, onSignOut }: HomeProps) {
   const [showSettings, setShowSettings] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (coords?: { lat?: number; lon?: number }) => {
     try {
       const [mine, expiringList, inbox] = await Promise.all([
         getStores(token),
         getExpiring(token),
         getNotifications(token),
       ]);
-      const coords = await requestLocation();
       const all = await getDirectory(token, coords?.lat, coords?.lon);
       setStores(mine.stores);
       setDirectory(all.stores);
@@ -111,7 +110,8 @@ export function Home({ token, me, onMeChanged, onSignOut }: HomeProps) {
 
   const refresh = async () => {
     setRefreshing(true);
-    await load();
+    const coords = await requestLocation();
+    await load(coords ?? undefined);
     setRefreshing(false);
   };
 

@@ -30,10 +30,11 @@ export async function geocodeAddress(address: string): Promise<{ latitude: numbe
 
     if (!res.ok) return null;
     const data = (await res.json()) as Array<{ lat: string; lon: string }>;
-    if (!Array.isArray(data) || data.length === 0) return null;
+    const first = data[0];
+    if (!first) return null;
 
-    const lat = Number(data[0].lat);
-    const lon = Number(data[0].lon);
+    const lat = Number(first.lat);
+    const lon = Number(first.lon);
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
 
     return { latitude: lat, longitude: lon };
