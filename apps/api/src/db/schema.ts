@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import {
   boolean,
   check,
+  doublePrecision,
   foreignKey,
   index,
   integer,
@@ -85,6 +86,12 @@ export const stores = pgTable(
     name: text('name').notNull(),
     businessId: text('business_id'),
     address: text('address'),
+    /**
+     * Approximate point for nearby sorting (D-167). Filled when the owner's
+     * address is geocoded; null keeps the store listed without a distance.
+     */
+    latitude: doublePrecision('latitude'),
+    longitude: doublePrecision('longitude'),
     contactName: text('contact_name'),
     contactEmail: text('contact_email'),
     vatId: text('vat_id'),
