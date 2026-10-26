@@ -14,6 +14,8 @@
   opening/error state. `Take QR photo` uses the phone's native rear camera as
   a fallback and scans the captured image. Five unit tests cover permission,
   stream release, rear-camera selection, errors and the render-state priority.
+  The till app shell/service worker are `no-store`, and service-worker updates
+  bypass the HTTP cache, so the canonical URLs cannot retain the old camera UI.
 
 - **Product readiness pass.** Global in-app notification preference (D-162),
   feedback from customer, owner and admin surfaces stored in one queue and read

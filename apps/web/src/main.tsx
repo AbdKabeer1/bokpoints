@@ -22,6 +22,8 @@ createRoot(container).render(
 // step 8 and is deliberately not here: this screen always talks to the API.
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
-    void navigator.serviceWorker.register('/sw.js');
+    void navigator.serviceWorker
+      .register('/sw.js', { updateViaCache: 'none' })
+      .then((registration) => registration.update());
   });
 }
