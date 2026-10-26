@@ -192,24 +192,38 @@ interface GeoapifyFeature {
   };
 }
 
-const GEOAPIFY_CATEGORIES = [
-  'catering.restaurant',
-  'catering.cafe',
-  'catering.bar',
-  'catering.pub',
-  'catering.fast_food',
-  'catering.ice_cream',
-  'commercial.supermarket',
-  'commercial.food_and_drink.bakery',
-  'commercial.shopping_mall',
-  'healthcare.pharmacy',
-  'entertainment.cinema',
-  'entertainment.culture.theatre',
-  'accommodation.hotel',
-  'sport.fitness',
-  'service.beauty',
-  'commercial.health_and_beauty',
-].join(',');
+/**
+ * Geoapify caps one response and sorts it by distance, so in a dense city the
+ * food category can fill the whole page. Beauty and body care get their own
+ * query and their own slots, otherwise barbers and salons never surface.
+ */
+const GEOAPIFY_GROUPS = [
+  {
+    categories: [
+      'catering.restaurant',
+      'catering.cafe',
+      'catering.bar',
+      'catering.pub',
+      'catering.fast_food',
+      'catering.ice_cream',
+      'commercial.supermarket',
+      'commercial.food_and_drink.bakery',
+      'commercial.shopping_mall',
+      'healthcare.pharmacy',
+      'entertainment.cinema',
+      'entertainment.culture.theatre',
+      'accommodation.hotel',
+      'sport.fitness',
+    ].join(','),
+    limit: 120,
+    slots: 120,
+  },
+  {
+    categories: ['service.beauty', 'commercial.health_and_beauty'].join(','),
+    limit: 80,
+    slots: 50,
+  },
+] as const;
 
 /**
  * Geoapify's `address_line1` is the place name and `address_line2` is the
@@ -275,76 +289,87 @@ async function discoverGeoapify(
 ): Promise<NearbyPlace[]> {
   const radiusKm = Math.min(Math.max(input.radiusKm, 1), 20);
   const radiusM = Math.round(radiusKm * 1000);
+  const filter = `circle:${input.lon},${input.lat},${radiusM}`;
 
-  const url = new URL('https://api.geoapify.com/v2/places');
-  url.searchParams.set('categories', GEOAPIFY_CATEGORIES);
-  url.searchParams.set('filter', `circle:${input.lon},${input.lat},${radiusM}`);
-  url.searchParams.set('limit', '120');
-  url.searchParams.set('apiKey', apiKey);
+  const results = await Promise.all(
+    GEOAPIFY_GROUPS.map(async (group) => {
+      const url = new URL('https://api.geoapify.com/v2/places');
+      url.searchParams.set('categories', group.categories);
+      url.searchParams.set('filter', filter);
+      url.searchParams.set('limit', String(group.limit));
+      url.searchParams.set('apiKey', apiKey);
 
-  try {
-    const response = await fetchImpl(url.toString(), {
-      headers: { accept: 'application/json' },
-      signal: AbortSignal.timeout(8000),
+      try {
+        const response = await fetchImpl(url.toString(), {
+          headers: { accept: 'application/json' },
+          signal: AbortSignal.timeout(8000),
+        });
+        if (!response.ok) {
+          return {
+            places: [] as NearbyPlace[],
+            error: `HTTP ${response.status}: ${(await response.text()).slice(0, 300)}`,
+          };
+        }
+
+        const json = (await response.json()) as { features?: GeoapifyFeature[] };
+        const features = Array.isArray(json.features) ? json.features : [];
+        return { places: geoapifyPlaces(features, input), error: null };
+      } catch (error) {
+        return {
+          places: [] as NearbyPlace[],
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    }),
+  );
+
+  const errors = results
+    .map((result) => result.error)
+    .filter((error): error is string => error !== null);
+
+  // Each group contributes its own slots before the whole list is sorted, so a
+  // dense category cannot evict a sparse one.
+  const byId = new Map<string, NearbyPlace>();
+  results.forEach((result, index) => {
+    const slots = GEOAPIFY_GROUPS[index]?.slots ?? 0;
+    for (const place of result.places.slice(0, slots)) {
+      if (!byId.has(place.osmId)) byId.set(place.osmId, place);
+    }
+  });
+
+  const places = Array.from(byId.values()).sort((a, b) => a.distanceKm - b.distanceKm);
+  lastError = places.length === 0 ? (errors[0] ?? 'no nearby places returned') : (errors[0] ?? null);
+  return places;
+}
+
+function geoapifyPlaces(
+  features: GeoapifyFeature[],
+  input: { lat: number; lon: number },
+): NearbyPlace[] {
+  const places: NearbyPlace[] = [];
+  for (const feature of features) {
+    const props = feature.properties;
+    if (props === undefined) continue;
+    const name = props.name?.trim();
+    const lat = props.lat;
+    const lon = props.lon;
+    if (!name || typeof lat !== 'number' || typeof lon !== 'number') continue;
+
+    const category = geoapifyCategory(props.categories ?? []);
+    if (category === null) continue;
+
+    places.push({
+      osmId: props.place_id ?? `${lat},${lon}`,
+      name,
+      category,
+      address: geoapifyAddress(props),
+      distanceKm: Number(haversineKm(input.lat, input.lon, lat, lon).toFixed(1)),
+      latitude: lat,
+      longitude: lon,
+      website: props.website ?? null,
+      phone: props.phone ?? null,
+      openingHours: props.opening_hours ?? null,
     });
-    if (!response.ok) {
-      lastError = `HTTP ${response.status}: ${(await response.text()).slice(0, 300)}`;
-      return [];
-    }
-
-    const json = (await response.json()) as { features?: GeoapifyFeature[] };
-    const features = Array.isArray(json.features) ? json.features : [];
-    if (features.length === 0) {
-      lastError = `empty response: ${JSON.stringify(json).slice(0, 300)}`;
-      return [];
-    }
-
-    let skipped = 0;
-    const places: NearbyPlace[] = [];
-    for (const feature of features) {
-      const props = feature.properties;
-      if (props === undefined) {
-        skipped += 1;
-        continue;
-      }
-      const name = props.name?.trim();
-      const lat = props.lat;
-      const lon = props.lon;
-      if (!name || typeof lat !== 'number' || typeof lon !== 'number') {
-        skipped += 1;
-        continue;
-      }
-
-      const category = geoapifyCategory(props.categories ?? []);
-      if (category === null) {
-        skipped += 1;
-        continue;
-      }
-
-      places.push({
-        osmId: props.place_id ?? `${lat},${lon}`,
-        name,
-        category,
-        address: geoapifyAddress(props),
-        distanceKm: Number(haversineKm(input.lat, input.lon, lat, lon).toFixed(1)),
-        latitude: lat,
-        longitude: lon,
-        website: props.website ?? null,
-        phone: props.phone ?? null,
-        openingHours: props.opening_hours ?? null,
-      });
-    }
-
-    if (places.length === 0) {
-      const first = features[0]?.properties;
-      lastError = `features ${features.length}, skipped ${skipped}, categories ${JSON.stringify(first?.categories)}`;
-      return [];
-    }
-
-    lastError = null;
-    return places.sort((a, b) => a.distanceKm - b.distanceKm).slice(0, 120);
-  } catch (error) {
-    lastError = error instanceof Error ? error.message : String(error);
-    return [];
   }
+  return places.sort((a, b) => a.distanceKm - b.distanceKm);
 }
