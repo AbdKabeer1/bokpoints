@@ -2,7 +2,7 @@
 
 **Project:** BOKPOINTS, a B2B2C loyalty platform for SMEs in Finland / EU.
 **Phase:** MVP built; security hardening. P0 items A1–A6 are complete. The builder-side P1/P2 items A5, B1, B3, B5, C5, C6, C7, C9 and C11 are applied; B2/B9 are partly applied. **Next up:** the Sentry DSN value, C9 deep-link validation/privacy labels, B2 UI-brief merge, A5 retention, and the manual platform checks in C1–C4, C10, C12 and C13.
-**Last updated:** 25 Oct 2026, after the security hardening pass. 397 tests green; typecheck, lint and builds clean.
+**Last updated:** 27 Oct 2026, after nearby discovery went live on Geoapify. 108 unit tests green; full typecheck and lint clean.
 
 ## Done
 
@@ -18,7 +18,11 @@
   bypass the HTTP cache, so the canonical URLs cannot retain the old camera UI.
 - **Nearby stores feature shipped.** Store coordinates stored on profile save via Nominatim geocoding; `/v1/customer/stores` accepts lat/lon and returns distance-sorted directory; customer app requests location on Stores tab, re-sorts on refresh, shows distance and hint when denied. D-167 recorded.
 - **Store categories shipped (D-168).** Owners set a category on the store profile; the directory returns it; the customer Stores tab has category chips (All, Cafe, Restaurant, Shop…). Migration 0020 applied to production.
-- **Overpass nearby discovery shipped (D-169).** `/v1/customer/discover` queries OpenStreetMap for nearby restaurants, cafés, shops, hotels and gyms; the customer app merges them with OmaPointii stores, sorts by distance, filters by category, and opens a detail sheet with contact details.
+- **Overpass nearby discovery shipped (D-169), then replaced by Geoapify (D-171).** `/v1/customer/discover` queries nearby restaurants, cafés, shops, hotels and gyms; the customer app merges them with OmaPointii stores, sorts by distance, filters by category, and opens a detail sheet with contact details.
+  - **Live provider is Geoapify Places** (`GEOAPIFY_API_KEY` in Render). A 10 km central-Helsinki query returned **117 places in 2.4 s** on 27 Oct 2026. Overpass remains the local fallback when the key is absent; it timed out at 40–55 s and is never used in production.
+  - Geoapify returns the full category hierarchy, so matching now scans every category instead of only the first element. The discover response names its `provider` and exposes `providerError` for diagnostics.
+  - Cache is 5 minutes per rounded coordinate + radius; attribution "© OpenStreetMap contributors".
+- **Lint/type cleanup in the nearby code (27 Oct).** `apps/customer/test/unit/location.test.ts` uses typed geolocation stubs instead of `any` and restores `navigator.geolocation` after every test (the unavailable case deletes the property, matching the guard in `location.ts`). `apps/api/test/integration/store-nearby.test.ts` drops `any`, `@ts-ignore` and debug `console.log` calls; assertions now pass the response payload as the failure message. `npx eslint .` and `pnpm typecheck` pass across the monorepo.
 - **Owner business invites shipped (D-170).** Owner portal has a Nearby businesses screen with location, contact details and Invite; leads are stored in `business_leads` (migration 0021 applied to production).
 
 - **Product readiness pass.** Global in-app notification preference (D-162),

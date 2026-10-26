@@ -321,4 +321,5 @@ gh run watch
 | The code email never arrives, or has no 6-digit code | Supabase's built-in sender is rate-limited (wait a minute). The Magic Link template must contain `{{ .Token }}`; a link-only email gives the app nothing to type. |
 | The customer app says the API is not answering | `EXPO_PUBLIC_API_BASE` must reach the API. On a phone that is the Mac's LAN address, not `127.0.0.1`. |
 | The customer web app is blocked by CORS | Add `http://localhost:8081` to `CORS_ORIGINS` in `apps/api/.env` and restart the API. |
+| Nearby businesses are empty or take 40+ s | `GEOAPIFY_API_KEY` is missing from the API environment, so discovery falls back to Overpass (times out). Set the key in Render → poket-api → Environment and redeploy. `GET /v1/customer/discover` returns `provider` and `providerError` for diagnosis. |
 | The screen says the API is not answering | The API is not running on `127.0.0.1:3000`. `pnpm dev` starts both; check the API's own log first. |
