@@ -60,6 +60,8 @@ function categoryFor(tags: Record<string, string>): string | null {
 
   if (tags.tourism === 'hotel') return 'Hotel';
   if (tags.leisure === 'fitness_centre') return 'Gym';
+  if (tags.leisure === 'spa') return 'Spa';
+  if (tags.leisure === 'sauna') return 'Sauna';
 
   return null;
 }
@@ -108,7 +110,7 @@ export async function discoverNearby(
   nwr["name"]["amenity"~"^(restaurant|cafe|bar|pub|fast_food|pharmacy|bank|cinema|theatre|nightclub|ice_cream|dentist|doctors|veterinary|fuel)$"](around:${radiusM},${input.lat},${input.lon});
   nwr["name"]["shop"](around:${radiusM},${input.lat},${input.lon});
   nwr["name"]["tourism"="hotel"](around:${radiusM},${input.lat},${input.lon});
-  nwr["name"]["leisure"="fitness_centre"](around:${radiusM},${input.lat},${input.lon});
+  nwr["name"]["leisure"~"^(fitness_centre|spa|sauna)$"](around:${radiusM},${input.lat},${input.lon});
 );
 out center 120;`;
 
@@ -173,8 +175,15 @@ interface GeoapifyFeature {
     place_id?: string;
     name?: string;
     categories?: string[];
+    /** Geoapify puts the place name here, not the street. */
     address_line1?: string;
+    /** The street, postcode and city. */
     address_line2?: string;
+    formatted?: string;
+    street?: string;
+    housenumber?: string;
+    postcode?: string;
+    city?: string;
     website?: string;
     phone?: string;
     opening_hours?: string;
@@ -198,7 +207,35 @@ const GEOAPIFY_CATEGORIES = [
   'entertainment.culture.theatre',
   'accommodation.hotel',
   'sport.fitness',
+  'service.beauty',
+  'commercial.health_and_beauty',
 ].join(',');
+
+/**
+ * Geoapify's `address_line1` is the place name and `address_line2` is the
+ * street line. Prefer the street line; compose it when Geoapify omits it.
+ */
+function geoapifyAddress(props: NonNullable<GeoapifyFeature['properties']>): string | null {
+  const line2 = props.address_line2?.trim();
+  if (line2) return line2;
+
+  const street = [props.street, props.housenumber]
+    .map((part) => part?.trim())
+    .filter((part): part is string => part !== undefined && part !== '')
+    .join(' ');
+  const locality = [props.postcode, props.city]
+    .map((part) => part?.trim())
+    .filter((part): part is string => part !== undefined && part !== '')
+    .join(' ');
+  const composed = [street, locality].filter((part) => part !== '').join(', ');
+  if (composed !== '') return composed;
+
+  const formatted = props.formatted?.trim();
+  if (!formatted) return null;
+  const name = props.name?.trim();
+  if (name && formatted.startsWith(`${name}, `)) return formatted.slice(name.length + 2);
+  return formatted;
+}
 
 function geoapifyCategory(categories: string[]): string | null {
   // Geoapify returns every level of the category hierarchy, and the order is
@@ -220,6 +257,14 @@ function geoapifyCategory(categories: string[]): string | null {
   if (has('entertainment.culture.theatre')) return 'Theatre';
   if (has('accommodation.hotel')) return 'Hotel';
   if (has('sport.fitness')) return 'Gym';
+  if (has('service.beauty.hairdresser')) return 'Barber';
+  if (has('service.beauty.tanning_salon')) return 'Tanning';
+  if (has('service.beauty.tattoo')) return 'Tattoo';
+  if (has('service.beauty.spa')) return 'Spa';
+  if (has('service.beauty')) return 'Beauty';
+  if (has('commercial.health_and_beauty.cosmetics')) return 'Cosmetics';
+  if (has('commercial.health_and_beauty.pharmacy')) return 'Pharmacy';
+  if (has('commercial.health_and_beauty')) return 'Body care';
   return null;
 }
 
@@ -280,7 +325,7 @@ async function discoverGeoapify(
         osmId: props.place_id ?? `${lat},${lon}`,
         name,
         category,
-        address: props.address_line1 ?? props.address_line2 ?? null,
+        address: geoapifyAddress(props),
         distanceKm: Number(haversineKm(input.lat, input.lon, lat, lon).toFixed(1)),
         latitude: lat,
         longitude: lon,

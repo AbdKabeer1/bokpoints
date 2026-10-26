@@ -50,6 +50,47 @@ describe('discoverNearby', () => {
     expect(await discoverNearby({ lat: 60.17, lon: 24.94, radiusKm: 10 }, fakeFetch)).toEqual([]);
   });
 
+  it('uses Geoapify street line and maps beauty categories', async () => {
+    const previous = process.env.GEOAPIFY_API_KEY;
+    process.env.GEOAPIFY_API_KEY = 'test-key';
+    try {
+      const fakeFetch = (async () =>
+        ({
+          ok: true,
+          json: async () => ({
+            features: [
+              {
+                properties: {
+                  place_id: 'place-1',
+                  name: 'Salon Test',
+                  categories: ['service', 'service.beauty', 'service.beauty.hairdresser'],
+                  address_line1: 'Salon Test',
+                  address_line2: 'Testikatu 1, 00100 Helsinki, Finland',
+                  formatted: 'Salon Test, Testikatu 1, 00100 Helsinki, Finland',
+                  street: 'Testikatu',
+                  housenumber: '1',
+                  postcode: '00100',
+                  city: 'Helsinki',
+                  lat: 60.17,
+                  lon: 24.94,
+                },
+              },
+            ],
+          }),
+        }) as unknown as Response) as typeof fetch;
+
+      const places = await discoverNearby({ lat: 60.168, lon: 24.942, radiusKm: 10 }, fakeFetch);
+      expect(places[0]).toMatchObject({
+        name: 'Salon Test',
+        category: 'Barber',
+        address: 'Testikatu 1, 00100 Helsinki, Finland',
+      });
+    } finally {
+      if (previous === undefined) delete process.env.GEOAPIFY_API_KEY;
+      else process.env.GEOAPIFY_API_KEY = previous;
+    }
+  });
+
   it('maps shop tags to a readable category', async () => {
     const fakeFetch = (async () =>
       ({

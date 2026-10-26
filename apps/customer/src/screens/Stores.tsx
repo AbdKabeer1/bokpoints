@@ -79,15 +79,16 @@ export function Stores({
       >
         <StoreAvatar
           name={place.name}
-          color={summary?.brandColor ?? null}
-          logoUrl={summary?.logoUrl ?? null}
+          color={place.brandColor ?? summary?.brandColor ?? null}
+          logoUrl={place.logoUrl ?? summary?.logoUrl ?? null}
           size={46}
         />
         <View style={{ flex: 1 }}>
           <Text style={styles.name}>{place.name}</Text>
           <Text style={styles.meta} numberOfLines={1}>
-            {[place.category, place.address ?? 'Helsinki'].filter(Boolean).join(' · ')}
-            {hasDistance ? ` · ${place.distanceKm} km` : ''}
+            {[place.category, place.address, hasDistance ? `${place.distanceKm} km` : null]
+              .filter(Boolean)
+              .join(' · ')}
           </Text>
         </View>
         {!place.registered ? (

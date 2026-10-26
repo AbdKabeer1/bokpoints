@@ -9,6 +9,9 @@ export interface MergedPlace {
   registered: boolean;
   storeId: string | null;
   visitCount: number;
+  /** The owner's uploaded logo and brand colour; null for OSM-only places. */
+  logoUrl: string | null;
+  brandColor: string | null;
   website: string | null;
   phone: string | null;
   openingHours: string | null;
@@ -38,6 +41,8 @@ export function mergePlaces(
       registered: true,
       storeId: store.storeId,
       visitCount: store.visitCount,
+      logoUrl: store.logoUrl,
+      brandColor: store.brandColor,
       website: null,
       phone: null,
       openingHours: null,
@@ -66,6 +71,8 @@ export function mergePlaces(
       registered: false,
       storeId: null,
       visitCount: 0,
+      logoUrl: null,
+      brandColor: null,
       website: place.website,
       phone: place.phone,
       openingHours: place.openingHours,

@@ -36,6 +36,20 @@ describe('mergePlaces', () => {
     expect(merged[0]?.storeId).toBe('s1');
   });
 
+  it('carries the registered store logo and colour into the merged row', () => {
+    const withLogo = {
+      ...store,
+      logoUrl: 'https://example.test/logo.png',
+      brandColor: '#112233',
+    };
+    const merged = mergePlaces([withLogo], []);
+    expect(merged[0]).toMatchObject({
+      name: 'Cafe Test',
+      logoUrl: 'https://example.test/logo.png',
+      brandColor: '#112233',
+    });
+  });
+
   it('sorts by distance and keeps unregistered places', () => {
     const merged = mergePlaces(
       [store],

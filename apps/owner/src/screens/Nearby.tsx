@@ -173,7 +173,7 @@ export function NearbyScreen({ token, storeId }: { token: string; storeId: strin
                   >
                     <strong style={{ display: 'block' }}>{place.name}</strong>
                     <span className="muted" style={{ fontSize: 12 }}>
-                      {[place.category, place.address ?? 'Helsinki', `${place.distanceKm} km`]
+                      {[place.category, place.address, `${place.distanceKm} km`]
                         .filter(Boolean)
                         .join(' · ')}
                     </span>
