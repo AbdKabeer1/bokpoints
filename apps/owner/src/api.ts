@@ -286,6 +286,7 @@ export const updateProfile = (
   body: {
     name?: string;
     address?: string | null;
+    category?: string | null;
     contactName?: string | null;
     contactEmail?: string | null;
     brandColor?: string | null;

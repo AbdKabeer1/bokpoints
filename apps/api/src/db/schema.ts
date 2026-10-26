@@ -86,6 +86,8 @@ export const stores = pgTable(
     name: text('name').notNull(),
     businessId: text('business_id'),
     address: text('address'),
+    /** Business niche (D-168): restaurant, cafe, shop, etc. */
+    category: text('category'),
     /**
      * Approximate point for nearby sorting (D-167). Filled when the owner's
      * address is geocoded; null keeps the store listed without a distance.

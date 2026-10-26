@@ -37,6 +37,7 @@ export interface DirectoryStore {
   storeId: string;
   name: string;
   address: string | null;
+  category?: string | null;
   brandColor: string | null;
   logoUrl: string | null;
   visited: boolean;

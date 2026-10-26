@@ -14,6 +14,7 @@ export function ProfileScreen({ token, storeId }: { token: string; storeId: stri
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
+  const [category, setCategory] = useState('');
   const [contactName, setContactName] = useState('');
   const [contactEmail, setContactEmail] = useState('');
   const [brandColor, setBrandColor] = useState('#0b7a4b');
@@ -29,6 +30,7 @@ export function ProfileScreen({ token, storeId }: { token: string; storeId: stri
       setProfile(got);
       setName(got.name);
       setAddress(got.address ?? '');
+      setCategory(got.category ?? '');
       setContactName(got.contactName ?? '');
       setContactEmail(got.contactEmail ?? '');
       setBrandColor(got.brandColor ?? '#0b7a4b');
@@ -97,6 +99,7 @@ export function ProfileScreen({ token, storeId }: { token: string; storeId: stri
       const saved = await updateProfile(token, storeId, {
         name: name.trim(),
         address: address.trim() === '' ? null : address.trim(),
+        category: category.trim() === '' ? null : category.trim(),
         contactName: contactName.trim() === '' ? null : contactName.trim(),
         contactEmail: contactEmail.trim() === '' ? null : contactEmail.trim(),
         brandColor,
@@ -203,6 +206,15 @@ export function ProfileScreen({ token, storeId }: { token: string; storeId: stri
               value={address}
               onChange={(event) => setAddress(event.target.value)}
               placeholder="Mannerheimintie 1, Helsinki"
+              disabled={busy}
+            />
+
+            <label htmlFor="profile-category">Category</label>
+            <input
+              id="profile-category"
+              value={category}
+              onChange={(event) => setCategory(event.target.value)}
+              placeholder="Restaurant, cafe, shop…"
               disabled={busy}
             />
 

@@ -22,18 +22,30 @@ export function Stores({
   locating,
 }: StoresProps) {
   const [query, setQuery] = useState('');
+  const [category, setCategory] = useState<string>('all');
 
   const visitedById = useMemo(
     () => new Map(visited.map((store) => [store.storeId, store])),
     [visited],
   );
 
+  const categories = useMemo(() => {
+    const seen = new Set<string>();
+    for (const store of directory ?? []) {
+      const value = store.category?.trim();
+      if (value) seen.add(value);
+    }
+    return Array.from(seen).sort((a, b) => a.localeCompare(b));
+  }, [directory]);
+
   const filtered = (directory ?? []).filter((store) => {
     const needle = query.trim().toLowerCase();
+    if (category !== 'all' && (store.category ?? '') !== category) return false;
     if (needle === '') return true;
     return (
       store.name.toLowerCase().includes(needle) ||
-      (store.address ?? '').toLowerCase().includes(needle)
+      (store.address ?? '').toLowerCase().includes(needle) ||
+      (store.category ?? '').toLowerCase().includes(needle)
     );
   });
 
@@ -64,7 +76,7 @@ export function Stores({
         <View style={{ flex: 1 }}>
           <Text style={styles.name}>{store.name}</Text>
           <Text style={styles.meta} numberOfLines={1}>
-            {store.address ?? 'Helsinki'}
+            {[store.category, store.address ?? 'Helsinki'].filter(Boolean).join(' · ')}
             {hasDistance ? ` · ${store.distanceKm} km` : ''}
           </Text>
         </View>
@@ -103,6 +115,28 @@ export function Stores({
           returnKeyType="search"
         />
       </View>
+
+      {categories.length > 0 && (
+        <View style={styles.chips}>
+          <Pressable
+            style={[styles.chip, category === 'all' && styles.chipActive]}
+            onPress={() => setCategory('all')}
+          >
+            <Text style={[styles.chipText, category === 'all' && styles.chipTextActive]}>All</Text>
+          </Pressable>
+          {categories.map((value) => (
+            <Pressable
+              key={value}
+              style={[styles.chip, category === value && styles.chipActive]}
+              onPress={() => setCategory(value)}
+            >
+              <Text style={[styles.chipText, category === value && styles.chipTextActive]}>
+                {value}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
 
       {directory && directory.length > 0 && directory[0]?.distanceKm == null && (
         <Pressable style={styles.hintButton} onPress={onEnableLocation} disabled={locating}>
@@ -255,5 +289,31 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodyMedium,
     fontSize: 12,
     color: colors.text,
+  },
+  chips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 14,
+  },
+  chip: {
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.card,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  chipActive: {
+    backgroundColor: colors.text,
+    borderColor: colors.text,
+  },
+  chipText: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 11.5,
+    color: colors.text,
+  },
+  chipTextActive: {
+    color: colors.card,
   },
 });

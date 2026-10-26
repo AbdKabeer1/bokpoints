@@ -17,6 +17,7 @@
   The till app shell/service worker are `no-store`, and service-worker updates
   bypass the HTTP cache, so the canonical URLs cannot retain the old camera UI.
 - **Nearby stores feature shipped.** Store coordinates stored on profile save via Nominatim geocoding; `/v1/customer/stores` accepts lat/lon and returns distance-sorted directory; customer app requests location on Stores tab, re-sorts on refresh, shows distance and hint when denied. D-167 recorded.
+- **Store categories shipped (D-168).** Owners set a category on the store profile; the directory returns it; the customer Stores tab has category chips (All, Cafe, Restaurant, Shop…). Migration 0020 applied to production.
 
 - **Product readiness pass.** Global in-app notification preference (D-162),
   feedback from customer, owner and admin surfaces stored in one queue and read

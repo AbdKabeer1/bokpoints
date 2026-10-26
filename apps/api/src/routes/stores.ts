@@ -1006,6 +1006,7 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
         .select({
           name: stores.name,
           address: stores.address,
+          category: stores.category,
           contactName: stores.contactName,
           contactEmail: stores.contactEmail,
           brandColor: stores.brandColor,
@@ -1067,6 +1068,7 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
         .set({
           ...(body.name === undefined ? {} : { name: body.name }),
           ...(body.address === undefined ? {} : { address: body.address ?? null }),
+          ...(body.category === undefined ? {} : { category: body.category ?? null }),
           ...(body.contactName === undefined ? {} : { contactName: body.contactName ?? null }),
           ...(body.contactEmail === undefined ? {} : { contactEmail: body.contactEmail ?? null }),
           ...(body.brandColor === undefined ? {} : { brandColor: body.brandColor ?? null }),
@@ -1075,6 +1077,7 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
         .returning({
           name: stores.name,
           address: stores.address,
+          category: stores.category,
           contactName: stores.contactName,
           contactEmail: stores.contactEmail,
           brandColor: stores.brandColor,
@@ -1083,6 +1086,7 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
       const updated = updatedRows[0] ?? {
         name: before.name,
         address: before.address,
+        category: before.category,
         contactName: before.contactName,
         contactEmail: before.contactEmail,
         brandColor: before.brandColor,
@@ -1118,6 +1122,7 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
         before: {
           name: before.name,
           address: before.address,
+          category: before.category,
           contactName: before.contactName,
           contactEmail: before.contactEmail,
           brandColor: before.brandColor,
@@ -1210,6 +1215,7 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
         .returning({
           name: stores.name,
           address: stores.address,
+          category: stores.category,
           contactName: stores.contactName,
           contactEmail: stores.contactEmail,
           brandColor: stores.brandColor,
@@ -1285,6 +1291,7 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
         .returning({
           name: stores.name,
           address: stores.address,
+          category: stores.category,
           contactName: stores.contactName,
           contactEmail: stores.contactEmail,
           brandColor: stores.brandColor,

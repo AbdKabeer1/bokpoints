@@ -256,6 +256,8 @@ const hexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'A colour looks like #0b7
 export const storeProfileResponseSchema = z.object({
   name: z.string(),
   address: z.string().nullable(),
+  /** Business niche (D-168), e.g. restaurant, cafe, shop. */
+  category: z.string().nullable(),
   contactName: z.string().nullable(),
   contactEmail: z.string().nullable(),
   brandColor: z.string().nullable(),
@@ -275,6 +277,7 @@ export const storeProfileUpdateRequestSchema = z
   .object({
     name: z.string().trim().min(1).max(120).optional(),
     address: z.string().trim().max(200).nullish(),
+    category: z.string().trim().max(60).nullish(),
     contactName: z.string().trim().max(120).nullish(),
     contactEmail: z.string().trim().max(200).nullish(),
     brandColor: hexColor.nullish(),
@@ -1004,6 +1007,7 @@ export const directoryStoreSchema = z.object({
   storeId: z.string().uuid(),
   name: z.string(),
   address: z.string().nullable(),
+  category: z.string().nullable(),
   brandColor: z.string().nullable(),
   logoUrl: z.string().nullable(),
   /** True when this customer already has a link or a balance at the store. */
