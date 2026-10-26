@@ -26,14 +26,18 @@ const relative = (iso: string): string => {
 /** Offers are the messages stores send inside OmaPointii — never email or SMS. */
 export function Inbox({ token, notifications, enabled, onChanged }: InboxProps) {
   const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const unread = notifications.filter((message) => message.readAt === null).length;
 
   const open = async (message: Notification) => {
     if (message.readAt !== null || busy !== null) return;
     setBusy(message.id);
+    setError(null);
     try {
       await markNotificationRead(token, message.id);
       await onChanged();
+    } catch {
+      setError('We could not open that message. Check your connection and try again.');
     } finally {
       setBusy(null);
     }
@@ -53,6 +57,8 @@ export function Inbox({ token, notifications, enabled, onChanged }: InboxProps) 
                 : `${unread} unread message${unread === 1 ? '' : 's'}`}
         </Text>
       </View>
+
+      {error !== null && <Text style={styles.error}>{error}</Text>}
 
       {!enabled ? (
         <Card>
@@ -184,6 +190,12 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: colors.muted,
     marginTop: 5,
+  },
+  error: {
+    fontFamily: fonts.bodyMedium,
+    color: colors.terracottaInk,
+    fontSize: 12.5,
+    marginBottom: 12,
   },
   fine: {
     fontFamily: fonts.body,
