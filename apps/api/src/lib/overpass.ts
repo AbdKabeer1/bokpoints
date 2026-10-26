@@ -219,9 +219,16 @@ const GEOAPIFY_GROUPS = [
     slots: 120,
   },
   {
+    // Hairdressers/barbers are their own query: beauty salons are denser and
+    // would otherwise fill the beauty page before a single barber appears.
+    categories: 'service.beauty.hairdresser',
+    limit: 60,
+    slots: 40,
+  },
+  {
     categories: ['service.beauty', 'commercial.health_and_beauty'].join(','),
     limit: 80,
-    slots: 50,
+    slots: 40,
   },
 ] as const;
 
@@ -274,7 +281,9 @@ function geoapifyCategory(categories: string[]): string | null {
   if (has('service.beauty.hairdresser')) return 'Barber';
   if (has('service.beauty.tanning_salon')) return 'Tanning';
   if (has('service.beauty.tattoo')) return 'Tattoo';
-  if (has('service.beauty.spa')) return 'Spa';
+  // Geoapify files plain shop=beauty salons under its spa category, so "Spa"
+  // would mislabel most nail and beauty salons in the list.
+  if (has('service.beauty.spa')) return 'Beauty';
   if (has('service.beauty')) return 'Beauty';
   if (has('commercial.health_and_beauty.cosmetics')) return 'Cosmetics';
   if (has('commercial.health_and_beauty.pharmacy')) return 'Pharmacy';
