@@ -13,6 +13,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import Feather from '@expo/vector-icons/Feather';
 import { sendEmailCode, verifyEmailCode } from '../lib/session';
 import { colors, fonts, layout } from '../lib/theme';
 import { normalizeCode } from '../lib/format';
@@ -27,9 +28,9 @@ const BENEFITS = [
  * Email one-time code, in two steps: address, then the code from the
  * inbox (FR-AUTH-1). No password, no second factor for customers.
  *
- * The layout is one white page with a green action: the wordmark, a plain
- * promise, the three things the app does, then the email field. It is built
- * for a phone first and centred on a web page.
+ * The page carries the same palette as the signed-in app: the cool canvas,
+ * a violet points card, white surfaces, mint for what the customer gains, and
+ * one violet action. It is built for a phone first and centred on a web page.
  */
 export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
   const [step, setStep] = useState<'email' | 'code'>('email');
@@ -41,7 +42,7 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
   const [focused, setFocused] = useState<'email' | 'code' | null>(null);
 
   const enter = useRef(new Animated.Value(0)).current;
-  // One value per benefit: each green tick pops in after the page settles, so
+  // One value per benefit: each mint check pops in after the page settles, so
   // the three reasons land one after the other instead of all at once.
   const ticks = useRef(BENEFITS.map(() => new Animated.Value(0))).current;
 
@@ -156,159 +157,168 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
             <View style={styles.mark}>
               <Text style={styles.markText}>O</Text>
             </View>
-            <Text style={styles.wordmark}>OmaPointii</Text>
+            <View style={styles.wordmarkRow}>
+              <Text style={styles.wordmark}>OmaPointii</Text>
+              <View style={styles.brandDot} />
+            </View>
           </View>
 
-          {step === 'email' ? (
-            <>
-              <Text style={styles.headline} accessibilityRole="header">
-                Every visit counts.
-              </Text>
-              <Text style={styles.lede}>
-                Collect points at the shops you love, keep them in one place, and use them
-                where you earned them.
-              </Text>
-
-              <View style={styles.benefits}>
-                {ticks.map((tick, index) => (
-                  <View key={BENEFITS[index] ?? index} style={styles.benefitRow}>
-                    <Animated.View
-                      style={[styles.tick, { opacity: tick, transform: [{ scale: tick }] }]}
-                    >
-                      <Text style={styles.tickText}>✓</Text>
-                    </Animated.View>
-                    <Text style={styles.benefitText}>{BENEFITS[index] ?? ''}</Text>
-                  </View>
-                ))}
-              </View>
-
-              <Text style={styles.label}>Email</Text>
-              <TextInput
-                style={[styles.input, focused === 'email' && styles.inputFocused]}
-                value={email}
-                onChangeText={setEmail}
-                onFocus={() => setFocused('email')}
-                onBlur={() => setFocused(null)}
-                autoCapitalize="none"
-                autoComplete="email"
-                keyboardType="email-address"
-                placeholder="you@example.com"
-                placeholderTextColor={colors.muted}
-                editable={!busy}
-                accessibilityLabel="Email address"
-                returnKeyType="send"
-                onSubmitEditing={() => {
-                  if (!buttonDisabled) void send();
-                }}
-              />
-
-              {error !== null && (
-                <View style={styles.errorBox}>
-                  <Text style={styles.errorText}>{error}</Text>
-                </View>
+          <View style={styles.hero}>
+            <Text style={styles.headline} accessibilityRole="header">
+              {step === 'email' ? 'Every visit counts.' : 'Check your inbox'}
+            </Text>
+            <Text style={styles.lede}>
+              {step === 'email' ? (
+                'Collect points at the shops you love, keep them in one place, and use them where you earned them.'
+              ) : (
+                <>
+                  We sent a one-time code to{' '}
+                  <Text style={styles.emailStrong}>{email.trim().toLowerCase()}</Text>. It can
+                  take a minute to arrive.
+                </>
               )}
+            </Text>
+          </View>
 
-              <Pressable
-                accessibilityRole="button"
-                style={({ pressed }) => [
-                  styles.button,
-                  buttonDisabled && styles.buttonDisabled,
-                  pressed && !buttonDisabled && styles.buttonPressed,
-                ]}
-                onPress={() => void send()}
-                disabled={buttonDisabled}
-              >
-                {busy ? (
-                  <ActivityIndicator color={colors.onEspresso} />
-                ) : (
-                  <Text style={styles.buttonText}>Continue with email</Text>
-                )}
-              </Pressable>
-
-              <Text style={styles.fineprint}>
-                We email you a one-time code. No password to remember, and no app store
-                needed.
-              </Text>
-            </>
-          ) : (
-            <>
-              <Text style={styles.headline} accessibilityRole="header">
-                Check your inbox
-              </Text>
-              <Text style={styles.lede}>
-                We sent a one-time code to{' '}
-                <Text style={styles.emailStrong}>{email.trim().toLowerCase()}</Text>. It can
-                take a minute to arrive.
-              </Text>
-
-              <Text style={styles.label}>Your code</Text>
-              <TextInput
-                style={[styles.input, styles.codeInput, focused === 'code' && styles.inputFocused]}
-                value={code}
-                onChangeText={(value) => setCode(normalizeCode(value))}
-                onFocus={() => setFocused('code')}
-                onBlur={() => setFocused(null)}
-                keyboardType="number-pad"
-                autoComplete="one-time-code"
-                maxLength={10}
-                placeholder=""
-                placeholderTextColor={colors.muted}
-                editable={!busy}
-                accessibilityLabel="Code from the email"
-                returnKeyType="done"
-                onSubmitEditing={() => {
-                  if (!buttonDisabled) void verify();
-                }}
-              />
-
-              {error !== null && (
-                <View style={styles.errorBox}>
-                  <Text style={styles.errorText}>{error}</Text>
+          <View style={styles.formCard}>
+            {step === 'email' ? (
+              <>
+                <View style={styles.benefits}>
+                  {ticks.map((tick, index) => (
+                    <View key={BENEFITS[index] ?? index} style={styles.benefitRow}>
+                      <Animated.View
+                        style={[styles.tick, { opacity: tick, transform: [{ scale: tick }] }]}
+                      >
+                        <Feather name="check" size={13} color={colors.greenDark} />
+                      </Animated.View>
+                      <Text style={styles.benefitText}>{BENEFITS[index] ?? ''}</Text>
+                    </View>
+                  ))}
                 </View>
-              )}
 
-              <Pressable
-                accessibilityRole="button"
-                style={({ pressed }) => [
-                  styles.button,
-                  buttonDisabled && styles.buttonDisabled,
-                  pressed && !buttonDisabled && styles.buttonPressed,
-                ]}
-                onPress={() => void verify()}
-                disabled={buttonDisabled}
-              >
-                {busy ? (
-                  <ActivityIndicator color={colors.onEspresso} />
-                ) : (
-                  <Text style={styles.buttonText}>Sign in</Text>
-                )}
-              </Pressable>
-
-              <View style={styles.links}>
-                <Pressable
-                  onPress={() => void send()}
-                  disabled={busy || cooldown > 0}
-                  accessibilityRole="button"
-                >
-                  <Text style={[styles.link, (busy || cooldown > 0) && styles.linkMuted]}>
-                    {cooldown > 0 ? `Send a new code in ${cooldown}s` : 'Send a new code'}
-                  </Text>
-                </Pressable>
-
-                <Pressable
-                  onPress={() => {
-                    setStep('email');
-                    setCode('');
-                    setError(null);
+                <Text style={styles.label}>Email</Text>
+                <TextInput
+                  style={[styles.input, focused === 'email' && styles.inputFocused]}
+                  value={email}
+                  onChangeText={setEmail}
+                  onFocus={() => setFocused('email')}
+                  onBlur={() => setFocused(null)}
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  keyboardType="email-address"
+                  placeholder="you@example.com"
+                  placeholderTextColor={colors.muted}
+                  editable={!busy}
+                  accessibilityLabel="Email address"
+                  returnKeyType="send"
+                  onSubmitEditing={() => {
+                    if (!buttonDisabled) void send();
                   }}
-                  disabled={busy}
+                />
+
+                {error !== null && (
+                  <View style={styles.errorBox}>
+                    <Text style={styles.errorText}>{error}</Text>
+                  </View>
+                )}
+
+                <Pressable
                   accessibilityRole="button"
+                  style={({ pressed }) => [
+                    styles.button,
+                    buttonDisabled && styles.buttonDisabled,
+                    pressed && !buttonDisabled && styles.buttonPressed,
+                  ]}
+                  onPress={() => void send()}
+                  disabled={buttonDisabled}
                 >
-                  <Text style={styles.link}>Use a different email</Text>
+                  {busy ? (
+                    <ActivityIndicator color={colors.onPrimary} />
+                  ) : (
+                    <Text style={styles.buttonText}>Continue with email</Text>
+                  )}
                 </Pressable>
-              </View>
-            </>
-          )}
+
+                <Text style={styles.fineprint}>
+                  We email you a one-time code. No password to remember, and no app store
+                  needed.
+                </Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.label}>Your code</Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    styles.codeInput,
+                    focused === 'code' && styles.inputFocused,
+                  ]}
+                  value={code}
+                  onChangeText={(value) => setCode(normalizeCode(value))}
+                  onFocus={() => setFocused('code')}
+                  onBlur={() => setFocused(null)}
+                  keyboardType="number-pad"
+                  autoComplete="one-time-code"
+                  maxLength={10}
+                  placeholder=""
+                  placeholderTextColor={colors.muted}
+                  editable={!busy}
+                  accessibilityLabel="Code from the email"
+                  returnKeyType="done"
+                  onSubmitEditing={() => {
+                    if (!buttonDisabled) void verify();
+                  }}
+                />
+
+                {error !== null && (
+                  <View style={styles.errorBox}>
+                    <Text style={styles.errorText}>{error}</Text>
+                  </View>
+                )}
+
+                <Pressable
+                  accessibilityRole="button"
+                  style={({ pressed }) => [
+                    styles.button,
+                    buttonDisabled && styles.buttonDisabled,
+                    pressed && !buttonDisabled && styles.buttonPressed,
+                  ]}
+                  onPress={() => void verify()}
+                  disabled={buttonDisabled}
+                >
+                  {busy ? (
+                    <ActivityIndicator color={colors.onPrimary} />
+                  ) : (
+                    <Text style={styles.buttonText}>Sign in</Text>
+                  )}
+                </Pressable>
+
+                <View style={styles.links}>
+                  <Pressable
+                    onPress={() => void send()}
+                    disabled={busy || cooldown > 0}
+                    accessibilityRole="button"
+                  >
+                    <Text style={[styles.link, (busy || cooldown > 0) && styles.linkMuted]}>
+                      {cooldown > 0 ? `Send a new code in ${cooldown}s` : 'Send a new code'}
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() => {
+                      setStep('email');
+                      setCode('');
+                      setError(null);
+                    }}
+                    disabled={busy}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.link}>Use a different email</Text>
+                  </Pressable>
+                </View>
+              </>
+            )}
+          </View>
         </Animated.View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -324,7 +334,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: layout.screen,
-    paddingVertical: 40,
+    paddingVertical: 36,
   },
   shell: {
     width: '100%',
@@ -335,69 +345,94 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    marginBottom: 34,
+    marginBottom: 22,
   },
   mark: {
     width: 36,
     height: 36,
     borderRadius: 12,
-    backgroundColor: colors.espresso,
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   markText: {
-    color: colors.saffron,
+    color: colors.onPrimary,
     fontFamily: fonts.display,
     fontSize: 19,
+  },
+  wordmarkRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
   },
   wordmark: {
     color: colors.ink,
     fontFamily: fonts.display,
     fontSize: 24,
+    letterSpacing: -0.8,
+  },
+  brandDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: colors.green,
+    marginLeft: 3,
+    marginBottom: 5,
+  },
+  hero: {
+    backgroundColor: colors.primary,
+    borderRadius: 24,
+    padding: 22,
+    paddingBottom: 24,
   },
   headline: {
-    color: colors.ink,
+    color: colors.onPrimary,
     fontFamily: fonts.display,
-    fontSize: 38,
-    lineHeight: 43,
+    fontSize: 34,
+    lineHeight: 39,
+    letterSpacing: -1.2,
   },
   lede: {
-    color: colors.muted,
+    color: 'rgba(255,255,255,0.88)',
     fontFamily: fonts.body,
-    fontSize: 15,
-    lineHeight: 24,
-    marginTop: 12,
+    fontSize: 14.5,
+    lineHeight: 23,
+    marginTop: 10,
   },
   emailStrong: {
-    color: colors.ink,
+    color: colors.onPrimary,
     fontFamily: fonts.bodyBold,
   },
+  formCard: {
+    backgroundColor: colors.card,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: colors.line,
+    padding: 18,
+    marginTop: 14,
+  },
   benefits: {
-    marginTop: 26,
-    gap: 12,
+    gap: 11,
+    marginBottom: 24,
   },
   benefitRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 11,
   },
   tick: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: colors.saffron,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.mintSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  tickText: {
-    color: colors.espresso,
-    fontFamily: fonts.bodyExtra,
-    fontSize: 12,
-  },
   benefitText: {
+    flex: 1,
     color: colors.text,
     fontFamily: fonts.bodyMedium,
-    fontSize: 14.5,
+    fontSize: 13.5,
+    lineHeight: 19,
   },
   label: {
     color: colors.muted,
@@ -405,22 +440,22 @@ const styles = StyleSheet.create({
     fontSize: 10,
     letterSpacing: 1.2,
     textTransform: 'uppercase',
-    marginTop: 30,
     marginBottom: 8,
   },
   input: {
     borderWidth: 1,
     borderColor: colors.lineStrong,
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 15,
+    borderRadius: 14,
+    paddingHorizontal: 15,
+    paddingVertical: 14,
     fontSize: 16,
     fontFamily: fonts.body,
     color: colors.text,
-    backgroundColor: colors.card,
+    backgroundColor: colors.background,
   },
   inputFocused: {
-    borderColor: colors.saffron,
+    borderColor: colors.primary,
+    backgroundColor: colors.card,
   },
   codeInput: {
     fontFamily: fonts.display,
@@ -429,24 +464,24 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   button: {
-    marginTop: 22,
-    backgroundColor: colors.espresso,
-    borderRadius: 16,
-    paddingVertical: 16,
+    marginTop: 16,
+    backgroundColor: colors.primary,
+    borderRadius: 14,
+    paddingVertical: 15,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 54,
+    minHeight: 52,
   },
   buttonPressed: {
-    backgroundColor: colors.espressoSoft,
+    backgroundColor: colors.primaryDark,
   },
   buttonDisabled: {
     opacity: 0.4,
   },
   buttonText: {
-    color: colors.onEspresso,
+    color: colors.onPrimary,
     fontFamily: fonts.bodyBold,
-    fontSize: 15.5,
+    fontSize: 15,
   },
   links: {
     marginTop: 18,
@@ -454,7 +489,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   link: {
-    color: colors.terracottaInk,
+    color: colors.primary,
     fontFamily: fonts.bodySemi,
     fontSize: 13,
   },
@@ -464,21 +499,21 @@ const styles = StyleSheet.create({
   fineprint: {
     color: colors.muted,
     fontFamily: fonts.body,
-    fontSize: 12,
-    lineHeight: 19,
-    marginTop: 20,
+    fontSize: 11.5,
+    lineHeight: 18,
+    marginTop: 16,
   },
   errorBox: {
-    marginTop: 14,
-    backgroundColor: colors.terracottaSoft,
-    borderRadius: 14,
-    paddingVertical: 11,
-    paddingHorizontal: 14,
+    marginTop: 12,
+    backgroundColor: colors.dangerSoft,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 13,
   },
   errorText: {
-    color: colors.terracottaInk,
+    color: colors.danger,
     fontFamily: fonts.bodyMedium,
-    fontSize: 13,
-    lineHeight: 19,
+    fontSize: 12.5,
+    lineHeight: 18,
   },
 });
