@@ -218,17 +218,24 @@ const BUSINESS_ROOTS = [
 ] as const;
 
 /**
- * A single broad query is still capped and distance-sorted, so one dense
- * category can fill it. The main group is diversified per category, and hair
- * and beauty get their own queries so they cannot be crowded out.
+ * Geoapify only honours a few categories per request; a long list silently
+ * drops the earlier ones (which is why a roots-only query returned statues
+ * instead of restaurants). Keep every request to a handful of roots, and give
+ * hair and beauty their own queries so they cannot be crowded out.
  */
 const GEOAPIFY_GROUPS = [
-  { categories: BUSINESS_ROOTS.join(','), limit: 300, slots: 160, diversify: true },
-  { categories: 'service.beauty.hairdresser', limit: 60, slots: 40, diversify: false },
+  { categories: 'catering,commercial,service', limit: 200, slots: 80, diversify: true },
   {
-    categories: ['service.beauty', 'commercial.health_and_beauty'].join(','),
+    categories: 'healthcare,entertainment,sport,accommodation',
+    limit: 150,
+    slots: 60,
+    diversify: true,
+  },
+  { categories: 'service.beauty.hairdresser', limit: 60, slots: 30, diversify: false },
+  {
+    categories: 'service.beauty,commercial.health_and_beauty',
     limit: 80,
-    slots: 40,
+    slots: 30,
     diversify: false,
   },
 ] as const;
@@ -392,17 +399,38 @@ async function discoverGeoapifySearch(
   fetchImpl: typeof fetch,
 ): Promise<NearbyPlace[]> {
   const radiusKm = Math.min(Math.max(input.radiusKm, 1), 20);
-  const url = new URL('https://api.geoapify.com/v2/places');
-  // Geoapify rejects a name-only query: it still requires a category.
-  url.searchParams.set('categories', BUSINESS_ROOTS.join(','));
-  url.searchParams.set('name', input.q);
-  url.searchParams.set('filter', `circle:${input.lon},${input.lat},${Math.round(radiusKm * 1000)}`);
-  url.searchParams.set('limit', '60');
-  url.searchParams.set('apiKey', apiKey);
+  const filter = `circle:${input.lon},${input.lat},${Math.round(radiusKm * 1000)}`;
 
-  const { places, error } = await fetchGeoapifyPlaces(url, fetchImpl, input);
-  lastError = places.length === 0 ? (error ?? 'no places matched that search') : (error ?? null);
-  return places.slice(0, 60);
+  // Geoapify rejects a name-only query, so search the same small category
+  // groups as the list and merge the matches.
+  const results = await Promise.all(
+    GEOAPIFY_GROUPS.map((group) => {
+      const url = new URL('https://api.geoapify.com/v2/places');
+      url.searchParams.set('categories', group.categories);
+      url.searchParams.set('name', input.q);
+      url.searchParams.set('filter', filter);
+      url.searchParams.set('limit', '60');
+      url.searchParams.set('apiKey', apiKey);
+      return fetchGeoapifyPlaces(url, fetchImpl, input);
+    }),
+  );
+
+  const errors = results
+    .map((result) => result.error)
+    .filter((error): error is string => error !== null);
+
+  const byId = new Map<string, NearbyPlace>();
+  for (const result of results) {
+    for (const place of result.places) {
+      if (!byId.has(place.osmId)) byId.set(place.osmId, place);
+    }
+  }
+
+  const places = Array.from(byId.values())
+    .sort((a, b) => a.distanceKm - b.distanceKm)
+    .slice(0, 120);
+  lastError = places.length === 0 ? (errors[0] ?? 'no places matched that search') : (errors[0] ?? null);
+  return places;
 }
 
 function geoapifyPlaces(
