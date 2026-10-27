@@ -18,6 +18,8 @@ import {
   adminSupportQuerySchema,
   adminSupportResponseSchema,
   apiErrorSchema,
+  businessLeadSchema,
+  leadsResponseSchema,
   clawbackRequestSchema,
   createdStoreResponseSchema,
   createStoreRequestSchema,
@@ -28,6 +30,7 @@ import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { authorizeAdminRequest, hasRecentMfa } from '../auth/authorize.js';
 import {
   auditLogEntries,
+  businessLeads,
   customers,
   earningRules,
   pointsBalances,
@@ -319,6 +322,85 @@ export const adminRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
           createdAt: new Date(row.created_at as string).toISOString(),
         })),
       });
+    },
+  );
+
+  /**
+   * All business leads across every store. An admin can see every invite that
+   * any owner has sent, with the store name and the invited business details.
+   */
+  app.get(
+    '/v1/admin/leads',
+    {
+      config: { rateLimit: rateLimit ?? { max: 60, timeWindow: '1 minute' } },
+      schema: {
+        querystring: adminStoresQuerySchema,
+        response: {
+          200: leadsResponseSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const auth = await authorizeAdminRequest(db, sessionResolver, {
+        token: bearer(request.headers.authorization),
+        anyOf: ['store.manage'],
+      });
+      if (!auth.ok) {
+        return reply.code(auth.status).send({ error: auth.error });
+      }
+
+      const query = request.query;
+      const whereClause = query.query
+        ? sql`WHERE bl.name ILIKE '%' || ${query.query} || '%' OR bl.category ILIKE '%' || ${query.query} || '%' OR s.name ILIKE '%' || ${query.query} || '%'`
+        : sql``;
+
+      const rows = await db.execute(sql`
+        SELECT
+          bl.id AS lead_id,
+          bl.store_id,
+          bl.osm_id,
+          bl.name,
+          bl.category,
+          bl.address,
+          bl.website,
+          bl.phone,
+          bl.opening_hours,
+          bl.latitude,
+          bl.longitude,
+          bl.distance_km,
+          bl.status,
+          bl.created_at,
+          s.name AS store_name,
+          s.brand_color
+        FROM business_leads bl
+        INNER JOIN stores s ON s.id = bl.store_id
+        ${whereClause}
+        ORDER BY bl.created_at DESC
+        LIMIT 500
+      `);
+
+      const leads = (rows.rows as Record<string, unknown>[]).map((row) => ({
+        leadId: String(row.lead_id),
+        storeId: String(row.store_id),
+        storeName: String(row.store_name),
+        storeBrandColor: row.brand_color === null ? null : String(row.brand_color),
+        osmId: String(row.osm_id),
+        name: String(row.name),
+        category: row.category === null ? null : String(row.category),
+        address: row.address === null ? null : String(row.address),
+        website: row.website === null ? null : String(row.website),
+        phone: row.phone === null ? null : String(row.phone),
+        openingHours: row.opening_hours === null ? null : String(row.opening_hours),
+        latitude: row.latitude === null ? null : Number(row.latitude),
+        longitude: row.longitude === null ? null : Number(row.longitude),
+        distanceKm: row.distance_km === null ? null : Number(row.distance_km),
+        status: String(row.status),
+        createdAt: new Date(row.created_at as string).toISOString(),
+      }));
+
+      return reply.send({ leads });
     },
   );
 

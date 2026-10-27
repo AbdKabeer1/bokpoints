@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import {
   CreditCard,
+  FileText,
   LifeBuoy,
   Menu,
   MoreHorizontal,
@@ -19,7 +20,7 @@ import type { Me } from './api';
  * visible, in red, so this can never be mistaken for a store view.
  */
 
-export type Tab = 'stores' | 'subscriptions' | 'support' | 'safety' | 'audit' | 'settings';
+export type Tab = 'stores' | 'leads' | 'subscriptions' | 'support' | 'safety' | 'audit' | 'settings';
 
 interface NavItem {
   id: Tab;
@@ -32,6 +33,7 @@ export const NAV: { label: string; items: NavItem[] }[] = [
     label: 'Platform',
     items: [
       { id: 'stores', label: 'Stores', icon: Store },
+      { id: 'leads', label: 'Leads', icon: FileText },
       { id: 'subscriptions', label: 'Subscriptions', icon: CreditCard },
       { id: 'support', label: 'Support', icon: LifeBuoy },
       { id: 'safety', label: 'Safety', icon: ShieldAlert },

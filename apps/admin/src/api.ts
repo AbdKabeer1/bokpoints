@@ -4,17 +4,26 @@ import {
   adminAnonymiseCustomerRequestSchema,
   adminAnonymiseCustomerResponseSchema,
   adminSafetySignalsResponseSchema,
+  adminStoresQuerySchema,
   adminStoreDetailSchema,
   adminStoreStatusRequestSchema,
   adminStoreStatusResponseSchema,
   adminStoresResponseSchema,
   adminSubscriptionsResponseSchema,
+  adminSupportQuerySchema,
   adminSupportResponseSchema,
   apiErrorSchema,
-  feedbackRequestSchema,
-  feedbackResponseSchema,
+  businessLeadSchema,
+  leadsResponseSchema,
+  clawbackRequestSchema,
+  createdStoreResponseSchema,
+  createStoreRequestSchema,
+  customerParamsSchema,
+  storeIdParamsSchema,
   auditResponseSchema,
   meResponseSchema,
+  feedbackRequestSchema,
+  feedbackResponseSchema,
 } from '@bokpoints/shared';
 
 export class ApiError extends Error {
@@ -156,14 +165,16 @@ export const listAudit = (
     query: filters,
   });
 
-export type Me = Awaited<ReturnType<typeof getMe>>;
-export type StoreRow = Awaited<ReturnType<typeof listStores>>['stores'][number];
-export type StoreDetail = Awaited<ReturnType<typeof getStoreDetail>>;
-export type SupportResults = Awaited<ReturnType<typeof searchSupport>>;
-export type Analytics = Awaited<ReturnType<typeof getAnalytics>>;
-export type Subscription = Awaited<ReturnType<typeof listSubscriptions>>['subscriptions'][number];
-export type AuditEntry = Awaited<ReturnType<typeof listAudit>>['entries'][number];
-
+export const listLeads = (
+  token: string,
+  query?: string,
+) =>
+  request(leadsResponseSchema, {
+    method: 'GET',
+    path: '/v1/admin/leads',
+    token,
+    query: { query },
+  });
 
 export const sendFeedback = (
   token: string,
@@ -182,3 +193,12 @@ export const listFeedback = (token: string) =>
     path: '/v1/admin/feedback',
     token,
   });
+
+export type Me = Awaited<ReturnType<typeof getMe>>;
+export type StoreRow = Awaited<ReturnType<typeof listStores>>['stores'][number];
+export type StoreDetail = Awaited<ReturnType<typeof getStoreDetail>>;
+export type SupportResults = Awaited<ReturnType<typeof searchSupport>>;
+export type Analytics = Awaited<ReturnType<typeof getAnalytics>>;
+export type Subscription = Awaited<ReturnType<typeof listSubscriptions>>['subscriptions'][number];
+export type AuditEntry = Awaited<ReturnType<typeof listAudit>>['entries'][number];
+export type BusinessLead = Awaited<ReturnType<typeof listLeads>>['leads'][number];

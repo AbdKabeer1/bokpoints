@@ -11,6 +11,7 @@ import { SubscriptionsScreen } from './screens/Subscriptions';
 import { SupportScreen } from './screens/Support';
 import { SafetyScreen } from './screens/Safety';
 import { AuditScreen } from './screens/AuditScreen';
+import { LeadsScreen } from './screens/Leads';
 import { SettingsScreen } from './screens/Settings';
 
 type Phase =
@@ -211,6 +212,7 @@ export function App() {
               {tab === 'stores' && (
                 <StoresScreen token={phase.token} onOpenStore={setOpenStoreId} />
               )}
+              {tab === 'leads' && <LeadsScreen token={phase.token} />}
               {tab === 'subscriptions' && <SubscriptionsScreen token={phase.token} />}
               {tab === 'support' && (
                 <SupportScreen token={phase.token} onOpenStore={setOpenStoreId} />

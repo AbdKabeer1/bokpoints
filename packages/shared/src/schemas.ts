@@ -1083,6 +1083,10 @@ export const businessLeadSchema = z.object({
   distanceKm: z.number().nullable(),
   status: z.string(),
   createdAt: z.string(),
+  /** Populated by the admin leads endpoint via join. */
+  storeName: z.string().optional(),
+  /** Populated by the admin leads endpoint via join. */
+  storeBrandColor: z.string().nullable().optional(),
 });
 
 export const leadsResponseSchema = z.object({
