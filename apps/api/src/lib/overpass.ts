@@ -323,7 +323,8 @@ async function fetchGeoapifyPlaces(
   try {
     const response = await fetchImpl(url.toString(), {
       headers: { accept: 'application/json' },
-      signal: AbortSignal.timeout(8000),
+      // A slow category must not hold the whole list past the app's timeout.
+      signal: AbortSignal.timeout(6000),
     });
     if (!response.ok) {
       return {
