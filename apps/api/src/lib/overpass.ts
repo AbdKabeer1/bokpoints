@@ -225,7 +225,8 @@ const BUSINESS_ROOTS = [
  */
 const GEOAPIFY_GROUPS = [
   { categories: 'catering', limit: 100, slots: 45, diversify: true },
-  { categories: 'commercial,service', limit: 80, slots: 40, diversify: true },
+  { categories: 'commercial', limit: 80, slots: 40, diversify: true },
+  { categories: 'service', limit: 80, slots: 40, diversify: true },
   {
     categories: 'healthcare,entertainment,sport,accommodation',
     limit: 80,
