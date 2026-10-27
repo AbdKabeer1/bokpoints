@@ -2,7 +2,7 @@
 
 **Project:** BOKPOINTS, a B2B2C loyalty platform for SMEs in Finland / EU.
 **Phase:** MVP built; security hardening. P0 items A1–A6 are complete. The builder-side P1/P2 items A5, B1, B3, B5, C5, C6, C7, C9 and C11 are applied; B2/B9 are partly applied. **Next up:** the Sentry DSN value, C9 deep-link validation/privacy labels, B2 UI-brief merge, A5 retention, and the manual platform checks in C1–C4, C10, C12 and C13.
-**Last updated:** 27 Oct 2026, after nearby discovery went live on Geoapify. 108 unit tests green; full typecheck and lint clean.
+**Last updated:** 27 Oct 2026, after nearby search, the address/beauty fixes and the sign-in redesign. 110 unit tests green; full typecheck and lint clean.
 
 ## Done
 
@@ -22,6 +22,9 @@
   - **Live provider is Geoapify Places** (`GEOAPIFY_API_KEY` in Render). A 10 km central-Helsinki query returned **117 places in 2.4 s** on 27 Oct 2026. Overpass remains the local fallback when the key is absent; it timed out at 40–55 s and is never used in production.
   - Geoapify returns the full category hierarchy, so matching now scans every category instead of only the first element. The discover response names its `provider` and exposes `providerError` for diagnostics.
   - Cache is 5 minutes per rounded coordinate + radius; attribution "© OpenStreetMap contributors".
+- **Nearby addresses, hair/beauty and logos fixed (D-172).** Addresses now use Geoapify's `address_line2` (the street line — `address_line1` is the business name), so every returned place has a real address. Barber, beauty, spa, cosmetics and body-care categories are queried in their own small groups so they cannot be crowded out; the list now carries 25 barbers and 25 beauty places for central Helsinki. Unknown business categories get a readable fallback label instead of being dropped. Registered store logos come from the directory, not only from a prior visit; unregistered places still show initials because the source has no logo — owners upload theirs in Store profile after signing up.
+- **Search any nearby business (D-172).** The Stores search box still filters instantly, then calls `/v1/customer/discover?q=` after 350 ms so a business outside the loaded page can be found by name. Verified live: "M Room" returns 15 branches, "Parturi" returns 60, "Kosmos" returns the restaurant. Provider requests are capped at 6 s so a slow category cannot hold the list past the app's timeout.
+- **Customer sign-in redesigned (D-173).** The login now uses the signed-in palette: cool canvas, violet hero, white form card, mint check badges, violet action, green brand dot. Verified by rendering at 430×932 and 1280×900; deployed to `app.omapointii.store`.
 - **Lint/type cleanup in the nearby code (27 Oct).** `apps/customer/test/unit/location.test.ts` uses typed geolocation stubs instead of `any` and restores `navigator.geolocation` after every test (the unavailable case deletes the property, matching the guard in `location.ts`). `apps/api/test/integration/store-nearby.test.ts` drops `any`, `@ts-ignore` and debug `console.log` calls; assertions now pass the response payload as the failure message. `npx eslint .` and `pnpm typecheck` pass across the monorepo.
 - **Owner business invites shipped (D-170).** Owner portal has a Nearby businesses screen with location, contact details and Invite; leads are stored in `business_leads` (migration 0021 applied to production).
 
