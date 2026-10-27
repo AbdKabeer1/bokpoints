@@ -393,6 +393,8 @@ async function discoverGeoapifySearch(
 ): Promise<NearbyPlace[]> {
   const radiusKm = Math.min(Math.max(input.radiusKm, 1), 20);
   const url = new URL('https://api.geoapify.com/v2/places');
+  // Geoapify rejects a name-only query: it still requires a category.
+  url.searchParams.set('categories', BUSINESS_ROOTS.join(','));
   url.searchParams.set('name', input.q);
   url.searchParams.set('filter', `circle:${input.lon},${input.lat},${Math.round(radiusKm * 1000)}`);
   url.searchParams.set('limit', '60');
