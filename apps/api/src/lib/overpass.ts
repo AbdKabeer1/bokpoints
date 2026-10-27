@@ -224,12 +224,12 @@ const BUSINESS_ROOTS = [
  * hair and beauty their own queries so they cannot be crowded out.
  */
 const GEOAPIFY_GROUPS = [
-  { categories: 'catering', limit: 120, slots: 50, diversify: true },
-  { categories: 'commercial,service', limit: 150, slots: 60, diversify: true },
+  { categories: 'catering', limit: 100, slots: 45, diversify: true },
+  { categories: 'commercial,service', limit: 80, slots: 40, diversify: true },
   {
     categories: 'healthcare,entertainment,sport,accommodation',
-    limit: 150,
-    slots: 60,
+    limit: 120,
+    slots: 45,
     diversify: true,
   },
   { categories: 'service.beauty.hairdresser', limit: 60, slots: 25, diversify: false },
