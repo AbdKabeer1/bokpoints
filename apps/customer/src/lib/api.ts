@@ -134,24 +134,34 @@ async function request<T>(
   const headers: Record<string, string> = { authorization: `Bearer ${token}` };
   if (body !== undefined) headers['content-type'] = 'application/json';
 
-  const response = await fetch(`${apiBase}${path}`, {
-    method,
-    headers,
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-  });
+  // A cold Render instance can leave a request open for a long time; fail
+  // fast so the app can show its retry path instead of hanging.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15_000);
 
-  const json: unknown = await response.json().catch(() => null);
+  try {
+    const response = await fetch(`${apiBase}${path}`, {
+      method,
+      headers,
+      signal: controller.signal,
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
 
-  if (!response.ok) {
-    const parsed = json as { error?: { code?: string; message?: string } } | null;
-    throw new ApiError(
-      response.status,
-      parsed?.error?.code ?? `HTTP_${response.status}`,
-      parsed?.error?.message ?? 'The request failed',
-    );
+    const json: unknown = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      const parsed = json as { error?: { code?: string; message?: string } } | null;
+      throw new ApiError(
+        response.status,
+        parsed?.error?.code ?? `HTTP_${response.status}`,
+        parsed?.error?.message ?? 'The request failed',
+      );
+    }
+
+    return json as T;
+  } finally {
+    clearTimeout(timer);
   }
-
-  return json as T;
 }
 
 export const getMe = (token: string) => request<Me>('/v1/customer/me', token);

@@ -9,7 +9,7 @@ import {
   Manrope_700Bold,
   Manrope_800ExtraBold,
 } from '@expo-google-fonts/manrope';
-import { getMe, type Me } from './src/lib/api';
+import { ApiError, getMe, type Me } from './src/lib/api';
 import { hasConfig, onAuthChange, signOut, supabase } from './src/lib/session';
 import { colors, fonts } from './src/lib/theme';
 import { Home } from './src/screens/Home';
@@ -57,12 +57,34 @@ export function App() {
         return;
       }
 
+      const load = async (token: string): Promise<{ me: Me; token: string }> => {
+        try {
+          return { me: await getMe(token), token };
+        } catch (error) {
+          // An expired access token is the one failure a retry cannot fix;
+          // ask Supabase for a fresh one and try again.
+          if (error instanceof ApiError && error.status === 401) {
+            const { data: refreshed } = await supabase.auth.refreshSession();
+            if (refreshed.session !== null) {
+              return {
+                me: await getMe(refreshed.session.access_token),
+                token: refreshed.session.access_token,
+              };
+            }
+            throw error;
+          }
+          // Render can cold-start or briefly fail; one retry is enough.
+          await new Promise((resolve) => setTimeout(resolve, 1200));
+          return { me: await getMe(token), token };
+        }
+      };
+
       try {
-        const me = await getMe(session.access_token);
+        const result = await load(session.access_token);
         setPhase(
-          me.onboardingComplete
-            ? { kind: 'ready', token: session.access_token, me }
-            : { kind: 'onboarding', token: session.access_token, me },
+          result.me.onboardingComplete
+            ? { kind: 'ready', token: result.token, me: result.me }
+            : { kind: 'onboarding', token: result.token, me: result.me },
         );
       } catch {
         // A transient failure must not replace a working screen: the QR is
@@ -165,13 +187,13 @@ const styles = StyleSheet.create({
   },
   primary: {
     marginTop: 22,
-    backgroundColor: colors.espresso,
+    backgroundColor: colors.primary,
     borderRadius: 16,
     paddingVertical: 15,
     paddingHorizontal: 30,
   },
   primaryText: {
-    color: colors.onEspresso,
+    color: colors.onPrimary,
     fontFamily: fonts.bodyBold,
     fontSize: 15,
   },
