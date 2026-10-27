@@ -506,7 +506,7 @@ export const customerRoutes: FastifyPluginAsyncZod<CustomerRouteOptions> = async
       }
 
       const query = request.query;
-      const key = `${query.lat.toFixed(3)},${query.lon.toFixed(3)},${query.radiusKm}`;
+      const key = `${query.lat.toFixed(3)},${query.lon.toFixed(3)},${query.radiusKm},${query.q ?? ''}`;
       const cached = discoverCache.get(key);
       if (cached !== undefined && Date.now() - cached.at < DISCOVER_TTL_MS) {
         return reply.send({
@@ -522,6 +522,7 @@ export const customerRoutes: FastifyPluginAsyncZod<CustomerRouteOptions> = async
         lat: query.lat,
         lon: query.lon,
         radiusKm: query.radiusKm,
+        ...(query.q === undefined ? {} : { q: query.q }),
       });
       discoverCache.set(key, { places, at: Date.now() });
 

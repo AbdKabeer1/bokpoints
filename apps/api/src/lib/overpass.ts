@@ -94,12 +94,15 @@ export function haversineKm(lat1: number, lon1: number, lat2: number, lon2: numb
  * OmaPointii directory without showing an error.
  */
 export async function discoverNearby(
-  input: { lat: number; lon: number; radiusKm: number },
+  input: { lat: number; lon: number; radiusKm: number; q?: string },
   fetchImpl: typeof fetch = fetch,
 ): Promise<NearbyPlace[]> {
   const geoapifyKey = process.env.GEOAPIFY_API_KEY;
+  const q = input.q?.trim();
   if (geoapifyKey) {
-    return discoverGeoapify(input, geoapifyKey, fetchImpl);
+    return q !== undefined && q !== ''
+      ? discoverGeoapifySearch({ ...input, q }, geoapifyKey, fetchImpl)
+      : discoverGeoapify(input, geoapifyKey, fetchImpl);
   }
 
   const radiusKm = Math.min(Math.max(input.radiusKm, 1), 20);
@@ -164,7 +167,10 @@ out center 120;`;
       });
     }
 
-    return places.sort((a, b) => a.distanceKm - b.distanceKm).slice(0, 120);
+    const found = places.sort((a, b) => a.distanceKm - b.distanceKm).slice(0, 120);
+    return q === undefined || q === ''
+      ? found
+      : found.filter((place) => place.name.toLowerCase().includes(q.toLowerCase()));
   } catch {
     return [];
   }
@@ -193,44 +199,41 @@ interface GeoapifyFeature {
 }
 
 /**
- * Geoapify caps one response and sorts it by distance, so in a dense city the
- * food category can fill the whole page. Beauty and body care get their own
- * query and their own slots, otherwise barbers and salons never surface.
+ * Top-level business categories. Querying the roots keeps the directory open to
+ * every kind of business instead of a hand-picked list; the specific labels in
+ * `geoapifyCategory` only make the common ones read better.
+ */
+const BUSINESS_ROOTS = [
+  'catering',
+  'commercial',
+  'service',
+  'healthcare',
+  'entertainment',
+  'sport',
+  'tourism',
+  'accommodation',
+  'education',
+  'office',
+  'leisure',
+] as const;
+
+/**
+ * A single broad query is still capped and distance-sorted, so one dense
+ * category can fill it. The main group is diversified per category, and hair
+ * and beauty get their own queries so they cannot be crowded out.
  */
 const GEOAPIFY_GROUPS = [
-  {
-    categories: [
-      'catering.restaurant',
-      'catering.cafe',
-      'catering.bar',
-      'catering.pub',
-      'catering.fast_food',
-      'catering.ice_cream',
-      'commercial.supermarket',
-      'commercial.food_and_drink.bakery',
-      'commercial.shopping_mall',
-      'healthcare.pharmacy',
-      'entertainment.cinema',
-      'entertainment.culture.theatre',
-      'accommodation.hotel',
-      'sport.fitness',
-    ].join(','),
-    limit: 120,
-    slots: 120,
-  },
-  {
-    // Hairdressers/barbers are their own query: beauty salons are denser and
-    // would otherwise fill the beauty page before a single barber appears.
-    categories: 'service.beauty.hairdresser',
-    limit: 60,
-    slots: 40,
-  },
+  { categories: BUSINESS_ROOTS.join(','), limit: 300, slots: 160, diversify: true },
+  { categories: 'service.beauty.hairdresser', limit: 60, slots: 40, diversify: false },
   {
     categories: ['service.beauty', 'commercial.health_and_beauty'].join(','),
     limit: 80,
     slots: 40,
+    diversify: false,
   },
 ] as const;
+
+const MAX_PER_CATEGORY = 18;
 
 /**
  * Geoapify's `address_line1` is the place name and `address_line2` is the
@@ -288,7 +291,55 @@ function geoapifyCategory(categories: string[]): string | null {
   if (has('commercial.health_and_beauty.cosmetics')) return 'Cosmetics';
   if (has('commercial.health_and_beauty.pharmacy')) return 'Pharmacy';
   if (has('commercial.health_and_beauty')) return 'Body care';
-  return null;
+
+  // Anything else that is a real business category still gets a readable label
+  // instead of being dropped: "commercial.clothing" -> "Clothing".
+  const specific = categories
+    .filter((category) =>
+      BUSINESS_ROOTS.some((root) => category === root || category.startsWith(`${root}.`)),
+    )
+    .sort((a, b) => b.split('.').length - a.split('.').length);
+  const parts = specific[0]?.split('.');
+  const label = parts?.[parts.length - 1];
+  return label === undefined ? null : titleCase(label);
+}
+
+type GeoapifyResult = { places: NearbyPlace[]; error: string | null };
+
+async function fetchGeoapifyPlaces(
+  url: URL,
+  fetchImpl: typeof fetch,
+  input: { lat: number; lon: number },
+): Promise<GeoapifyResult> {
+  try {
+    const response = await fetchImpl(url.toString(), {
+      headers: { accept: 'application/json' },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!response.ok) {
+      return {
+        places: [],
+        error: `HTTP ${response.status}: ${(await response.text()).slice(0, 300)}`,
+      };
+    }
+
+    const json = (await response.json()) as { features?: GeoapifyFeature[] };
+    const features = Array.isArray(json.features) ? json.features : [];
+    return { places: geoapifyPlaces(features, input), error: null };
+  } catch (error) {
+    return { places: [], error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+/** Keeps one dense category (restaurants) from using every slot. */
+function capPerCategory(places: NearbyPlace[], cap: number): NearbyPlace[] {
+  const counts = new Map<string, number>();
+  return places.filter((place) => {
+    const count = counts.get(place.category) ?? 0;
+    if (count >= cap) return false;
+    counts.set(place.category, count + 1);
+    return true;
+  });
 }
 
 async function discoverGeoapify(
@@ -301,34 +352,13 @@ async function discoverGeoapify(
   const filter = `circle:${input.lon},${input.lat},${radiusM}`;
 
   const results = await Promise.all(
-    GEOAPIFY_GROUPS.map(async (group) => {
+    GEOAPIFY_GROUPS.map((group) => {
       const url = new URL('https://api.geoapify.com/v2/places');
       url.searchParams.set('categories', group.categories);
       url.searchParams.set('filter', filter);
       url.searchParams.set('limit', String(group.limit));
       url.searchParams.set('apiKey', apiKey);
-
-      try {
-        const response = await fetchImpl(url.toString(), {
-          headers: { accept: 'application/json' },
-          signal: AbortSignal.timeout(8000),
-        });
-        if (!response.ok) {
-          return {
-            places: [] as NearbyPlace[],
-            error: `HTTP ${response.status}: ${(await response.text()).slice(0, 300)}`,
-          };
-        }
-
-        const json = (await response.json()) as { features?: GeoapifyFeature[] };
-        const features = Array.isArray(json.features) ? json.features : [];
-        return { places: geoapifyPlaces(features, input), error: null };
-      } catch (error) {
-        return {
-          places: [] as NearbyPlace[],
-          error: error instanceof Error ? error.message : String(error),
-        };
-      }
+      return fetchGeoapifyPlaces(url, fetchImpl, input);
     }),
   );
 
@@ -340,8 +370,12 @@ async function discoverGeoapify(
   // dense category cannot evict a sparse one.
   const byId = new Map<string, NearbyPlace>();
   results.forEach((result, index) => {
-    const slots = GEOAPIFY_GROUPS[index]?.slots ?? 0;
-    for (const place of result.places.slice(0, slots)) {
+    const group = GEOAPIFY_GROUPS[index];
+    if (group === undefined) return;
+    const list = group.diversify
+      ? capPerCategory(result.places, MAX_PER_CATEGORY)
+      : result.places;
+    for (const place of list.slice(0, group.slots)) {
       if (!byId.has(place.osmId)) byId.set(place.osmId, place);
     }
   });
@@ -349,6 +383,24 @@ async function discoverGeoapify(
   const places = Array.from(byId.values()).sort((a, b) => a.distanceKm - b.distanceKm);
   lastError = places.length === 0 ? (errors[0] ?? 'no nearby places returned') : (errors[0] ?? null);
   return places;
+}
+
+/** Look up a business by name anywhere inside the radius. */
+async function discoverGeoapifySearch(
+  input: { lat: number; lon: number; radiusKm: number; q: string },
+  apiKey: string,
+  fetchImpl: typeof fetch,
+): Promise<NearbyPlace[]> {
+  const radiusKm = Math.min(Math.max(input.radiusKm, 1), 20);
+  const url = new URL('https://api.geoapify.com/v2/places');
+  url.searchParams.set('name', input.q);
+  url.searchParams.set('filter', `circle:${input.lon},${input.lat},${Math.round(radiusKm * 1000)}`);
+  url.searchParams.set('limit', '60');
+  url.searchParams.set('apiKey', apiKey);
+
+  const { places, error } = await fetchGeoapifyPlaces(url, fetchImpl, input);
+  lastError = places.length === 0 ? (error ?? 'no places matched that search') : (error ?? null);
+  return places.slice(0, 60);
 }
 
 function geoapifyPlaces(

@@ -1190,7 +1190,7 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
       if (!auth.ok) return reply.code(auth.status).send({ error: auth.error });
 
       const query = request.query;
-      const key = `${storeId}:${query.lat.toFixed(3)},${query.lon.toFixed(3)},${query.radiusKm}`;
+      const key = `${storeId}:${query.lat.toFixed(3)},${query.lon.toFixed(3)},${query.radiusKm},${query.q ?? ''}`;
       const cached = ownerDiscoverCache.get(key);
       if (cached !== undefined && Date.now() - cached.at < OWNER_DISCOVER_TTL_MS) {
         return reply.send({
@@ -1206,6 +1206,7 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
         lat: query.lat,
         lon: query.lon,
         radiusKm: query.radiusKm,
+        ...(query.q === undefined ? {} : { q: query.q }),
       });
       ownerDiscoverCache.set(key, { places, at: Date.now() });
 

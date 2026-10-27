@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { ActivityIndicator } from 'react-native';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import Feather from '@expo/vector-icons/Feather';
 import type { DirectoryStore, NearbyPlace, StoreSummary } from '../lib/api';
@@ -15,6 +16,11 @@ interface StoresProps {
   onEnableLocation: () => void;
   locating: boolean;
   locationError: string | null;
+  /** Server-backed name search, beyond the businesses already loaded. */
+  query: string;
+  onQueryChange: (value: string) => void;
+  searchResults: NearbyPlace[] | null;
+  searching: boolean;
 }
 
 /** Nearby businesses: OmaPointii stores plus OpenStreetMap discovery. */
@@ -27,8 +33,11 @@ export function Stores({
   onEnableLocation,
   locating,
   locationError,
+  query,
+  onQueryChange,
+  searchResults,
+  searching,
 }: StoresProps) {
-  const [query, setQuery] = useState('');
   const [category, setCategory] = useState<string>('all');
 
   const visitedById = useMemo(
@@ -50,9 +59,17 @@ export function Stores({
     return Array.from(seen).sort((a, b) => a.localeCompare(b));
   }, [merged]);
 
-  const filtered = merged.filter((place) => {
+  // Once the provider has answered a name search, its rows are already the
+  // match; the directory rows still have to be filtered locally.
+  const source = useMemo(
+    () => (searchResults === null ? merged : mergePlaces(directory ?? [], searchResults)),
+    [directory, merged, searchResults],
+  );
+
+  const filtered = source.filter((place) => {
     const needle = query.trim().toLowerCase();
     if (category !== 'all' && (place.category ?? '') !== category) return false;
+    if (searchResults !== null && !place.registered) return true;
     if (needle === '') return true;
     return (
       place.name.toLowerCase().includes(needle) ||
@@ -124,14 +141,21 @@ export function Stores({
         <Feather name="search" size={16} color={colors.muted} />
         <TextInput
           value={query}
-          onChangeText={setQuery}
-          placeholder="Search nearby businesses"
+          onChangeText={onQueryChange}
+          placeholder="Search any business by name"
           placeholderTextColor={colors.muted}
           style={styles.searchInput}
           autoCapitalize="none"
           returnKeyType="search"
         />
       </View>
+
+      {searching && (
+        <View style={styles.searching}>
+          <ActivityIndicator color={colors.primary} size="small" />
+          <Text style={styles.searchingText}>Searching beyond the list…</Text>
+        </View>
+      )}
 
       {categories.length > 0 && (
         <View style={styles.chips}>
@@ -168,7 +192,13 @@ export function Stores({
 
       {filtered.length > 0 && (
         <>
-          <Text style={styles.section}>{hasDistance ? 'Nearby' : 'All businesses'}</Text>
+          <Text style={styles.section}>
+            {searchResults !== null
+              ? 'Search results'
+              : hasDistance
+                ? 'Nearby'
+                : 'All businesses'}
+          </Text>
           {filtered.map(renderPlace)}
         </>
       )}
@@ -344,5 +374,17 @@ const styles = StyleSheet.create({
     color: colors.danger,
     marginTop: -4,
     marginBottom: 10,
+  },
+  searching: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: -8,
+    marginBottom: 12,
+  },
+  searchingText: {
+    fontFamily: fonts.body,
+    fontSize: 11.5,
+    color: colors.muted,
   },
 });

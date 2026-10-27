@@ -1028,6 +1028,8 @@ export const discoverQuerySchema = z.object({
   lat: z.coerce.number().min(-90).max(90),
   lon: z.coerce.number().min(-180).max(180),
   radiusKm: z.coerce.number().min(1).max(20).default(10),
+  /** Optional business-name lookup inside the radius. */
+  q: z.string().trim().min(1).max(80).optional(),
 });
 
 export const nearbyPlaceSchema = z.object({

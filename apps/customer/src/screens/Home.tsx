@@ -89,9 +89,14 @@ export function Home({ token, me, onMeChanged, onSignOut }: HomeProps) {
   const [selectedPlace, setSelectedPlace] = useState<MergedPlace | null>(null);
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<NearbyPlace[] | null>(null);
+  const [searching, setSearching] = useState(false);
 
   const loadNearby = useCallback(
     async (lat: number, lon: number) => {
+      setCoords({ lat, lon });
       try {
         const near = await Promise.race([
           getNearby(token, lat, lon),
@@ -150,6 +155,37 @@ export function Home({ token, me, onMeChanged, onSignOut }: HomeProps) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // The list only holds the nearest businesses, so a name outside it can never
+  // be found by filtering. Search the provider by name after a short pause.
+  useEffect(() => {
+    const needle = searchQuery.trim();
+    if (coords === null || needle.length < 2) {
+      setSearchResults(null);
+      setSearching(false);
+      return;
+    }
+
+    let cancelled = false;
+    setSearching(true);
+    const timer = setTimeout(() => {
+      void getNearby(token, coords.lat, coords.lon, 10, needle)
+        .then((response) => {
+          if (!cancelled) setSearchResults(response.places);
+        })
+        .catch(() => {
+          if (!cancelled) setSearchResults([]);
+        })
+        .finally(() => {
+          if (!cancelled) setSearching(false);
+        });
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [coords, searchQuery, token]);
 
   const refresh = async () => {
     setRefreshing(true);
@@ -401,6 +437,10 @@ export function Home({ token, me, onMeChanged, onSignOut }: HomeProps) {
             onEnableLocation={() => void enableLocation()}
             locating={locating}
             locationError={locationError}
+            query={searchQuery}
+            onQueryChange={setSearchQuery}
+            searchResults={searchResults}
+            searching={searching}
           />
         )}
         {tab === 'you' && (

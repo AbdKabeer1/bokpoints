@@ -172,9 +172,17 @@ export const getDirectory = (token: string, lat?: number, lon?: number) =>
   );
 
 /** Named businesses near a point, including places not on OmaPointii. */
-export const getNearby = (token: string, lat: number, lon: number, radiusKm = 10) =>
+export const getNearby = (
+  token: string,
+  lat: number,
+  lon: number,
+  radiusKm = 10,
+  q?: string
+) =>
   request<NearbyResponse>(
-    `/v1/customer/discover?lat=${lat}&lon=${lon}&radiusKm=${radiusKm}`,
+    `/v1/customer/discover?lat=${lat}&lon=${lon}&radiusKm=${radiusKm}${
+      q === undefined || q.trim() === '' ? '' : `&q=${encodeURIComponent(q.trim())}`
+    }`,
     token
   );
 
