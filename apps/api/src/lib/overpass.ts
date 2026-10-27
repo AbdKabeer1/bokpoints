@@ -228,8 +228,8 @@ const GEOAPIFY_GROUPS = [
   { categories: 'commercial,service', limit: 80, slots: 40, diversify: true },
   {
     categories: 'healthcare,entertainment,sport,accommodation',
-    limit: 120,
-    slots: 45,
+    limit: 80,
+    slots: 40,
     diversify: true,
   },
   { categories: 'service.beauty.hairdresser', limit: 60, slots: 25, diversify: false },
