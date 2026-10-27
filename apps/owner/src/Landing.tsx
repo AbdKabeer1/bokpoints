@@ -6,11 +6,14 @@ import {
   Building2,
   Check,
   Gift,
+  Inbox,
   MapPin,
   Percent,
   QrCode,
+  Send,
   ShieldCheck,
   Store,
+  Ticket,
   Users,
 } from 'lucide-react';
 import { signIn } from './auth';
@@ -38,19 +41,26 @@ const SERVICES = [
     points: ['60-second QR', 'No stacking', 'No platform cut'],
   },
   {
+    icon: Send,
+    title: 'Campaigns that respect consent',
+    body: 'Write a short message, send it in-app only to customers who opted in, and see the reach and the opens. No bought lists.',
+    points: ['Opt-in only', 'Reach and opens', 'Per store'],
+  },
+  {
     icon: Users,
     title: 'Know who comes back',
-    body: 'See balances, visit history and contact details, adjust points with a reason, and send in-app campaigns only to customers who opted in.',
-    points: ['Customer history', 'Audited adjustments', 'Consent-aware campaigns'],
+    body: 'See balances, visit history and contact details, and adjust points with a reason. Every change is written to the audit log.',
+    points: ['Customer history', 'Audited adjustments', 'Consent per store'],
+  },
+  {
+    icon: MapPin,
+    title: 'The local business directory',
+    body: 'Every OmaPointii shop plus nearby businesses in the customer Stores tab, sorted by distance. Owners can invite the shops around them.',
+    points: ['Nearby discovery', 'Distance sorted', 'One-click invites'],
   },
 ];
 
 const MORE = [
-  {
-    icon: MapPin,
-    title: 'Nearby businesses',
-    body: 'See the shops and services around you and invite the ones you rate to join OmaPointii.',
-  },
   {
     icon: Building2,
     title: 'Branches and team',
@@ -60,6 +70,34 @@ const MORE = [
     icon: BarChart3,
     title: 'Reports and audit',
     body: 'Thirty-day numbers for points, redemptions and visits, with every change in an append-only log.',
+  },
+  {
+    icon: Store,
+    title: 'Your store profile',
+    body: 'Your name, address, logo and colours on the customer’s store page, with the categories that fit your shop.',
+  },
+];
+
+const CUSTOMER_FEATURES = [
+  {
+    icon: Inbox,
+    title: 'Inbox',
+    body: 'Store news and campaign messages, only from the shops the customer opted into.',
+  },
+  {
+    icon: Percent,
+    title: 'Offers',
+    body: 'Active sales offers and basket discounts from their shops, ready at the till.',
+  },
+  {
+    icon: Ticket,
+    title: 'Coupons',
+    body: 'Rewards they can afford now, with a progress bar to the next one.',
+  },
+  {
+    icon: MapPin,
+    title: 'Stores',
+    body: 'Every OmaPointii shop plus nearby businesses, sorted by distance with contact details.',
   },
 ];
 
@@ -415,6 +453,28 @@ export function Landing({ onSignedIn }: { onSignedIn: () => void }) {
             </div>
             <p className="mkt-mock-caption">A preview of the customer app.</p>
           </div>
+        </div>
+      </section>
+
+      <section className="mkt-section mkt-section-soft" id="inside">
+        <div className="mkt-section-head">
+          <h2>Inside the customer app.</h2>
+          <p>
+            Four tabs cover the whole wallet: messages, offers, coupons and the local business
+            directory.
+          </p>
+        </div>
+
+        <div className="mkt-customer-grid">
+          {CUSTOMER_FEATURES.map((feature) => (
+            <article className="mkt-customer-card" key={feature.title}>
+              <span className="mkt-icon" aria-hidden="true">
+                <feature.icon size={17} strokeWidth={2} />
+              </span>
+              <h3>{feature.title}</h3>
+              <p>{feature.body}</p>
+            </article>
+          ))}
         </div>
       </section>
 
