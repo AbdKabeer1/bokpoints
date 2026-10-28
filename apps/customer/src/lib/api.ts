@@ -205,9 +205,20 @@ export interface StoreReward {
   pointsCost: number;
 }
 
+/** One earning rule as the customer sees it: what it gives and when it applies. */
+export interface StoreRule {
+  ruleId: string;
+  version: number;
+  definition: { type: string; [key: string]: unknown };
+}
+
 /** The store's active rewards, cheapest first (D-138). */
 export const getStoreRewards = (token: string, storeId: string) =>
   request<{ rewards: StoreReward[] }>(`/v1/customer/stores/${storeId}/rewards`, token);
+
+/** The store's earning rules in plain language (WP6). */
+export const getStoreRules = (token: string, storeId: string) =>
+  request<{ rules: StoreRule[] }>(`/v1/customer/stores/${storeId}/rules`, token);
 
 export interface DiscountProof {
   proof: string;

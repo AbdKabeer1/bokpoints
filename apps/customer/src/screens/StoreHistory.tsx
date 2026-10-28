@@ -14,9 +14,11 @@ import {
   getDiscountProof,
   getHistory,
   getStoreRewards,
+  getStoreRules,
   setStoreConsent,
   type DiscountProof,
   type History,
+  type StoreRule,
   type StoreReward,
   type StoreSummary,
 } from '../lib/api';
@@ -52,6 +54,33 @@ export function StoreHistory({ token, store, onBack }: StoreHistoryProps) {
   const [error, setError] = useState<string | null>(null);
   const [consent, setConsent] = useState(store.marketingConsent);
   const [consentBusy, setConsentBusy] = useState(false);
+  const [rules, setRules] = useState<StoreRule[] | null>(null);
+
+  /** Turns an earning rule into plain language the customer can read. */
+  function ruleText(rule: StoreRule): string {
+    const def = rule.definition as { type: string; pointsPerEuroThousandths?: number; points?: number; everyN?: number; rounding?: string; minSpendCents?: number };
+    const type = def.type;
+    switch (type) {
+      case 'per_euro': {
+        const rate = (def.pointsPerEuroThousandths ?? 1000) / 1000;
+        const min = def.minSpendCents ?? 0;
+        return `€${min > 0 ? min / 100 : ''} per €${rate % 1 === 0 ? rate.toFixed(0) : rate.toFixed(1)}${min > 0 ? ` spent (min €${min / 100})` : ''}`;
+      }
+      case 'fixed_per_purchase': {
+        const min = def.minSpendCents ?? 0;
+        return `${def.points} points per purchase${min > 0 ? ` (min €${min / 100})` : ''}`;
+      }
+      case 'threshold_bonus': {
+        const min = def.minSpendCents ?? 0;
+        return `+${def.points} bonus pts on purchases of €${min / 100} or more`;
+      }
+      case 'every_nth_visit': {
+        return `+${def.points} pts on every ${def.everyN}ᵗʰ visit`;
+      }
+      default:
+        return `${def.points ?? 0} pts`;
+    }
+  }
 
   const refreshProof = useCallback(async () => {
     try {
@@ -94,6 +123,14 @@ export function StoreHistory({ token, store, onBack }: StoreHistoryProps) {
         if (!cancelled) setRewards(loaded.rewards);
       } catch {
         if (!cancelled) setRewards(null);
+      }
+    })();
+    void (async () => {
+      try {
+        const loaded = await getStoreRules(token, store.storeId);
+        if (!cancelled) setRules(loaded.rules);
+      } catch {
+        if (!cancelled) setRules([]);
       }
     })();
     return () => {
@@ -174,6 +211,22 @@ export function StoreHistory({ token, store, onBack }: StoreHistoryProps) {
               </View>
             );
           })}
+        </Card>
+      )}
+
+      {rules !== null && rules.length > 0 && (
+        <Card style={{ marginBottom: 14 }}>
+          <Text style={styles.cardLabel}>How you earn here</Text>
+          {rules.map((rule) => (
+            <View key={rule.ruleId} style={styles.rewardRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rewardName}>{ruleText(rule)}</Text>
+                <Text style={styles.rewardCost}>
+                  Version {rule.version} · Active
+                </Text>
+              </View>
+            </View>
+          ))}
         </Card>
       )}
 

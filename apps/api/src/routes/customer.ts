@@ -1,4 +1,5 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
+import type { z } from 'zod';
 import {
   apiErrorSchema,
   customerExpiringQuerySchema,
@@ -53,6 +54,9 @@ import { issueDiscountProof, proofExpiresAt } from '../db/discount-proof.js';
 import { discoverNearby, lastDiscoveryError } from '../lib/overpass.js';
 import { discoverCache, DISCOVER_TTL_MS } from '../lib/discover-cache.js';
 import { discountRules } from '../db/schema.js';
+import { listStoreRules } from '../db/earning-rules.js';
+import type { earningRuleDefinitionSchema } from '@bokpoints/shared';
+import { earningRulesResponseSchema } from '@bokpoints/shared';
 import { and, eq } from 'drizzle-orm';
 
 export interface CustomerRouteOptions {
@@ -797,6 +801,62 @@ export const customerRoutes: FastifyPluginAsyncZod<CustomerRouteOptions> = async
       });
     },
   );
+
+  /**
+   * The store's earning rules as the customer sees them: plain-language
+   * descriptions of how points are earned here. Read-only — the owner
+   * portal creates and edits rules.
+   */
+  app.get(
+    '/v1/customer/stores/:storeId/rules',
+    {
+      config: { rateLimit: rateLimit ?? { max: 60, timeWindow: '1 minute' } },
+      schema: {
+        params: storeIdParamsSchema,
+        response: {
+          200: earningRulesResponseSchema,
+          401: apiErrorSchema,
+          403: apiErrorSchema,
+          404: apiErrorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const principal = await resolve(request.headers.authorization);
+      if (principal === null) {
+        return reply
+          .code(401)
+          .send({ error: { code: 'INVALID_TOKEN', message: 'That access token is not valid' } });
+      }
+
+      const customer = await provision(principal);
+      if (customer instanceof CustomerError) {
+        return reply
+          .code(403)
+          .send({ error: { code: customer.code, message: customer.message } });
+      }
+
+      const rules = await listStoreRules(db, request.params.storeId);
+      if (rules === null) {
+        return reply.code(404).send({ error: { code: 'STORE_NOT_FOUND', message: 'No such store' } });
+      }
+
+      // Only active rules that have taken effect are shown to the customer.
+      const active = rules.filter((rule) => rule.status === 'active');
+      return reply.code(200).send({
+        rules: active.map((rule) => ({
+          ruleId: rule.id,
+          ruleKey: rule.ruleKey,
+          definition: rule.definition as z.infer<typeof earningRuleDefinitionSchema>,
+          version: rule.version,
+          status: rule.status,
+          effectiveFrom: rule.effectiveFrom.toISOString(),
+          createdAt: rule.createdAt.toISOString(),
+        })),
+      });
+    },
+  );
+
   /**
    * A5: the customer's own data as JSON. Rate-limited to a few requests an
    * hour because it reads their whole ledger.
