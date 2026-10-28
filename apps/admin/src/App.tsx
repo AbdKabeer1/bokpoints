@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ApiError, getMe, listSubscriptions, type Me } from './api';
+import { ApiError, getMe, getSafetySignals, listSubscriptions, type Me } from './api';
 import { assuranceLevel, onAuthChange, signOut, supabase } from './auth';
 import { Shell, type Tab } from './Shell';
 import { Login } from './Login';
@@ -34,6 +34,7 @@ export function App() {
   const [tab, setTab] = useState<Tab>('stores');
   const [openStoreId, setOpenStoreId] = useState<string | null>(null);
   const [failedPayments, setFailedPayments] = useState(0);
+  const [safetySignals, setSafetySignals] = useState(0);
 
   const refresh = useCallback(async () => {
     const { data } = await supabase.auth.getSession();
@@ -72,8 +73,9 @@ export function App() {
     return onAuthChange(() => void refresh());
   }, [refresh]);
 
-  // The sidebar badge counts subscriptions that need attention. A failure
-  // just leaves it at zero; the page itself explains the state.
+  // The sidebar badge counts subscriptions that need attention and safety
+  // signals above the pilot thresholds. A failure just leaves it at zero;
+  // the page itself explains the state.
   useEffect(() => {
     if (phase.kind !== 'ready') return;
     let cancelled = false;
@@ -92,6 +94,12 @@ export function App() {
         }
       } catch {
         if (!cancelled) setFailedPayments(0);
+      }
+      try {
+        const signals = await getSafetySignals(phase.token);
+        if (!cancelled) setSafetySignals(signals.signals.length);
+      } catch {
+        if (!cancelled) setSafetySignals(0);
       }
     })();
     return () => {
@@ -193,7 +201,7 @@ export function App() {
         <Shell
           me={phase.me}
           active={openStoreId === null ? tab : 'stores'}
-          badges={{ subscriptions: failedPayments, safety: 0 }}
+          badges={{ subscriptions: failedPayments, safety: safetySignals }}
           idleWarning={idleWarn}
           onNavigate={(next) => {
             setTab(next);
