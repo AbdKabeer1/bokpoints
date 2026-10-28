@@ -8,6 +8,7 @@ import {
 } from './auth/supabase-session.js';
 import { createDb, createPool } from './db/client.js';
 import { loadEnv } from './env.js';
+import { startDiscoveryWarmer } from './lib/discovery-warmer.js';
 
 const sentryDsn = process.env['SENTRY_DSN'];
 if (sentryDsn !== undefined && sentryDsn !== '') {
@@ -139,3 +140,6 @@ app.addHook('onClose', async () => {
 });
 
 await app.listen({ port: env.PORT, host: env.HOST });
+
+// Warm the Helsinki discovery cache so the first customer load is fast.
+startDiscoveryWarmer();

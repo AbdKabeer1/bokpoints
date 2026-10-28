@@ -50,7 +50,8 @@ import type { CustomerProfile } from '../db/customers.js';
 import type { AuthUserDeleter, EmailOtpVerifier } from '../auth/supabase-admin.js';
 import { recordFeedback } from '../db/feedback.js';
 import { issueDiscountProof, proofExpiresAt } from '../db/discount-proof.js';
-import { discoverNearby, lastDiscoveryError, type NearbyPlace } from '../lib/overpass.js';
+import { discoverNearby, lastDiscoveryError } from '../lib/overpass.js';
+import { discoverCache, DISCOVER_TTL_MS } from '../lib/discover-cache.js';
 import { discountRules } from '../db/schema.js';
 import { and, eq } from 'drizzle-orm';
 
@@ -98,8 +99,6 @@ export const customerRoutes: FastifyPluginAsyncZod<CustomerRouteOptions> = async
 ) => {
   const { db, customerResolver, rateLimit } = options;
   const discover = options.discover ?? discoverNearby;
-  const discoverCache = new Map<string, { places: NearbyPlace[]; at: number }>();
-  const DISCOVER_TTL_MS = 5 * 60 * 1000;
   const ATTRIBUTION = '© OpenStreetMap contributors';
   const provider = process.env.GEOAPIFY_API_KEY ? 'geoapify' : 'overpass';
 
