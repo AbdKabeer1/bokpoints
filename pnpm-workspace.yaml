@@ -2,6 +2,9 @@ packages:
   - apps/*
   - packages/*
 
+overrides:
+  node-forge: 1.4.1
+
 # esbuild ships a prebuilt platform binary and needs its postinstall to link it.
 allowBuilds:
   esbuild: true

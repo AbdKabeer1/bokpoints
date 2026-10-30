@@ -2,17 +2,18 @@
 
 ## Dependency audit allowlist
 
-`pnpm audit --prod` currently reports two **high** advisories. Both paths run
-through the Expo command-line build tool in the customer app; that tool builds
-the app and is not shipped inside it. Real exposure is low.
+`pnpm audit --prod` currently reports one **high** and one **low** advisory.
+Both paths run through the Expo command-line build tool in the customer app;
+that tool builds the app and is not shipped inside it. Real exposure is low.
 
 | Package | Advisory | Why accepted | Re-check |
 | --- | --- | --- | --- |
-| `node-forge` | GHSA-86w9-cpqp-85rv | No patched version exists; used only by `@expo/cli` at build time | Every Expo upgrade |
 | `zod` < 4.6.6 | GHSA-mrhx-c7xc-m3w5 | Pulled by `@expo/cli`; the app's own zod is current | Every Expo upgrade |
+| `deepmerge` 4.3.1 | GHSA-gcqx-w48m-w2h4 | No patched release; pulled by Expo config tooling and not shipped in the app | Every Expo upgrade |
 
-The CI audit step reports the result but does not block. Remove a row when the
-dependency is patched or the Expo toolchain drops it.
+The compatible `node-forge` 1.4.1 patch is pinned through a root pnpm override.
+CI blocks critical advisories and reports the accepted lower-severity findings
+above. Remove a row when the dependency is patched or Expo drops it.
 
 ## Secrets
 
