@@ -21,6 +21,7 @@ export default defineConfig({
           name: 'unit',
           include: ['packages/*/src/**/*.test.ts', 'apps/*/test/unit/**/*.test.ts'],
           environment: 'node',
+          env: { DISCOUNT_PROOF_SECRET: 'automated-test-discount-proof-secret' },
         },
       },
       {
@@ -29,6 +30,7 @@ export default defineConfig({
           name: 'integration',
           include: ['apps/*/test/integration/**/*.test.ts'],
           environment: 'node',
+          env: { DISCOUNT_PROOF_SECRET: 'automated-test-discount-proof-secret' },
           testTimeout: 30_000,
           hookTimeout: 30_000,
           fileParallelism: false,

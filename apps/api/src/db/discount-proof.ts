@@ -6,10 +6,9 @@ import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto
  * once. It exists so a discount can only be quoted from a fresh, online,
  * customer-present code — a screenshot of last week's QR is worthless.
  *
- * The signing key is the dedicated DISCOUNT_PROOF_SECRET. Until that value is
- * installed in Render it falls back to the Supabase secret key so a deploy
- * never takes the till down; the development fallback only runs outside
- * production. Nothing here is used offline: D-133 has no offline discounts.
+ * The signing key is the dedicated DISCOUNT_PROOF_SECRET. A fixed fallback is
+ * available only for local development; every other environment fails closed.
+ * Nothing here is used offline: D-133 has no offline discounts.
  */
 const PREFIX = 'POKDSC';
 export const PROOF_TTL_MS = 60_000;
@@ -24,10 +23,16 @@ export interface ProofPayload {
 }
 
 function signingKey(): Buffer {
+  const configured = process.env['DISCOUNT_PROOF_SECRET']?.trim();
   const secret =
-    process.env['DISCOUNT_PROOF_SECRET'] ??
-    process.env['SUPABASE_SECRET_KEY'] ??
-    'dev-discount-proof-secret';
+    configured && configured !== ''
+      ? configured
+      : process.env['NODE_ENV'] === 'development'
+        ? 'local-development-discount-proof-secret'
+        : null;
+  if (secret === null) {
+    throw new Error('DISCOUNT_PROOF_SECRET is required outside local development');
+  }
   return createHash('sha256').update(secret).digest();
 }
 

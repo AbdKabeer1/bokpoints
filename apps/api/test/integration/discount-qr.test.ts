@@ -63,7 +63,9 @@ const issueProof = async () =>
 /** Crafts a signed proof with an arbitrary payload, like a real client would receive. */
 function craftProof(payload: Record<string, unknown>): string {
   const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
-  const key = createHash('sha256').update('dev-discount-proof-secret').digest(); // the dev fallback
+  const secret = process.env.DISCOUNT_PROOF_SECRET;
+  if (!secret) throw new Error('The integration test needs DISCOUNT_PROOF_SECRET');
+  const key = createHash('sha256').update(secret).digest();
   const sig = createHmac('sha256', key).update(body).digest('base64url');
   return `POKDSC.${body}.${sig}`;
 }
