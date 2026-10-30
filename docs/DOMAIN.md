@@ -33,8 +33,10 @@ needs a Postgres connection.
 
 **Recommended for the pilot**
 
-- **Static apps → Vercel** (free): four projects, each pointing at its `dist/`.
-  Custom domains and TLS are automatic.
+- **Static apps → Vercel** (free): four projects receive prebuilt `dist/`
+  uploads together with each app's `vercel.json`. Custom domains and TLS are
+  automatic. Never upload `dist/` without `--local-config`; doing so drops the
+  repository's browser security headers.
 - **API → Render** (free to start, Starter about $7/month): the repository carries
   `render.yaml` as a Blueprint, so the service, env names and health check are read from
   the repo. Railway is an equivalent alternative when its sign-ups are open.
@@ -166,7 +168,31 @@ proof store in memory. One instance only until that moves to Postgres or Redis.
 1. API first: deploy, set env, run migrations against the production database
    (`pnpm db:migrate` with the production `DATABASE_URL`), check
    `curl https://api.omapointii.store/v1/health`.
-2. The four static apps with `VITE_API_BASE` / `EXPO_PUBLIC_API_BASE` set.
+2. Build the four static apps with `VITE_API_BASE` / `EXPO_PUBLIC_API_BASE`
+   set, then upload each prebuilt directory with its matching configuration.
+   Production deployment requires explicit approval:
+
+   ```bash
+   EXPO_PUBLIC_API_BASE=https://api.omapointii.store pnpm --filter @bokpoints/customer build
+   npx vercel deploy apps/customer/dist --project poket-app --local-config apps/customer/vercel.json --yes --prod
+
+   VITE_API_BASE=https://api.omapointii.store pnpm --filter @bokpoints/web build
+   npx vercel deploy apps/web/dist --project poket-till --local-config apps/web/vercel.json --yes --prod
+
+   VITE_API_BASE=https://api.omapointii.store pnpm --filter @bokpoints/owner build
+   npx vercel deploy apps/owner/dist --project poket-portal --local-config apps/owner/vercel.json --yes --prod
+
+   VITE_API_BASE=https://api.omapointii.store pnpm --filter @bokpoints/admin build
+   npx vercel deploy apps/admin/dist --project poket-admin --local-config apps/admin/vercel.json --yes --prod
+   ```
+
+   After every deployment, verify the live response includes enforced CSP,
+   anti-framing, MIME-sniffing, referrer and permissions headers:
+
+   ```bash
+   curl -sSI https://app.omapointii.store \
+     | grep -Ei '^(content-security-policy|x-frame-options|x-content-type-options|referrer-policy|permissions-policy):'
+   ```
 3. DNS and TLS, then Supabase URLs and SMTP.
 4. Smoke test in this order:
    - open each hostname, no console errors;

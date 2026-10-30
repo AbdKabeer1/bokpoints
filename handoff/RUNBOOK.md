@@ -287,13 +287,38 @@ pnpm db:migrate
 
 ## Deploy
 
-Not set up. The API needs an EU container host and the web app a static host, and
-neither provider has been chosen yet (`docs/DECISIONS.md` D-059). The API builds to
-`apps/api/dist` and starts with `node dist/server.js`, with `DATABASE_URL`, `PORT`,
-`HOST` and `LOG_LEVEL` supplied by the host's secret store. The screen builds to
-`apps/web/dist`; set `VITE_API_BASE` to the API origin at build time (without it the
-screen calls the same origin, which is what the dev proxy provides), and add that
-origin to the API's CORS allow-list when the API gets one with the deploy.
+The API deploys to Render from `render.yaml`. The four static apps deploy to
+Vercel as prebuilt directories. Production deployment requires explicit approval.
+
+Always pass the matching `vercel.json`: uploading only `dist/` silently omits CSP,
+anti-framing, MIME-sniffing, referrer and permissions headers.
+
+```bash
+EXPO_PUBLIC_API_BASE=https://api.omapointii.store pnpm --filter @bokpoints/customer build
+npx vercel deploy apps/customer/dist --project poket-app --local-config apps/customer/vercel.json --yes --prod
+
+VITE_API_BASE=https://api.omapointii.store pnpm --filter @bokpoints/web build
+npx vercel deploy apps/web/dist --project poket-till --local-config apps/web/vercel.json --yes --prod
+
+VITE_API_BASE=https://api.omapointii.store pnpm --filter @bokpoints/owner build
+npx vercel deploy apps/owner/dist --project poket-portal --local-config apps/owner/vercel.json --yes --prod
+
+VITE_API_BASE=https://api.omapointii.store pnpm --filter @bokpoints/admin build
+npx vercel deploy apps/admin/dist --project poket-admin --local-config apps/admin/vercel.json --yes --prod
+```
+
+Verify every live app after deployment:
+
+```bash
+for host in app till portal admin; do
+  echo "$host.omapointii.store"
+  curl -sSI "https://$host.omapointii.store" \
+    | grep -Ei '^(content-security-policy|x-frame-options|x-content-type-options|referrer-policy|permissions-policy):'
+done
+```
+
+Each host must return all five headers. `Content-Security-Policy-Report-Only`
+does not count. Run `pnpm security:static` before deploying.
 
 ## CI
 
