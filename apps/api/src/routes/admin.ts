@@ -18,7 +18,6 @@ import {
   adminSupportQuerySchema,
   adminSupportResponseSchema,
   apiErrorSchema,
-  businessLeadSchema,
   leadsResponseSchema,
   clawbackRequestSchema,
   createdStoreResponseSchema,
@@ -30,7 +29,6 @@ import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { authorizeAdminRequest, hasRecentMfa } from '../auth/authorize.js';
 import {
   auditLogEntries,
-  businessLeads,
   customers,
   earningRules,
   pointsBalances,
