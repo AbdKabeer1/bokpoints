@@ -195,6 +195,13 @@ describe('owner business leads', () => {
     const first = await inject('POST', `/v1/stores/${storeId}/leads`, email, body);
     expect(first.statusCode).toBe(201);
 
+    const unsafe = await inject('POST', `/v1/stores/${storeId}/leads`, email, {
+      ...body,
+      osmId: 'node/unsafe',
+      website: 'javascript:alert(1)',
+    });
+    expect(unsafe.statusCode, unsafe.payload).toBe(400);
+
     const second = await inject('POST', `/v1/stores/${storeId}/leads`, email, body);
     expect(second.statusCode).toBe(200);
 

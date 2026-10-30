@@ -18,6 +18,7 @@ describe('discoverNearby', () => {
                 amenity: 'cafe',
                 'addr:street': 'Testikatu',
                 'addr:housenumber': '1',
+                website: 'https://cafe.test/menu',
               },
             },
             {
@@ -41,8 +42,36 @@ describe('discoverNearby', () => {
       name: 'Cafe Test',
       category: 'Cafe',
       address: 'Testikatu 1',
+      website: 'https://cafe.test/menu',
     });
     expect(places[0]?.distanceKm).toBeGreaterThan(0);
+  });
+
+  it('removes unsafe or malformed OSM website links', async () => {
+    const websites = [
+      'javascript:alert(1)',
+      'data:text/html,unsafe',
+      'not a url',
+      '/relative/path',
+    ];
+    const fakeFetch = (async () =>
+      ({
+        ok: true,
+        json: async () => ({
+          elements: websites.map((website, index) => ({
+            type: 'node',
+            id: index + 10,
+            lat: 60.17 + index * 0.001,
+            lon: 24.94,
+            tags: { name: `Unsafe ${index}`, amenity: 'cafe', website },
+          })),
+        }),
+      }) as unknown as Response) as typeof fetch;
+
+    const places = await discoverNearby({ lat: 60.17, lon: 24.94, radiusKm: 10 }, fakeFetch);
+
+    expect(places).toHaveLength(websites.length);
+    expect(places.every((place) => place.website === null)).toBe(true);
   });
 
   it('returns an empty list when Overpass fails', async () => {
@@ -70,10 +99,11 @@ describe('discoverNearby', () => {
                   street: 'Testikatu',
                   housenumber: '1',
                   postcode: '00100',
-                  city: 'Helsinki',
-                  lat: 60.17,
-                  lon: 24.94,
-                },
+                   city: 'Helsinki',
+                   lat: 60.17,
+                   lon: 24.94,
+                   website: 'javascript:alert(1)',
+                 },
               },
             ],
           }),
@@ -84,6 +114,7 @@ describe('discoverNearby', () => {
         name: 'Salon Test',
         category: 'Barber',
         address: 'Testikatu 1, 00100 Helsinki, Finland',
+        website: null,
       });
     } finally {
       if (previous === undefined) delete process.env.GEOAPIFY_API_KEY;

@@ -48,6 +48,18 @@ const titleCase = (value: string): string =>
     .replace(/_/g, ' ')
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 
+/** Keep only links that are safe to expose as clickable business websites. */
+export function safeHttpUrl(value: string | undefined): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  try {
+    const url = new URL(trimmed);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? trimmed : null;
+  } catch {
+    return null;
+  }
+}
+
 function categoryFor(tags: Record<string, string>): string | null {
   const amenity = tags.amenity;
   if (amenity && AMENITY_CATEGORIES[amenity]) return AMENITY_CATEGORIES[amenity];
@@ -161,7 +173,7 @@ out center 120;`;
         distanceKm: Number(distanceKm.toFixed(1)),
         latitude: lat,
         longitude: lon,
-        website: tags.website ?? tags['contact:website'] ?? null,
+        website: safeHttpUrl(tags.website ?? tags['contact:website']),
         phone: tags.phone ?? tags['contact:phone'] ?? null,
         openingHours: tags.opening_hours ?? null,
       });
@@ -460,7 +472,7 @@ function geoapifyPlaces(
       distanceKm: Number(haversineKm(input.lat, input.lon, lat, lon).toFixed(1)),
       latitude: lat,
       longitude: lon,
-      website: props.website ?? null,
+      website: safeHttpUrl(props.website),
       phone: props.phone ?? null,
       openingHours: props.opening_hours ?? null,
     });

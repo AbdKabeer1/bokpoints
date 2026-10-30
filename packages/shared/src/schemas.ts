@@ -1055,12 +1055,28 @@ export const discoverResponseSchema = z.object({
 
 /* ── Owner portal: nearby business leads (D-170) ────────────────────────── */
 
+const httpWebsiteSchema = z
+  .string()
+  .trim()
+  .max(320)
+  .refine(
+    (value) => {
+      try {
+        const protocol = new URL(value).protocol;
+        return protocol === 'http:' || protocol === 'https:';
+      } catch {
+        return false;
+      }
+    },
+    { message: 'Website must use http:// or https://' },
+  );
+
 export const leadCreateRequestSchema = z.object({
   osmId: z.string().trim().min(1).max(120),
   name: z.string().trim().min(1).max(160),
   category: z.string().trim().max(80).nullable(),
   address: z.string().trim().max(240).nullable(),
-  website: z.string().trim().max(320).nullable(),
+  website: httpWebsiteSchema.nullable(),
   phone: z.string().trim().max(80).nullable(),
   openingHours: z.string().trim().max(240).nullable(),
   latitude: z.number().min(-90).max(90),
