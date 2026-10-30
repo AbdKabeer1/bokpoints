@@ -95,6 +95,15 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
 
+  // Responses reached with a bearer token can contain customer, staff or
+  // store data. Keep browsers and intermediary caches from retaining them.
+  app.addHook('onSend', async (request, reply, payload) => {
+    if (request.headers.authorization !== undefined) {
+      reply.header('Cache-Control', 'no-store');
+    }
+    return payload;
+  });
+
   const enableDocs = options.enableDocs ?? true;
 
   // Security headers. The content security policy is relaxed only while the
