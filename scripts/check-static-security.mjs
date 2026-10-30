@@ -56,4 +56,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log(`Checked ${configs.length} Vercel security configurations.`);
+console.warn(`Checked ${configs.length} Vercel security configurations.`);
