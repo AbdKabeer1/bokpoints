@@ -1,4 +1,5 @@
-import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
+import { randomUUID } from 'node:crypto';
+import type { FastifyPluginAsyncZod, ZodTypeProvider } from 'fastify-type-provider-zod';
 import {
   adjustmentResponseSchema,
   adminAnalyticsResponseSchema,
@@ -23,6 +24,8 @@ import {
   createdStoreResponseSchema,
   createStoreRequestSchema,
   customerParamsSchema,
+  devAdminTokenRequestSchema,
+  devAdminTokenResponseSchema,
   storeIdParamsSchema,
 } from '@bokpoints/shared';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
@@ -42,14 +45,16 @@ import {
 import { LedgerError, recordFraudClawback, type LedgerErrorCode } from '../db/ledger.js';
 import { anonymiseCustomer, clearCustomerAuthUserId } from '../db/customers.js';
 import { listFeedback, recordFeedback } from '../db/feedback.js';
-import { createStaffAccountForInvite, StaffAccountError } from '../db/staff.js';
+import {
+  createStaffAccountForInvite,
+  StaffAccountError,
+  upsertStaffAccount,
+} from '../db/staff.js';
 import { LEDGER_ERROR_STATUS } from './stores.js';
 import type { RouteOptions } from './stores.js';
 
 const bearer = (header: string | undefined): string | undefined =>
   header?.replace(/^Bearer\s+/i, '').trim() || undefined;
-
-const allowDevAuth = process.env.ALLOW_DEV_AUTH === 'true';
 
 /**
  * Development-only endpoint: ensures the admin staff user exists and returns
@@ -57,30 +62,31 @@ const allowDevAuth = process.env.ALLOW_DEV_AUTH === 'true';
  * Only works when ALLOW_DEV_AUTH=true (never in production).
  */
 async function devAdminToken(app: FastifyInstance, db: Database) {
-  if (!allowDevAuth) return;
-
-  const { upsertStaffAccount } = await import('../db/staff.js');
-
-  app.post(
+  const typedApp = app.withTypeProvider<ZodTypeProvider>();
+  typedApp.post(
     '/v1/admin/dev-token',
     {
       config: { rateLimit: { max: 5, timeWindow: '1 minute' } },
+      schema: {
+        body: devAdminTokenRequestSchema,
+        response: {
+          200: devAdminTokenResponseSchema,
+          400: apiErrorSchema,
+        },
+      },
     },
     async (request, reply) => {
-      const { email } = request.body as { email?: string };
-      if (!email) {
-        return reply.code(400).send({ error: { code: 'MISSING_EMAIL', message: 'Email required' } });
-      }
+      const { email } = request.body;
 
       const staffId = await upsertStaffAccount(db, {
-        email: email.toLowerCase(),
+        email,
         name: 'Dev Admin',
         authUserId: randomUUID(),
         isAdmin: true,
       });
 
       return reply.send({
-        token: email.toLowerCase(),
+        token: email,
         note: 'Use this email as the Bearer token with ALLOW_DEV_AUTH=true',
         staffId,
       });
@@ -90,7 +96,6 @@ async function devAdminToken(app: FastifyInstance, db: Database) {
 
 import type { FastifyInstance } from 'fastify';
 import type { Database } from '../db/client.js';
-import { randomUUID } from 'node:crypto';
 
 /**
  * Platform operations, all admin-only (FRD section 2): creating stores with
@@ -99,8 +104,9 @@ import { randomUUID } from 'node:crypto';
 export const adminRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, options) => {
   const { db, sessionResolver, rateLimit } = options;
 
-  // Development-only admin token endpoint
-  await devAdminToken(app, db);
+  if (options.enableDevAdminToken === true) {
+    await devAdminToken(app, db);
+  }
 
   /**
    * Creates a store and everything it needs to start awarding: the store

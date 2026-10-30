@@ -873,6 +873,23 @@ export const adminStoreRowSchema = z.object({
   createdAt: z.string(),
 });
 
+export const devAdminTokenRequestSchema = z
+  .object({
+    email: z
+      .string()
+      .trim()
+      .max(200)
+      .regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'That is not an email address')
+      .transform((value) => value.toLowerCase()),
+  })
+  .strict();
+
+export const devAdminTokenResponseSchema = z.object({
+  token: z.string(),
+  note: z.string(),
+  staffId: z.string().uuid(),
+});
+
 export const adminStoresResponseSchema = z.object({
   stores: z.array(adminStoreRowSchema),
 });

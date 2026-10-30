@@ -111,6 +111,8 @@ export interface RouteOptions {
   deleteAuthUser?: AuthUserDeleter | undefined;
   /** C11 kill switch; false turns awarding off for every store. */
   awardingEnabled?: boolean | undefined;
+  /** Registers the unauthenticated local-development admin bootstrap route. */
+  enableDevAdminToken?: boolean | undefined;
 }
 
 const bearer = (header: string | undefined): string | undefined =>
@@ -2374,4 +2376,3 @@ export const storeRoutes: FastifyPluginAsyncZod<RouteOptions> = async (app, opti
     },
   );
 };
-

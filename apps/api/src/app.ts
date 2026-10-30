@@ -61,6 +61,8 @@ export interface BuildAppOptions {
   globalRateLimit?: RateLimitOptions | false | undefined;
   /** C11 kill switch; false turns awarding off for every store. */
   awardingEnabled?: boolean | undefined;
+  /** Local development only: register the admin-token bootstrap route. */
+  enableDevAdminToken?: boolean | undefined;
   /**
    * Whether the interactive API documentation is served. Off in production.
    */
@@ -196,6 +198,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       sessionResolver: options.sessionResolver,
       rateLimit: options.rateLimit,
       deleteAuthUser: options.deleteAuthUser ?? createAuthUserDeleterFromEnv(),
+      enableDevAdminToken: options.enableDevAdminToken ?? false,
     });
     await app.register(staffRoutes, {
       db: options.db,

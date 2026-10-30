@@ -132,6 +132,8 @@ const app = await buildApp({
   // on the proxy (D-095).
   trustProxy: env.TRUST_PROXY,
   awardingEnabled: env.AWARDING_ENABLED,
+  // This unauthenticated bootstrap helper must not exist in test, staging or production.
+  enableDevAdminToken: env.NODE_ENV === 'development' && env.ALLOW_DEV_AUTH,
 });
 
 app.addHook('onClose', async () => {
