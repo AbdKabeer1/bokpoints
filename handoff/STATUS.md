@@ -2,10 +2,24 @@
 
 **Project:** BOKPOINTS, a B2B2C loyalty platform for SMEs in Finland / EU.
 **Phase:** MVP built; security hardening. P0 items A1–A6 are complete. The builder-side P1/P2 items A5, B1, B3, B5, C5, C6, C7, C9 and C11 are applied; B2/B9 are partly applied. **Next up:** the Sentry DSN value, C9 deep-link validation/privacy labels, B2 UI-brief merge, A5 retention, and the manual platform checks in C1–C4, C10, C12 and C13.
-**Last updated:** 28 Oct 2026, after WP6 customer earning rules went live. 110 unit tests green; full typecheck and lint clean.
+**Last updated:** 20 Nov 2026, customer menu bar made scroll-aware (12 new unit tests, lint/typecheck/web build green). 30 Oct 2026, security review in progress. The 28 Oct claim that lint/CI was clean is stale: the latest five GitHub Actions runs failed on ten unused imports. Live checks also found the static Vercel deployments are not consistently serving the security headers declared in the repository. Remediation is planned in `docs/superpowers/plans/2026-10-30-security-hardening.md`; production deployment and credential rotation require explicit approval.
 
 ## Done
 
+- **Menu bar floats on scroll (customer app).** The bottom tab bar now slides
+  out of view while the customer scrolls down and rises back the moment they
+  scroll up, giving the list the full screen without losing navigation. The
+  rule is distance-since-last-decision (`src/lib/tabBar.ts`) rather than
+  per-event, because browsers report scroll a few pixels at a time; it also
+  pins the bar visible within 8 px of the top so pull-to-refresh can never
+  leave the customer without tabs. The QR button and the profile avatar stay
+  put — only the bar moves. The scroll spacer keeps the bar's height, so
+  content never jumps when it returns, and reduced-motion customers get an
+  instant position change instead of the 180 ms slide; the bar is removed from
+  the accessibility tree and hit testing while hidden. 12 unit tests cover the
+  rule and the wiring. Restored `vitest.config.ts` (tracked but deleted in the
+  working tree, which had broken `pnpm test`) and gave the customer app the
+  `node` types its file-reading tests need, matching `apps/api`.
 - **Till phone-camera fix.** `Scan with camera` now requests rear-camera
   permission directly from the cashier's tap (instead of waiting for a React
   effect), and the camera view now precedes the no-customer branch; previously

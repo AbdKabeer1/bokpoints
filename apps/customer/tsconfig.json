@@ -7,7 +7,10 @@
     "noImplicitOverride": true,
     "noFallthroughCasesInSwitch": true,
     "skipLibCheck": true,
-    "noEmit": true
+    "noEmit": true,
+    // The unit tests read files from disk (privacy notice, tab bar wiring),
+    // so they need the Node types the API app already opts into.
+    "types": ["node"]
   },
   "include": [
     "App.tsx",

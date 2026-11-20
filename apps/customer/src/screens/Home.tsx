@@ -1,6 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  AccessibilityInfo,
   ActivityIndicator,
+  Animated,
+  Easing,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -26,6 +32,7 @@ import {
 } from '../lib/api';
 import { requestLocation, locationAvailability } from '../lib/location';
 import { expiryLabel, formatDate } from '../lib/format';
+import { initialBarState, nextBarState, type BarState } from '../lib/tabBar';
 import { colors, fonts, formatPoints, layout } from '../lib/theme';
 import { Card, SegmentBar, StoreAvatar } from '../components/ui';
 import { QrSheet } from '../components/QrSheet';
@@ -60,6 +67,9 @@ const TABS: { id: Tab; label: string; icon: IconName }[] = [
 
 const firstName = (me: Me): string => (me.customer.name || 'there').split(/\s+/)[0] ?? 'there';
 
+/** The bar's own height, which is also how far it travels to leave the screen. */
+const BAR_HIDDEN_OFFSET = layout.tabBar + 12;
+
 const today = (): string =>
   new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -93,6 +103,56 @@ export function Home({ token, me, onMeChanged, onSignOut }: HomeProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<NearbyPlace[] | null>(null);
   const [searching, setSearching] = useState(false);
+
+  // The menu slides out of the way while the customer reads down the page and
+  // returns as soon as they scroll back up. Only the bar moves: the QR button
+  // and the avatar stay exactly where they are.
+  const [barHidden, setBarHidden] = useState(false);
+  const barState = useRef<BarState>(initialBarState());
+  const barOffset = useRef(new Animated.Value(0)).current;
+  const [reduceMotion, setReduceMotion] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then((enabled) => {
+        if (!cancelled) setReduceMotion(enabled);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const moveBar = useCallback(
+    (hidden: boolean) => {
+      setBarHidden(hidden);
+      const toValue = hidden ? BAR_HIDDEN_OFFSET : 0;
+      if (reduceMotion) {
+        // No slide: the bar simply is or is not there.
+        barOffset.setValue(toValue);
+        return;
+      }
+      Animated.timing(barOffset, {
+        toValue,
+        duration: 180,
+        easing: Easing.out(Easing.cubic),
+        // react-native-web drives transform from the JS thread.
+        useNativeDriver: Platform.OS !== 'web',
+      }).start();
+    },
+    [barOffset, reduceMotion],
+  );
+
+  const handleScroll = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const previous = barState.current;
+      const next = nextBarState(previous, event.nativeEvent.contentOffset.y);
+      barState.current = next;
+      if (next.hidden !== previous.hidden) moveBar(next.hidden);
+    },
+    [moveBar],
+  );
 
   const loadNearby = useCallback(
     async (lat: number, lon: number) => {
@@ -277,6 +337,8 @@ export function Home({ token, me, onMeChanged, onSignOut }: HomeProps) {
       <ScrollView
         style={styles.screen}
         contentContainerStyle={styles.content}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -476,7 +538,17 @@ export function Home({ token, me, onMeChanged, onSignOut }: HomeProps) {
         <Text style={styles.fabText}>My QR</Text>
       </Pressable>
 
-      <View style={styles.tabBar}>
+      <Animated.View
+        accessibilityElementsHidden={barHidden}
+        aria-hidden={barHidden}
+        importantForAccessibility={barHidden ? 'no-hide-descendants' : 'auto'}
+        pointerEvents={barHidden ? 'none' : 'auto'}
+        style={
+          reduceMotion
+            ? [styles.tabBar, barHidden && styles.barHidden]
+            : [styles.tabBar, { transform: [{ translateY: barOffset }] }]
+        }
+      >
         {TABS.map((entry) => {
           const active = entry.id === tab;
           return (
@@ -501,7 +573,7 @@ export function Home({ token, me, onMeChanged, onSignOut }: HomeProps) {
             </Pressable>
           );
         })}
-      </View>
+      </Animated.View>
 
       <PlaceSheet
         visible={selectedPlace !== null}
@@ -713,4 +785,6 @@ const styles = StyleSheet.create({
   },
   tabLabel: { fontFamily: fonts.bodySemi, fontSize: 9.5, color: colors.muted },
   tabLabelOn: { fontFamily: fonts.bodyBold, color: colors.primary },
+  // Reduced motion gets the resting position instead of the slide.
+  barHidden: { transform: [{ translateY: BAR_HIDDEN_OFFSET }] },
 });
